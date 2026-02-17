@@ -34,7 +34,8 @@ fun DashboardScreen(
     uiState: UiState,
     weeklyChartData: List<Pair<String, Double>>,
     onDismissSuggestion: (String) -> Unit,
-    onDeleteTransaction: (String) -> Unit
+    onDeleteTransaction: (String) -> Unit,
+    currencyCode: String = "USD"
 ) {
     LazyColumn(
         modifier = Modifier
@@ -43,22 +44,10 @@ fun DashboardScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(vertical = 16.dp)
     ) {
-        // Balance Card
-        item {
-            BalanceSummaryCard(uiState)
-        }
+        item { BalanceSummaryCard(uiState, currencyCode) }
+        item { QuickStatsRow(uiState, currencyCode) }
+        item { WeeklySpendingChart(weeklyChartData, currencyCode) }
 
-        // Quick Stats
-        item {
-            QuickStatsRow(uiState)
-        }
-
-        // Weekly Chart
-        item {
-            WeeklySpendingChart(weeklyChartData)
-        }
-
-        // AI Suggestions
         if (uiState.suggestions.isNotEmpty()) {
             item {
                 Text(
@@ -69,11 +58,10 @@ fun DashboardScreen(
                 )
             }
             items(uiState.suggestions.take(3)) { suggestion ->
-                AiSuggestionCard(suggestion, onDismiss = { onDismissSuggestion(suggestion.id) })
+                AiSuggestionCard(suggestion, currencyCode, onDismiss = { onDismissSuggestion(suggestion.id) })
             }
         }
 
-        // Category Breakdown
         if (uiState.categoryBreakdown.isNotEmpty()) {
             item {
                 Text(
@@ -83,12 +71,9 @@ fun DashboardScreen(
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
-            item {
-                CategoryBreakdownCard(uiState.categoryBreakdown, uiState.monthlyExpenses)
-            }
+            item { CategoryBreakdownCard(uiState.categoryBreakdown, uiState.monthlyExpenses, currencyCode) }
         }
 
-        // Recent Transactions
         item {
             Text(
                 "Recent Transactions",
@@ -105,23 +90,15 @@ fun DashboardScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
+                        modifier = Modifier.fillMaxWidth().padding(32.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(
-                            Icons.Outlined.ReceiptLong,
-                            contentDescription = null,
+                        Icon(Icons.Outlined.ReceiptLong, contentDescription = null,
                             modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            "No transactions yet",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Text("No transactions yet", style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(
                             "Add one manually, scan a receipt, or enable SMS/notification tracking",
                             style = MaterialTheme.typography.bodySmall,
@@ -132,7 +109,7 @@ fun DashboardScreen(
             }
         } else {
             items(uiState.recentTransactions.take(10)) { transaction ->
-                TransactionItem(transaction, onDelete = { onDeleteTransaction(transaction.id) })
+                TransactionItem(transaction, currencyCode, onDelete = { onDeleteTransaction(transaction.id) })
             }
         }
 
@@ -141,7 +118,7 @@ fun DashboardScreen(
 }
 
 @Composable
-fun BalanceSummaryCard(uiState: UiState) {
+fun BalanceSummaryCard(uiState: UiState, currencyCode: String = "USD") {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -151,69 +128,41 @@ fun BalanceSummaryCard(uiState: UiState) {
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                            GreenPrimary,
-                            GreenDark
-                        )
-                    ),
+                    brush = Brush.linearGradient(colors = listOf(GreenPrimary, GreenDark)),
                     shape = RoundedCornerShape(20.dp)
                 )
                 .padding(24.dp)
         ) {
             Column {
-                Text(
-                    "Monthly Balance",
-                    color = Color.White.copy(alpha = 0.8f),
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Text("Monthly Balance", color = Color.White.copy(alpha = 0.8f),
+                    style = MaterialTheme.typography.bodyMedium)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    CurrencyUtils.format(uiState.netBalance),
-                    color = Color.White,
-                    style = MaterialTheme.typography.headlineLarge,
+                    CurrencyUtils.format(uiState.netBalance, currencyCode),
+                    color = Color.White, style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(20.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Filled.ArrowDownward,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.8f),
-                                modifier = Modifier.size(16.dp)
-                            )
+                            Icon(Icons.Filled.ArrowDownward, contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Income", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
                         }
-                        Text(
-                            CurrencyUtils.format(uiState.monthlyIncome),
-                            color = Color.White,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 16.sp
-                        )
+                        Text(CurrencyUtils.format(uiState.monthlyIncome, currencyCode),
+                            color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Filled.ArrowUpward,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.8f),
-                                modifier = Modifier.size(16.dp)
-                            )
+                            Icon(Icons.Filled.ArrowUpward, contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Expenses", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
                         }
-                        Text(
-                            CurrencyUtils.format(uiState.monthlyExpenses),
-                            color = Color.White,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 16.sp
-                        )
+                        Text(CurrencyUtils.format(uiState.monthlyExpenses, currencyCode),
+                            color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                     }
                 }
             }
@@ -222,32 +171,14 @@ fun BalanceSummaryCard(uiState: UiState) {
 }
 
 @Composable
-fun QuickStatsRow(uiState: UiState) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        StatCard(
-            title = "Today",
-            value = CurrencyUtils.formatCompact(uiState.todayExpenses),
-            icon = Icons.Filled.Today,
-            color = BluePrimary,
-            modifier = Modifier.weight(1f)
-        )
-        StatCard(
-            title = "This Week",
-            value = CurrencyUtils.formatCompact(uiState.weeklyExpenses),
-            icon = Icons.Filled.DateRange,
-            color = PurpleAccent,
-            modifier = Modifier.weight(1f)
-        )
-        StatCard(
-            title = "Transactions",
-            value = "${uiState.transactionCount}",
-            icon = Icons.Filled.Receipt,
-            color = OrangeWarning,
-            modifier = Modifier.weight(1f)
-        )
+fun QuickStatsRow(uiState: UiState, currencyCode: String = "USD") {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        StatCard("Today", CurrencyUtils.formatCompact(uiState.todayExpenses, currencyCode),
+            Icons.Filled.Today, BluePrimary, Modifier.weight(1f))
+        StatCard("This Week", CurrencyUtils.formatCompact(uiState.weeklyExpenses, currencyCode),
+            Icons.Filled.DateRange, PurpleAccent, Modifier.weight(1f))
+        StatCard("Transactions", "${uiState.transactionCount}",
+            Icons.Filled.Receipt, OrangeWarning, Modifier.weight(1f))
     }
 }
 
@@ -259,54 +190,27 @@ fun StatCard(
     color: Color,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp)
-        ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = color,
-                modifier = Modifier.size(22.dp)
-            )
+    Card(modifier = modifier, shape = RoundedCornerShape(16.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(22.dp))
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                value,
-                fontWeight = FontWeight.Bold,
-                fontSize = 17.sp
-            )
-            Text(
-                title,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Text(value, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            Text(title, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 @Composable
-fun WeeklySpendingChart(data: List<Pair<String, Double>>) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp)
-    ) {
+fun WeeklySpendingChart(data: List<Pair<String, Double>>, currencyCode: String = "USD") {
+    val sym = CurrencyUtils.symbolFor(currencyCode)
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "This Week",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
+            Text("This Week", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Spacer(modifier = Modifier.height(16.dp))
-
             val maxValue = data.maxOfOrNull { it.second } ?: 1.0
-
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp),
+                modifier = Modifier.fillMaxWidth().height(120.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.Bottom
             ) {
@@ -317,32 +221,19 @@ fun WeeklySpendingChart(data: List<Pair<String, Double>>) {
                         modifier = Modifier.weight(1f)
                     ) {
                         if (amount > 0) {
-                            Text(
-                                "$${String.format("%.0f", amount)}",
-                                fontSize = 9.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Text("$sym${String.format("%.0f", amount)}", fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(modifier = Modifier.height(4.dp))
                         }
                         val height = if (maxValue > 0) (amount / maxValue * 80).coerceAtLeast(4.0) else 4.0
                         Box(
                             modifier = Modifier
-                                .width(28.dp)
-                                .height(height.dp)
+                                .width(28.dp).height(height.dp)
                                 .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
-                                .background(
-                                    if (DateUtils.isToday(System.currentTimeMillis()))
-                                        GreenPrimary
-                                    else
-                                        GreenPrimary.copy(alpha = 0.5f)
-                                )
+                                .background(GreenPrimary.copy(alpha = if (DateUtils.isToday(System.currentTimeMillis())) 1f else 0.5f))
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            day,
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Text(day, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -351,11 +242,9 @@ fun WeeklySpendingChart(data: List<Pair<String, Double>>) {
 }
 
 @Composable
-fun AiSuggestionCard(suggestion: AiSuggestion, onDismiss: () -> Unit) {
+fun AiSuggestionCard(suggestion: AiSuggestion, currencyCode: String = "USD", onDismiss: () -> Unit) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize(),
+        modifier = Modifier.fillMaxWidth().animateContentSize(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = when (suggestion.priority) {
@@ -372,40 +261,27 @@ fun AiSuggestionCard(suggestion: AiSuggestion, onDismiss: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Filled.AutoAwesome,
-                        contentDescription = null,
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = null,
                         tint = when (suggestion.priority) {
                             SuggestionPriority.HIGH -> RedExpense
                             SuggestionPriority.MEDIUM -> OrangeWarning
                             SuggestionPriority.LOW -> BluePrimary
-                        },
-                        modifier = Modifier.size(20.dp)
-                    )
+                        }, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        suggestion.title,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp
-                    )
+                    Text(suggestion.title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 }
                 IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Filled.Close, contentDescription = "Dismiss", modifier = Modifier.size(16.dp))
                 }
             }
             Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                suggestion.description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Text(suggestion.description, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (suggestion.potentialSaving > 0) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "Potential saving: ${CurrencyUtils.format(suggestion.potentialSaving)}/month",
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 12.sp,
-                    color = GreenIncome
+                    "Potential saving: ${CurrencyUtils.format(suggestion.potentialSaving, currencyCode)}/month",
+                    fontWeight = FontWeight.Medium, fontSize = 12.sp, color = GreenIncome
                 )
             }
         }
@@ -413,96 +289,58 @@ fun AiSuggestionCard(suggestion: AiSuggestion, onDismiss: () -> Unit) {
 }
 
 @Composable
-fun CategoryBreakdownCard(breakdown: Map<String, Double>, total: Double) {
+fun CategoryBreakdownCard(breakdown: Map<String, Double>, total: Double, currencyCode: String = "USD") {
     val colors = listOf(
         Color(0xFFE91E63), Color(0xFF2196F3), Color(0xFF9C27B0),
         Color(0xFFFF9800), Color(0xFF4CAF50), Color(0xFF607D8B),
         Color(0xFFF44336), Color(0xFF3F51B5), Color(0xFF795548)
     )
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp)
-    ) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
             breakdown.entries.take(6).forEachIndexed { index, (category, amount) ->
                 val percentage = if (total > 0) amount / total else 0.0
                 val color = colors[index % colors.size]
-
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 6.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(color)
-                    )
+                    Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(color))
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        category,
-                        modifier = Modifier.weight(1f),
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        "${(percentage * 100).toInt()}%",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text(category, modifier = Modifier.weight(1f), fontSize = 13.sp)
+                    Text("${(percentage * 100).toInt()}%", fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        CurrencyUtils.format(amount),
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 13.sp
-                    )
+                    Text(CurrencyUtils.format(amount, currencyCode), fontWeight = FontWeight.Medium, fontSize = 13.sp)
                 }
-
-                // Progress bar
                 LinearProgressIndicator(
                     progress = { percentage.toFloat() },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 20.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp)),
-                    color = color,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(start = 20.dp).height(4.dp).clip(RoundedCornerShape(2.dp)),
+                    color = color, trackColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TransactionItem(transaction: Transaction, onDelete: () -> Unit) {
+fun TransactionItem(
+    transaction: Transaction,
+    currencyCode: String = "USD",
+    onDelete: () -> Unit
+) {
     var showDelete by remember { mutableStateOf(false) }
-
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { showDelete = !showDelete },
+        modifier = Modifier.fillMaxWidth().clickable { showDelete = !showDelete },
         shape = RoundedCornerShape(12.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Category icon
+        Row(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
                     .size(42.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(
-                        if (transaction.type == TransactionType.EXPENSE)
-                            RedExpense.copy(alpha = 0.1f)
-                        else
-                            GreenIncome.copy(alpha = 0.1f)
+                        if (transaction.type == TransactionType.EXPENSE) RedExpense.copy(alpha = 0.1f)
+                        else GreenIncome.copy(alpha = 0.1f)
                     ),
                 contentAlignment = Alignment.Center
             ) {
@@ -519,45 +357,26 @@ fun TransactionItem(transaction: Transaction, onDelete: () -> Unit) {
                     modifier = Modifier.size(20.dp)
                 )
             }
-
             Spacer(modifier = Modifier.width(12.dp))
-
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    transaction.description,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Text(transaction.description, fontWeight = FontWeight.Medium, fontSize = 14.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Row {
-                    Text(
-                        transaction.category,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text(transaction.category, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(" · ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        DateUtils.formatShortDate(transaction.timestamp),
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text(DateUtils.formatShortDate(transaction.timestamp), fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (transaction.source != TransactionSource.MANUAL) {
                         Text(" · ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(
-                            transaction.source.name.lowercase().replace("_", " "),
-                            fontSize = 11.sp,
-                            color = BluePrimary
-                        )
+                        Text(transaction.source.name.lowercase().replace("_", " "),
+                            fontSize = 11.sp, color = BluePrimary)
                     }
                 }
             }
-
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    "${if (transaction.type == TransactionType.EXPENSE) "-" else "+"}${CurrencyUtils.format(transaction.amount)}",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
+                    "${if (transaction.type == TransactionType.EXPENSE) "-" else "+"}${CurrencyUtils.format(transaction.amount, currencyCode)}",
+                    fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
                     color = if (transaction.type == TransactionType.EXPENSE) RedExpense else GreenIncome
                 )
                 if (showDelete) {
@@ -565,9 +384,7 @@ fun TransactionItem(transaction: Transaction, onDelete: () -> Unit) {
                         onClick = onDelete,
                         contentPadding = PaddingValues(0.dp),
                         modifier = Modifier.height(24.dp)
-                    ) {
-                        Text("Delete", fontSize = 11.sp, color = RedExpense)
-                    }
+                    ) { Text("Delete", fontSize = 11.sp, color = RedExpense) }
                 }
             }
         }

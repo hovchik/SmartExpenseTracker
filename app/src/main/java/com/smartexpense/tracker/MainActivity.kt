@@ -45,36 +45,44 @@ fun MainApp(viewModel: MainViewModel) {
     val exchangeRates by viewModel.exchangeRates.collectAsState()
     val scope = rememberCoroutineScope()
 
+    // Shortcut to always-up-to-date currency code
+    val currencyCode = uiState.settings.currencyCode
+
     var currentScreen by remember { mutableStateOf("dashboard") }
 
     Scaffold(
         bottomBar = {
             if (currentScreen != "add" && currentScreen != "scan" && currentScreen != "sms_scan") {
                 NavigationBar(tonalElevation = 2.dp) {
+                    // Home
                     NavigationBarItem(
                         selected = selectedTab == 0,
                         onClick = { viewModel.setSelectedTab(0); currentScreen = "dashboard" },
                         icon = { Icon(if (selectedTab == 0) Icons.Filled.Home else Icons.Outlined.Home, "Home") },
                         label = { Text("Home") }
                     )
+                    // Reports
                     NavigationBarItem(
                         selected = selectedTab == 1,
                         onClick = { viewModel.setSelectedTab(1); currentScreen = "reports" },
-                        icon = { Icon(if (selectedTab == 1) Icons.Filled.Receipt else Icons.Outlined.Receipt, "Reports") },
+                        icon = { Icon(if (selectedTab == 1) Icons.Filled.BarChart else Icons.Outlined.BarChart, "Reports") },
                         label = { Text("Reports") }
                     )
+                    // Add (FAB-style centre item)
                     NavigationBarItem(
                         selected = false,
                         onClick = { currentScreen = "add" },
                         icon = { Icon(Icons.Filled.AddCircle, "Add", modifier = Modifier.size(32.dp)) },
                         label = { Text("Add", fontWeight = FontWeight.Bold) }
                     )
+                    // Transactions
                     NavigationBarItem(
                         selected = selectedTab == 2,
-                        onClick = { viewModel.setSelectedTab(2); currentScreen = "scan" },
-                        icon = { Icon(if (selectedTab == 2) Icons.Filled.CameraAlt else Icons.Outlined.CameraAlt, "Scan") },
-                        label = { Text("Scan") }
+                        onClick = { viewModel.setSelectedTab(2); currentScreen = "transactions" },
+                        icon = { Icon(if (selectedTab == 2) Icons.Filled.Receipt else Icons.Outlined.Receipt, "Transactions") },
+                        label = { Text("History") }
                     )
+                    // Settings
                     NavigationBarItem(
                         selected = selectedTab == 3,
                         onClick = { viewModel.setSelectedTab(3); currentScreen = "settings" },
@@ -86,21 +94,20 @@ fun MainApp(viewModel: MainViewModel) {
         }
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            // Crossfade avoids lifecycle issues that AnimatedContent causes
-            // with rememberLauncherForActivityResult inside child screens
             Crossfade(targetState = currentScreen, label = "screen") { screen ->
                 when (screen) {
                     "dashboard" -> DashboardScreen(
                         uiState = uiState,
                         weeklyChartData = viewModel.getWeeklyChartData(),
                         onDismissSuggestion = { viewModel.dismissSuggestion(it) },
-                        onDeleteTransaction = { viewModel.deleteTransaction(it) }
+                        onDeleteTransaction = { viewModel.deleteTransaction(it) },
+                        currencyCode = currencyCode
                     )
                     "reports" -> ReportsScreen(
                         generateReport = { viewModel.generateReport(it) },
                         currentPeriod = reportPeriod,
                         onPeriodChange = { viewModel.setReportPeriod(it) },
-                        currencyCode = uiState.settings.currencyCode
+                        currencyCode = currencyCode
                     )
                     "add" -> AddTransactionScreen(
                         categories = uiState.categories,
@@ -109,7 +116,13 @@ fun MainApp(viewModel: MainViewModel) {
                                 category = category, type = type, source = source, merchantName = merchant)
                         },
                         onScanReceipt = { currentScreen = "scan" },
-                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) },
+                        currencyCode = currencyCode
+                    )
+                    "transactions" -> TransactionsScreen(
+                        allTransactions = uiState.allTransactions,
+                        currencyCode = currencyCode,
+                        onDeleteTransaction = { viewModel.deleteTransaction(it) }
                     )
                     "scan" -> ScanReceiptScreen(
                         onOcrResult = { text -> viewModel.processOcrText(text) },

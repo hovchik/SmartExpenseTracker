@@ -21,6 +21,7 @@ import com.smartexpense.tracker.data.model.Category
 import com.smartexpense.tracker.data.model.TransactionSource
 import com.smartexpense.tracker.data.model.TransactionType
 import com.smartexpense.tracker.ui.theme.*
+import com.smartexpense.tracker.util.CurrencyUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,8 +29,10 @@ fun AddTransactionScreen(
     categories: List<Category>,
     onAdd: (Double, String, String, TransactionType, TransactionSource, String) -> Unit,
     onScanReceipt: () -> Unit,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    currencyCode: String = "USD"
 ) {
+    val currencySymbol = CurrencyUtils.symbolFor(currencyCode)
     var amount by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("") }
@@ -108,7 +111,7 @@ fun AddTransactionScreen(
                 }
             },
             label = { Text("Amount") },
-            leadingIcon = { Text("$", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+            leadingIcon = { Text(currencySymbol, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),

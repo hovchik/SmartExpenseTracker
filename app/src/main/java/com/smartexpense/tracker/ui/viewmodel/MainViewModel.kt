@@ -81,7 +81,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfWeek..endOfWeek }
             .sumOf { it.amount }
 
-        val recentTransactions = data.transactions.sortedByDescending { it.timestamp }.take(20)
+        val allTransactionsSorted = data.transactions.sortedByDescending { it.timestamp }
+        val recentTransactions = allTransactionsSorted.take(20)
         val categoryBreakdown = data.transactions
             .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfMonth..endOfMonth }
             .groupBy { it.category }
@@ -100,6 +101,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             todayExpenses = todayExpenses, weeklyExpenses = weeklyExpenses,
             netBalance = monthlyIncome - monthlyExpenses,
             recentTransactions = recentTransactions, categoryBreakdown = categoryBreakdown,
+            allTransactions = allTransactionsSorted,
             categories = data.categories,
             suggestions = data.suggestions.filter { !it.isDismissed },
             transactionCount = data.transactions.size, settings = data.settings,
@@ -355,6 +357,8 @@ data class UiState(
     val todayExpenses: Double = 0.0, val weeklyExpenses: Double = 0.0,
     val netBalance: Double = 0.0,
     val recentTransactions: List<Transaction> = emptyList(),
+    /** All transactions sorted newest-first (used by TransactionsScreen). */
+    val allTransactions: List<Transaction> = emptyList(),
     /** Recent transactions grouped by date string, e.g. "2026-02-17" → [Transaction, …]. */
     val transactionsByDate: Map<String, List<Transaction>> = emptyMap(),
     val categoryBreakdown: Map<String, Double> = emptyMap(),
