@@ -1,0 +1,17 @@
+R_DEF: Internal format may change without notice
+local
+color black
+color blue_primary
+color green_dark
+color green_primary
+color orange_warning
+color purple_accent
+color red_expense
+color white
+mipmap ic_launcher
+mipmap ic_launcher_background
+mipmap ic_launcher_foreground
+mipmap ic_launcher_round
+string app_name
+style Theme.SmartExpenseTracker
+xml file_paths

@@ -1,0 +1,548 @@
+package com.smartexpense.tracker.ui.screens
+
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.smartexpense.tracker.data.model.AppSettings
+import com.smartexpense.tracker.data.model.ThemeMode
+import com.smartexpense.tracker.ui.theme.*
+
+@Composable
+fun SettingsScreen(
+    settings: AppSettings,
+    storageInfo: String,
+    onUpdateSettings: (AppSettings) -> Unit,
+    onExportToUri: (Uri) -> Unit,
+    onImportFromUri: (Uri) -> Unit,
+    onClearData: () -> Unit,
+    importExportMessage: String?,
+    onClearMessage: () -> Unit,
+    onScanSms: () -> Unit
+) {
+    val context = LocalContext.current
+    var showClearDialog by remember { mutableStateOf(false) }
+    var showImportConfirmDialog by remember { mutableStateOf(false) }
+    var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
+
+    // SAF launchers
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let { onExportToUri(it) }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            pendingImportUri = it
+            showImportConfirmDialog = true
+        }
+    }
+
+    // Show toast for import/export feedback
+    LaunchedEffect(importExportMessage) {
+        importExportMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            onClearMessage()
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+    ) {
+        Text(
+            "Settings",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ─── Appearance Section ────────────────────────────────────
+        Text(
+            "APPEARANCE",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Filled.Palette,
+                        contentDescription = null,
+                        tint = PurpleAccent,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text("Theme", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Text(
+                            "Choose between Light, Dark, or System default",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Theme Mode Selector — 3-option pill switcher
+                ThemeModePicker(
+                    currentMode = settings.themeMode,
+                    onModeSelected = { mode ->
+                        onUpdateSettings(settings.copy(themeMode = mode))
+                    }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ─── Data Sources Section ──────────────────────────────────
+        Text(
+            "DATA SOURCES",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(4.dp)) {
+                SettingsToggleItem(
+                    icon = Icons.Filled.Sms,
+                    title = "SMS Transaction Detection",
+                    subtitle = "Automatically parse banking SMS messages",
+                    checked = settings.smsParsingEnabled,
+                    onCheckedChange = {
+                        onUpdateSettings(settings.copy(smsParsingEnabled = it))
+                    }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                SettingsToggleItem(
+                    icon = Icons.Filled.Notifications,
+                    title = "Banking App Notifications",
+                    subtitle = "Read notifications from banking apps",
+                    checked = settings.notificationListenerEnabled,
+                    onCheckedChange = { enabled ->
+                        if (enabled) {
+                            try {
+                                val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                val intent = Intent(Settings.ACTION_SETTINGS)
+                                context.startActivity(intent)
+                            }
+                        }
+                        onUpdateSettings(settings.copy(notificationListenerEnabled = enabled))
+                    }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                SettingsToggleItem(
+                    icon = Icons.Filled.AutoAwesome,
+                    title = "AI Auto-Categorization",
+                    subtitle = "Automatically categorize transactions using AI",
+                    checked = settings.autoCategorizationEnabled,
+                    onCheckedChange = {
+                        onUpdateSettings(settings.copy(autoCategorizationEnabled = it))
+                    }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Scan SMS Inbox button
+        Button(
+            onClick = onScanSms,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = BluePrimary)
+        ) {
+            Icon(Icons.Filled.Sms, contentDescription = null, modifier = Modifier.size(22.dp))
+            Spacer(modifier = Modifier.width(10.dp))
+            Text("Scan SMS Inbox for Transactions", fontWeight = FontWeight.SemiBold)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ─── Import & Export Section ───────────────────────────────
+        Text(
+            "IMPORT & EXPORT",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(4.dp)) {
+                SettingsClickItem(
+                    icon = Icons.Filled.FileUpload,
+                    title = "Export Data as JSON",
+                    subtitle = "Save all transactions, categories & settings to a file",
+                    onClick = {
+                        exportLauncher.launch("smart_expense_backup.json")
+                    }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                SettingsClickItem(
+                    icon = Icons.Filled.FileDownload,
+                    title = "Import Data from JSON",
+                    subtitle = "Restore data from a previously exported file",
+                    onClick = {
+                        importLauncher.launch(arrayOf("application/json", "*/*"))
+                    }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ─── Storage Section ───────────────────────────────────────
+        Text(
+            "STORAGE",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(4.dp)) {
+                SettingsClickItem(
+                    icon = Icons.Filled.Storage,
+                    title = "Local Storage",
+                    subtitle = "Data stored as JSON · File size: $storageInfo"
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                SettingsClickItem(
+                    icon = Icons.Filled.DeleteForever,
+                    title = "Clear All Data",
+                    subtitle = "Delete all transactions and reset to defaults",
+                    isDestructive = true,
+                    onClick = { showClearDialog = true }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ─── About Section ─────────────────────────────────────────
+        Text(
+            "ABOUT",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.AccountBalanceWallet,
+                        contentDescription = null,
+                        tint = GreenPrimary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("Smart Expense Tracker", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Version 1.0 · AI-Powered Finance Manager",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    "OCR Receipt Scanning · SMS & Notification Tracking · " +
+                            "AI Categorization · Smart Optimization Suggestions · " +
+                            "Daily / Weekly / Monthly Reports · Local JSON Storage · " +
+                            "Import & Export · Dark Mode",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 18.sp
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(100.dp))
+    }
+
+    // ─── Dialogs ───────────────────────────────────────────────────
+
+    // Clear Data Confirmation
+    if (showClearDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearDialog = false },
+            icon = {
+                Icon(Icons.Filled.Warning, contentDescription = null, tint = RedExpense)
+            },
+            title = { Text("Clear All Data?") },
+            text = {
+                Text("This will permanently delete all transactions, categories, budgets, and settings. This action cannot be undone.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onClearData()
+                        showClearDialog = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = RedExpense)
+                ) {
+                    Text("Clear Everything")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Import Confirmation
+    if (showImportConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showImportConfirmDialog = false
+                pendingImportUri = null
+            },
+            icon = {
+                Icon(Icons.Filled.FileDownload, contentDescription = null, tint = BluePrimary)
+            },
+            title = { Text("Import Data?") },
+            text = {
+                Text("This will replace all current data with the contents of the selected file. Your existing transactions and settings will be overwritten.\n\nMake sure to export your current data first if you want to keep it.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingImportUri?.let { onImportFromUri(it) }
+                        showImportConfirmDialog = false
+                        pendingImportUri = null
+                    }
+                ) {
+                    Text("Import & Replace")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showImportConfirmDialog = false
+                    pendingImportUri = null
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+// ─── Theme Mode Picker Component ───────────────────────────────────
+
+@Composable
+private fun ThemeModePicker(
+    currentMode: ThemeMode,
+    onModeSelected: (ThemeMode) -> Unit
+) {
+    val modes = listOf(
+        Triple(ThemeMode.LIGHT, "Light", Icons.Filled.LightMode),
+        Triple(ThemeMode.SYSTEM, "System", Icons.Filled.SettingsBrightness),
+        Triple(ThemeMode.DARK, "Dark", Icons.Filled.DarkMode)
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly
+    ) {
+        modes.forEach { (mode, label, icon) ->
+            val isSelected = currentMode == mode
+            val backgroundColor by animateColorAsState(
+                targetValue = if (isSelected) MaterialTheme.colorScheme.surface
+                else Color.Transparent,
+                label = "theme_pill_bg"
+            )
+            val contentColor by animateColorAsState(
+                targetValue = if (isSelected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                label = "theme_pill_content"
+            )
+
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable { onModeSelected(mode) },
+                color = backgroundColor,
+                shape = RoundedCornerShape(10.dp),
+                shadowElevation = if (isSelected) 2.dp else 0.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(vertical = 10.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = label,
+                        tint = contentColor,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        label,
+                        fontSize = 13.sp,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                        color = contentColor
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ─── Reusable Setting Row Components ───────────────────────────────
+
+@Composable
+private fun SettingsToggleItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
+        )
+    }
+}
+
+@Composable
+private fun SettingsClickItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    isDestructive: Boolean = false,
+    onClick: (() -> Unit)? = null
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (onClick != null) Modifier.clickable { onClick() } else Modifier
+            )
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = if (isDestructive) RedExpense else MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
+                color = if (isDestructive) RedExpense else MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (onClick != null) {
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
