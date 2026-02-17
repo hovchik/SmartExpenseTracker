@@ -1,6 +1,14 @@
 package com.smartexpense.tracker.data.model
 
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.UUID
+
+/**
+ * ISO-8601 datetime formatter used for the dateTime field.
+ */
+private val isoDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
 
 /**
  * Represents a single financial transaction (expense or income).
@@ -13,6 +21,8 @@ data class Transaction(
     val type: TransactionType,
     val source: TransactionSource,
     val timestamp: Long = System.currentTimeMillis(),
+    /** ISO-8601 datetime string (e.g. "2026-02-17T14:30:00") for human-readable storage and grouping. */
+    val dateTime: String = isoDateFormat.format(Date(System.currentTimeMillis())),
     val tags: List<String> = emptyList(),
     val notes: String = "",
     val merchantName: String = "",
@@ -30,6 +40,44 @@ enum class TransactionSource {
     NOTIFICATION,  // Parsed from banking app notification
     IMPORT         // Imported from file
 }
+
+/**
+ * Metadata for a supported currency.
+ */
+data class CurrencyInfo(
+    val code: String,       // ISO-4217 code, e.g. "USD"
+    val symbol: String,     // Display symbol, e.g. "$"
+    val name: String,       // Human-readable name, e.g. "US Dollar"
+    val locale: String      // BCP-47 locale tag for number formatting, e.g. "en-US"
+)
+
+/** All currencies the app supports for selection and formatting. */
+val SUPPORTED_CURRENCIES: List<CurrencyInfo> = listOf(
+    CurrencyInfo("USD", "$",  "US Dollar",        "en-US"),
+    CurrencyInfo("EUR", "€",  "Euro",             "de-DE"),
+    CurrencyInfo("GBP", "£",  "British Pound",    "en-GB"),
+    CurrencyInfo("AMD", "֏",  "Armenian Dram",    "hy-AM"),
+    CurrencyInfo("INR", "₹",  "Indian Rupee",     "en-IN"),
+    CurrencyInfo("JPY", "¥",  "Japanese Yen",     "ja-JP"),
+    CurrencyInfo("CNY", "¥",  "Chinese Yuan",     "zh-CN"),
+    CurrencyInfo("CAD", "CA$","Canadian Dollar",  "en-CA"),
+    CurrencyInfo("AUD", "A$", "Australian Dollar","en-AU"),
+    CurrencyInfo("CHF", "Fr", "Swiss Franc",      "de-CH"),
+    CurrencyInfo("RUB", "₽",  "Russian Ruble",    "ru-RU"),
+    CurrencyInfo("TRY", "₺",  "Turkish Lira",     "tr-TR"),
+    CurrencyInfo("BRL", "R$", "Brazilian Real",   "pt-BR"),
+    CurrencyInfo("MXN", "MX$","Mexican Peso",     "es-MX"),
+    CurrencyInfo("KRW", "₩",  "South Korean Won", "ko-KR"),
+    CurrencyInfo("AED", "د.إ","UAE Dirham",       "ar-AE"),
+    CurrencyInfo("SGD", "S$", "Singapore Dollar", "en-SG"),
+    CurrencyInfo("HKD", "HK$","Hong Kong Dollar", "en-HK"),
+    CurrencyInfo("NOK", "kr", "Norwegian Krone",  "nb-NO"),
+    CurrencyInfo("SEK", "kr", "Swedish Krona",    "sv-SE")
+)
+
+fun currencyInfoFor(code: String): CurrencyInfo =
+    SUPPORTED_CURRENCIES.firstOrNull { it.code == code }
+        ?: CurrencyInfo(code, code, code, "en-US")
 
 /**
  * Category with optional AI-suggested grouping.
@@ -89,7 +137,9 @@ data class ExpenseReport(
     val dayOfWeekSpending: Map<String, Double> = emptyMap(),
     val sourceBreakdown: Map<String, Int> = emptyMap(),
     val aiInsight: String = "",
-    val transactionCount: Int = 0
+    val transactionCount: Int = 0,
+    /** Transactions grouped by date string (e.g. "2026-02-17"). */
+    val transactionsByDate: Map<String, List<Transaction>> = emptyMap()
 )
 
 enum class ReportPeriod {
@@ -118,7 +168,10 @@ enum class ThemeMode {
 }
 
 data class AppSettings(
+    /** Legacy single-char symbol kept for backward-compat. Use currencyCode instead. */
     val currency: String = "$",
+    /** ISO-4217 currency code (e.g. "USD", "AMD"). Drives all formatting and OCR parsing. */
+    val currencyCode: String = "USD",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val notificationListenerEnabled: Boolean = false,
     val smsParsingEnabled: Boolean = false,
