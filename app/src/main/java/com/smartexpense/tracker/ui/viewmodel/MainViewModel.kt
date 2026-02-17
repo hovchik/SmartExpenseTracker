@@ -47,6 +47,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _exchangeRates = MutableStateFlow<Map<String, Double>>(emptyMap())
     val exchangeRates: StateFlow<Map<String, Double>> = _exchangeRates.asStateFlow()
 
+    /** In-app notifications (bell panel). */
+    private val _inAppNotifications = MutableStateFlow<List<InAppNotification>>(emptyList())
+    val inAppNotifications: StateFlow<List<InAppNotification>> = _inAppNotifications.asStateFlow()
+
+    val unreadNotificationCount: StateFlow<Int> = _inAppNotifications
+        .map { list -> list.count { !it.isRead } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
     init {
         viewModelScope.launch {
             repository.initialize()
@@ -54,6 +62,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             refreshSuggestions()
             repository.appData.collect { data ->
                 _themeMode.value = data.settings.themeMode
+                _inAppNotifications.value = data.inAppNotifications
                 updateUiState(data)
             }
         }
@@ -323,7 +332,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun confirmSmsScanResults() {
         viewModelScope.launch {
             val pending = _smsScanState.value.pendingTransactions
-            for (tx in pending) repository.addTransaction(tx)
+            val currencySymbol = repository.appData.value.settings.currency.ifEmpty { "$" }
+            for (tx in pending) {
+                // Auto-create category if not in the existing list
+                repository.ensureCategoryExists(tx.category)
+                repository.addTransaction(tx)
+                // In-app notification for each confirmed SMS transaction
+                repository.addInAppNotification(
+                    InAppNotification(
+                        title = "SMS transaction added",
+                        message = "${tx.description}: $currencySymbol${String.format("%.2f", tx.amount)}" +
+                            if (tx.merchantName.isNotEmpty()) " at ${tx.merchantName}" else "",
+                        type = InAppNotificationType.SMS_PARSED,
+                        relatedTransactionId = tx.id
+                    )
+                )
+            }
             _smsScanState.value = _smsScanState.value.copy(
                 pendingTransactions = emptyList(), savedCount = pending.size
             )
@@ -340,6 +364,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun resetSmsScanState() { _smsScanState.value = SmsScanState() }
+
+    // ─── In-App Notification Management ───────────────────────────
+
+    fun markNotificationRead(id: String) {
+        viewModelScope.launch { repository.markNotificationRead(id) }
+    }
+
+    fun markAllNotificationsRead() {
+        viewModelScope.launch { repository.markAllNotificationsRead() }
+    }
+
+    fun clearAllInAppNotifications() {
+        viewModelScope.launch { repository.clearNotifications() }
+    }
 }
 
 data class SmsScanState(

@@ -7,6 +7,8 @@ import android.os.Build
 import android.telephony.SmsMessage
 import android.util.Log
 import com.smartexpense.tracker.SmartExpenseApp
+import com.smartexpense.tracker.data.model.InAppNotification
+import com.smartexpense.tracker.data.model.InAppNotificationType
 import com.smartexpense.tracker.data.model.Transaction
 import com.smartexpense.tracker.data.model.TransactionSource
 import com.smartexpense.tracker.data.model.TransactionType
@@ -110,7 +112,22 @@ class SmsReceiver : BroadcastReceiver() {
                             kotlin.math.abs(t.timestamp - now) < 120_000
                         }
                         if (!isDuplicate) {
-                            app.repository.addTransaction(transaction)
+                            val repo = app.repository
+                            // Auto-create category if not present
+                            repo.ensureCategoryExists(transaction.category)
+                            repo.addTransaction(transaction)
+                            // Post in-app notification
+                            val sym = repo.appData.value.settings.currency.ifEmpty { "$" }
+                            val typeLabel = if (parsed.isExpense) "Expense" else "Income"
+                            repo.addInAppNotification(
+                                InAppNotification(
+                                    title = "$typeLabel detected via SMS",
+                                    message = "${transaction.description}: $sym${String.format("%.2f", parsed.amount)}" +
+                                        if (parsed.merchantName.isNotEmpty()) " at ${parsed.merchantName}" else "",
+                                    type = InAppNotificationType.TRANSACTION_DETECTED,
+                                    relatedTransactionId = transaction.id
+                                )
+                            )
                             Log.d(TAG, "Saved SMS transaction: \$${parsed.amount} from $sender")
                         } else {
                             Log.d(TAG, "Skipped duplicate: \$${parsed.amount}")

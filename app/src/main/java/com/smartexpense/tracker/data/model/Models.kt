@@ -147,6 +147,33 @@ enum class ReportPeriod {
 }
 
 /**
+ * Type of in-app notification shown in the bell panel.
+ */
+enum class InAppNotificationType {
+    TRANSACTION_DETECTED,  // SMS or notification auto-detected a transaction
+    CATEGORY_CREATED,      // A new category was auto-created during parsing
+    SMS_PARSED,            // Explicit SMS scan found transactions
+    BUDGET_ALERT           // Spending nearing budget limit
+}
+
+/**
+ * In-app notification shown in the bell panel (top-right corner).
+ * Persisted in JSON so it survives app restarts.
+ */
+data class InAppNotification(
+    val id: String = UUID.randomUUID().toString(),
+    val title: String,
+    val message: String,
+    val type: InAppNotificationType,
+    val timestamp: Long = System.currentTimeMillis(),
+    val isRead: Boolean = false,
+    /** Transaction this notification is related to (if any). */
+    val relatedTransactionId: String? = null,
+    /** Category name that was auto-created (for CATEGORY_CREATED type). */
+    val suggestedCategoryName: String? = null
+)
+
+/**
  * App-wide data container stored as JSON.
  */
 data class AppData(
@@ -154,6 +181,7 @@ data class AppData(
     val categories: List<Category> = defaultCategories(),
     val budgets: List<Budget> = emptyList(),
     val suggestions: List<AiSuggestion> = emptyList(),
+    val inAppNotifications: List<InAppNotification> = emptyList(),
     val settings: AppSettings = AppSettings(),
     val lastUpdated: Long = System.currentTimeMillis()
 )

@@ -135,6 +135,73 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         storage.saveData(updated)
     }
 
+    // ─── In-App Notifications ──────────────────────────────────────
+
+    suspend fun addInAppNotification(notification: com.smartexpense.tracker.data.model.InAppNotification) {
+        val current = _appData.value
+        // Keep at most 100 notifications to avoid unbounded growth
+        val trimmed = (listOf(notification) + current.inAppNotifications).take(100)
+        val updated = current.copy(inAppNotifications = trimmed)
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    suspend fun markNotificationRead(id: String) {
+        val current = _appData.value
+        val updated = current.copy(
+            inAppNotifications = current.inAppNotifications.map {
+                if (it.id == id) it.copy(isRead = true) else it
+            }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    suspend fun markAllNotificationsRead() {
+        val current = _appData.value
+        val updated = current.copy(
+            inAppNotifications = current.inAppNotifications.map { it.copy(isRead = true) }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    suspend fun clearNotifications() {
+        val current = _appData.value
+        val updated = current.copy(inAppNotifications = emptyList())
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    /**
+     * If [categoryName] is not already in the category list, creates it automatically
+     * and posts an in-app notification informing the user.
+     * Returns true if a new category was created.
+     */
+    suspend fun ensureCategoryExists(categoryName: String): Boolean {
+        val current = _appData.value
+        if (current.categories.any { it.name.equals(categoryName, ignoreCase = true) }) return false
+        // Create the new category
+        val newCategory = com.smartexpense.tracker.data.model.Category(
+            name = categoryName,
+            icon = "category",
+            color = 0xFF9E9E9E,
+            isDefault = false
+        )
+        val withCategory = current.copy(categories = current.categories + newCategory)
+        _appData.value = withCategory
+        storage.saveData(withCategory)
+        // Post a notification about the new category
+        val notification = com.smartexpense.tracker.data.model.InAppNotification(
+            title = "New category added",
+            message = "\"$categoryName\" was automatically created based on your transaction. You can rename or remove it in Settings.",
+            type = com.smartexpense.tracker.data.model.InAppNotificationType.CATEGORY_CREATED,
+            suggestedCategoryName = categoryName
+        )
+        addInAppNotification(notification)
+        return true
+    }
+
     // ─── Export/Import ─────────────────────────────────────────────
 
     suspend fun exportData(): String = storage.exportData()

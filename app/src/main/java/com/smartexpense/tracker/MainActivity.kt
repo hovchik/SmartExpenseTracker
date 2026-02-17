@@ -43,6 +43,8 @@ fun MainApp(viewModel: MainViewModel) {
     val importExportMessage by viewModel.importExportMessage.collectAsState()
     val smsScanState by viewModel.smsScanState.collectAsState()
     val exchangeRates by viewModel.exchangeRates.collectAsState()
+    val inAppNotifications by viewModel.inAppNotifications.collectAsState()
+    val unreadCount by viewModel.unreadNotificationCount.collectAsState()
     val scope = rememberCoroutineScope()
 
     // Shortcut to always-up-to-date currency code
@@ -50,7 +52,37 @@ fun MainApp(viewModel: MainViewModel) {
 
     var currentScreen by remember { mutableStateOf("dashboard") }
 
+    // Hide the top bar on full-screen sub-screens
+    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan")
+
     Scaffold(
+        topBar = {
+            if (showTopBar) {
+                TopAppBar(
+                    title = {
+                        Text(
+                            when (currentScreen) {
+                                "dashboard"    -> "Smart Expense"
+                                "reports"      -> "Reports"
+                                "transactions" -> "Transactions"
+                                "settings"     -> "Settings"
+                                else           -> "Smart Expense"
+                            },
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    actions = {
+                        NotificationBell(
+                            notifications  = inAppNotifications,
+                            unreadCount    = unreadCount,
+                            onMarkRead     = { viewModel.markNotificationRead(it) },
+                            onMarkAllRead  = { viewModel.markAllNotificationsRead() },
+                            onClearAll     = { viewModel.clearAllInAppNotifications() }
+                        )
+                    }
+                )
+            }
+        },
         bottomBar = {
             if (currentScreen != "add" && currentScreen != "scan" && currentScreen != "sms_scan") {
                 NavigationBar(tonalElevation = 2.dp) {
