@@ -30,7 +30,8 @@ import kotlin.math.roundToInt
 fun ReportsScreen(
     generateReport: (ReportPeriod) -> ExpenseReport,
     currentPeriod: ReportPeriod,
-    onPeriodChange: (ReportPeriod) -> Unit
+    onPeriodChange: (ReportPeriod) -> Unit,
+    currencyCode: String = "USD"
 ) {
     val report = remember(currentPeriod) { generateReport(currentPeriod) }
 
@@ -95,15 +96,15 @@ fun ReportsScreen(
         // ─── Summary Cards ─────────────────────────────
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatCard("Expenses", CurrencyUtils.format(report.totalExpenses), RedExpense, Modifier.weight(1f))
-                StatCard("Income", CurrencyUtils.format(report.totalIncome), GreenIncome, Modifier.weight(1f))
+                StatCard("Expenses", CurrencyUtils.format(report.totalExpenses, currencyCode), RedExpense, Modifier.weight(1f))
+                StatCard("Income", CurrencyUtils.format(report.totalIncome, currencyCode), GreenIncome, Modifier.weight(1f))
             }
         }
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatCard("Net Balance", CurrencyUtils.format(report.netBalance),
+                StatCard("Net Balance", CurrencyUtils.format(report.netBalance, currencyCode),
                     if (report.netBalance >= 0) GreenIncome else RedExpense, Modifier.weight(1f))
-                StatCard("Avg Daily", CurrencyUtils.format(report.averageDailySpend), BluePrimary, Modifier.weight(1f))
+                StatCard("Avg Daily", CurrencyUtils.format(report.averageDailySpend, currencyCode), BluePrimary, Modifier.weight(1f))
             }
         }
 
@@ -171,7 +172,7 @@ fun ReportsScreen(
                                     }
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column(horizontalAlignment = Alignment.End) {
-                                        Text(CurrencyUtils.format(amount), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                        Text(CurrencyUtils.format(amount, currencyCode), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                                         Text("${(pct * 100).roundToInt()}%", fontSize = 11.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
@@ -210,7 +211,7 @@ fun ReportsScreen(
                                     trackColor = MaterialTheme.colorScheme.surfaceVariant
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(CurrencyUtils.format(amount), fontSize = 12.sp,
+                                Text(CurrencyUtils.format(amount, currencyCode), fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium, modifier = Modifier.width(70.dp))
                             }
                         }
@@ -241,7 +242,7 @@ fun ReportsScreen(
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Text(merchant, modifier = Modifier.weight(1f), fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium)
-                                Text(CurrencyUtils.format(amount), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                Text(CurrencyUtils.format(amount, currencyCode), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                             }
                         }
                     }
@@ -307,10 +308,106 @@ fun ReportsScreen(
                             Text("${transaction.category} · ${DateUtils.formatShortDate(transaction.timestamp)}",
                                 fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Text(CurrencyUtils.format(transaction.amount), fontWeight = FontWeight.Bold, color = RedExpense)
+                        Text(CurrencyUtils.format(transaction.amount, currencyCode), fontWeight = FontWeight.Bold, color = RedExpense)
                     }
                 }
             }
+        }
+
+        // ─── Transactions by Date ──────────────────────
+        if (report.transactionsByDate.isNotEmpty()) {
+            item {
+                Text(
+                    "Transactions by Date",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+            report.transactionsByDate.entries
+                .sortedByDescending { it.key }
+                .forEach { (dateStr, txList) ->
+                    // Date header
+                    item(key = "date_$dateStr") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Filled.CalendarToday,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    dateStr,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            val dayTotal = txList.filter {
+                                it.type == com.smartexpense.tracker.data.model.TransactionType.EXPENSE
+                            }.sumOf { it.amount }
+                            if (dayTotal > 0) {
+                                Text(
+                                    CurrencyUtils.format(dayTotal, currencyCode),
+                                    fontSize = 12.sp,
+                                    color = RedExpense,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                    // Transactions for that date
+                    items(txList, key = { it.id }) { tx ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 4.dp),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Type indicator dot
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (tx.type == com.smartexpense.tracker.data.model.TransactionType.EXPENSE)
+                                                RedExpense else GreenIncome
+                                        )
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(tx.description, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    Text(
+                                        "${tx.category} · ${tx.dateTime.take(16).replace("T", " ")}",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Text(
+                                    CurrencyUtils.format(tx.amount, currencyCode),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (tx.type == com.smartexpense.tracker.data.model.TransactionType.EXPENSE)
+                                        RedExpense else GreenIncome
+                                )
+                            }
+                        }
+                    }
+                }
         }
 
         // ─── Empty state ───────────────────────────────

@@ -8,6 +8,7 @@ import com.smartexpense.tracker.SmartExpenseApp
 import com.smartexpense.tracker.data.model.*
 import com.smartexpense.tracker.data.repository.ExpenseRepository
 import com.smartexpense.tracker.service.ai.AiExpenseEngine
+import com.smartexpense.tracker.service.currency.CurrencyConverterService
 import com.smartexpense.tracker.util.DateUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -15,6 +16,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -38,6 +42,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _smsScanState = MutableStateFlow(SmsScanState())
     val smsScanState: StateFlow<SmsScanState> = _smsScanState.asStateFlow()
+
+    /** Live exchange rates fetched from open.er-api.com (base = USD). */
+    private val _exchangeRates = MutableStateFlow<Map<String, Double>>(emptyMap())
+    val exchangeRates: StateFlow<Map<String, Double>> = _exchangeRates.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -81,6 +89,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .entries.sortedByDescending { it.value }
             .associate { it.key to it.value }
 
+        // Group recent transactions by date for the date-grouped view
+        val dateFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val transactionsByDate: Map<String, List<Transaction>> = recentTransactions
+            .groupBy { dateFormatter.format(Date(it.timestamp)) }
+
         _uiState.value = UiState(
             isLoading = false,
             monthlyExpenses = monthlyExpenses, monthlyIncome = monthlyIncome,
@@ -89,7 +102,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             recentTransactions = recentTransactions, categoryBreakdown = categoryBreakdown,
             categories = data.categories,
             suggestions = data.suggestions.filter { !it.isDismissed },
-            transactionCount = data.transactions.size, settings = data.settings
+            transactionCount = data.transactions.size, settings = data.settings,
+            transactionsByDate = transactionsByDate
         )
     }
 
@@ -104,9 +118,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         viewModelScope.launch {
             val finalCategory = category ?: aiEngine.categorize(description)
+            val now = System.currentTimeMillis()
+            val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
             repository.addTransaction(Transaction(
                 amount = amount, description = description, category = finalCategory,
-                type = type, source = source, merchantName = merchantName, notes = notes
+                type = type, source = source, merchantName = merchantName, notes = notes,
+                timestamp = now, dateTime = dtFormatter.format(Date(now))
             ))
             refreshSuggestions()
         }
@@ -117,22 +134,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun processOcrText(ocrText: String) {
         viewModelScope.launch {
             try {
-                val parsed = aiEngine.parseReceiptText(ocrText)
+                val currencyCode = repository.appData.value.settings.currencyCode
+                val parsed = aiEngine.parseReceiptText(ocrText, currencyCode)
                 val amount = parsed.totalAmount ?: parsed.items.sumOf { it.second }
+                val currencySymbol = currencyInfoFor(currencyCode).symbol
                 if (amount > 0) {
                     val category = aiEngine.categorize(parsed.merchantName)
+                    val now = System.currentTimeMillis()
+                    val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
                     repository.addTransaction(Transaction(
                         amount = amount,
                         description = "Receipt: ${parsed.merchantName}",
                         category = category, type = TransactionType.EXPENSE,
                         source = TransactionSource.OCR_SCAN,
                         merchantName = parsed.merchantName,
+                        timestamp = now, dateTime = dtFormatter.format(Date(now)),
                         notes = if (parsed.items.isNotEmpty())
-                            "Items: ${parsed.items.joinToString(", ") { "${it.first}: \$${String.format("%.2f", it.second)}" }}"
+                            "Items: ${parsed.items.joinToString(", ") { "${it.first}: $currencySymbol${String.format("%.2f", it.second)}" }}"
                         else ""
                     ))
                     _uiState.value = _uiState.value.copy(
-                        lastOcrResult = "Found: ${parsed.merchantName} - \$${String.format("%.2f", amount)}"
+                        lastOcrResult = "Found: ${parsed.merchantName} - $currencySymbol${String.format("%.2f", amount)}"
                     )
                 } else {
                     _uiState.value = _uiState.value.copy(
@@ -183,6 +205,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository.updateSettings(repository.appData.value.settings.copy(themeMode = mode))
         }
     }
+
+    fun updateSettings(settings: AppSettings) {
+        viewModelScope.launch {
+            repository.updateSettings(settings)
+            // Invalidate cached rates when base currency changes
+            CurrencyConverterService.invalidateCache()
+        }
+    }
+
+    // ─── Currency Converter ────────────────────────────────────────
+
+    /**
+     * Fetches live exchange rates (base = USD) and stores them in [exchangeRates].
+     * Safe to call multiple times — results are cached for 1 hour.
+     */
+    fun fetchExchangeRates() {
+        viewModelScope.launch {
+            val rates = withContext(Dispatchers.IO) {
+                CurrencyConverterService.getRates("USD")
+            }
+            if (rates != null) {
+                // Merge in USD itself so the converter can handle USD→X conversions
+                _exchangeRates.value = rates + ("USD" to 1.0)
+            }
+        }
+    }
+
+    // ─── Import / Export ───────────────────────────────────────────
 
     fun exportDataToUri(uri: Uri) {
         viewModelScope.launch {
@@ -305,6 +355,8 @@ data class UiState(
     val todayExpenses: Double = 0.0, val weeklyExpenses: Double = 0.0,
     val netBalance: Double = 0.0,
     val recentTransactions: List<Transaction> = emptyList(),
+    /** Recent transactions grouped by date string, e.g. "2026-02-17" → [Transaction, …]. */
+    val transactionsByDate: Map<String, List<Transaction>> = emptyMap(),
     val categoryBreakdown: Map<String, Double> = emptyMap(),
     val categories: List<Category> = emptyList(),
     val suggestions: List<AiSuggestion> = emptyList(),

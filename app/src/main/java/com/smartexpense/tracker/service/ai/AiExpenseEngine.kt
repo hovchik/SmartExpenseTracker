@@ -1,7 +1,10 @@
 package com.smartexpense.tracker.service.ai
 
 import com.smartexpense.tracker.data.model.*
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -335,6 +338,12 @@ class AiExpenseEngine {
         // Spending trend (insight text)
         val insight = buildInsight(totalExpenses, totalIncome, comparison, categoryBreakdown, topMerchants)
 
+        // Group period transactions by date string ("yyyy-MM-dd") for date-based browsing
+        val dateFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val transactionsByDate: Map<String, List<Transaction>> = periodTransactions
+            .sortedByDescending { it.timestamp }
+            .groupBy { dateFormatter.format(Date(it.timestamp)) }
+
         return ExpenseReport(
             periodType = period,
             startDate = startDate,
@@ -350,7 +359,8 @@ class AiExpenseEngine {
             dayOfWeekSpending = dayOfWeekSpending,
             sourceBreakdown = sourceBreakdown,
             aiInsight = insight,
-            transactionCount = periodTransactions.size
+            transactionCount = periodTransactions.size,
+            transactionsByDate = transactionsByDate
         )
     }
 
@@ -593,7 +603,21 @@ class AiExpenseEngine {
         val date: String?
     )
 
-    fun parseReceiptText(ocrText: String): ParsedReceipt {
+    /**
+     * Parse OCR text from a scanned receipt.
+     *
+     * [currencyCode] controls which currency markers are searched first.
+     * Currency-specific keyword/symbol search order:
+     *  - USD  : "$", "usd", "dollar", "dollars"
+     *  - AMD  : "֏", "amd", "դր", "դրամ"
+     *  - EUR  : "€", "eur", "euro"
+     *  - GBP  : "£", "gbp", "pound"
+     *  - INR  : "₹", "rs.", "inr", "rupee"
+     *  - JPY  : "¥", "jpy", "yen"
+     *  - RUB  : "₽", "rub", "ruble", "руб", "ИТОГО"
+     *  All other codes: their ISO code string + generic decimal fallback.
+     */
+    fun parseReceiptText(ocrText: String, currencyCode: String = "USD"): ParsedReceipt {
         try {
             val lines = ocrText.lines().map { it.trim() }.filter { it.isNotEmpty() }
 
@@ -604,14 +628,43 @@ class AiExpenseEngine {
                 !line.matches(Regex("""(?i)^(receipt|invoice|bill|date|time|tel|phone|fax|www).*"""))
             }?.take(50) ?: "Unknown Store"
 
-            // Extract items — handles $, ₹, €, £, ֏ and plain numbers
+            // ── Build currency-specific amount patterns ───────────────
+            // currencySymbolPattern is a regex fragment matching the currency marker(s).
+            val currencySymbolPattern: String = when (currencyCode.uppercase()) {
+                "USD" -> """(?:\$|usd|dollar s?)\s*"""
+                "AMD" -> """(?:֏|amd|դր\.?|դրամ)\s*"""
+                "EUR" -> """(?:€|eur|euro)\s*"""
+                "GBP" -> """(?:£|gbp|pound s?)\s*"""
+                "INR" -> """(?:₹|rs\.?|inr|rupee s?)\s*"""
+                "JPY" -> """(?:¥|jpy|yen)\s*"""
+                "CNY" -> """(?:¥|cny|rmb|yuan)\s*"""
+                "RUB" -> """(?:₽|rub|ruble s?|руб\.?)\s*"""
+                "TRY" -> """(?:₺|try|lira)\s*"""
+                "KRW" -> """(?:₩|krw|won)\s*"""
+                "BRL" -> """(?:R\$|brl|real)\s*"""
+                "CAD" -> """(?:CA\$|cad)\s*"""
+                "AUD" -> """(?:A\$|aud)\s*"""
+                "CHF" -> """(?:Fr\.?|chf)\s*"""
+                "SGD" -> """(?:S\$|sgd)\s*"""
+                "HKD" -> """(?:HK\$|hkd)\s*"""
+                "AED" -> """(?:د\.إ|aed|dirham)\s*"""
+                else  -> """(?:${Regex.escape(currencyCode)}|[$₹€£֏¥₽₺₩])\s*"""
+            }
+
+            // Generic "any supported symbol" fallback used in item-line matching
+            val anySymbol = """[$₹€£֏¥₽₺₩]?"""
+
+            // Extract items
             val items = mutableListOf<Pair<String, Double>>()
             val itemPatterns = listOf(
-                Regex("""(.{3,40}?)\s+[$₹€£֏]?\s?([\d,]+\.\d{2})\s*$"""),
+                // Item   <currency>AMOUNT
+                Regex("""(.{3,40}?)\s+${currencySymbolPattern}([\d,]+\.\d{2})\s*$""", RegexOption.IGNORE_CASE),
+                // Item   AMOUNT (no symbol)
                 Regex("""(.{3,40}?)\s+(\d+\.\d{2})"""),
-                Regex("""^(.+?)\s{2,}[$₹€£֏]?\s?([\d,]+\.\d{2})"""),
-                // For receipts with no decimal (whole numbers): "Item  500"
-                Regex("""^(.{3,40}?)\s{2,}[$₹€£֏]?\s?(\d{1,7})(?:\s*$)""")
+                // Item    <any-symbol>AMOUNT (wider match)
+                Regex("""^(.+?)\s{2,}${anySymbol}\s?([\d,]+\.\d{2})"""),
+                // Whole-number items: "Item  500"
+                Regex("""^(.{3,40}?)\s{2,}${anySymbol}\s?(\d{1,7})(?:\s*${'$'})""")
             )
             for (line in lines) {
                 for (pattern in itemPatterns) {
@@ -620,9 +673,12 @@ class AiExpenseEngine {
                         val name = match.groupValues[1].trim()
                         val price = match.groupValues[2].replace(",", "").toDoubleOrNull()
                         if (price != null && price > 0 && price < 100000 &&
-                            !name.lowercase().let { it.contains("total") || it.contains("subtotal") ||
-                                    it.contains("tax") || it.contains("change") || it.contains("cash") ||
-                                    it.contains("balance") || it.contains("due") }) {
+                            !name.lowercase().let { n ->
+                                n.contains("total") || n.contains("subtotal") ||
+                                n.contains("tax") || n.contains("change") || n.contains("cash") ||
+                                n.contains("balance") || n.contains("due")
+                            }
+                        ) {
                             items.add(name to price)
                             break
                         }
@@ -630,28 +686,47 @@ class AiExpenseEngine {
                 }
             }
 
-            // Extract total — try multiple patterns, supports international currencies
-            val totalPatterns = listOf(
-                Regex("""(?:grand\s*total|total\s*due|amount\s*due|total\s*amount|balance\s*due)[:\s]*[$₹€£֏]?\s?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
-                Regex("""(?:TOTAL|Total|GRAND TOTAL)\s*:?\s*[$₹€£֏]?\s?([\d,]+\.\d{2})"""),
+            // ── Total extraction ──────────────────────────────────────
+            // Priority-1: currency-specific total markers
+            val currencyTotalPatterns: List<Regex> = when (currencyCode.uppercase()) {
+                "AMD" -> listOf(
+                    // "ԸՆԴԱՄԵՆԸ" = "total" in Armenian; also "TOTAL", "AMD", "֏"
+                    Regex("""(?:ԸՆԴԱՄԵՆԸ|ընդամենը|total|grand\s*total)[:\s]*(?:֏|AMD|դրամ)?\s*([\d,\s]+\.?\d*)""", RegexOption.IGNORE_CASE),
+                    Regex("""(?:֏|AMD|դրամ)\s*([\d,\s]+\.?\d*)""", RegexOption.IGNORE_CASE)
+                )
+                "RUB" -> listOf(
+                    Regex("""(?:ИТОГО|итого|total)[:\s]*(?:₽|руб\.?)?\s*([\d,\s]+\.?\d*)""", RegexOption.IGNORE_CASE),
+                    Regex("""(?:₽|руб\.?)\s*([\d,\s]+\.?\d*)""")
+                )
+                "USD" -> listOf(
+                    Regex("""(?:grand\s*total|total\s*due|amount\s*due|balance\s*due|total)[:\s]*\$?\s*([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
+                    Regex("""\$\s*([\d,]+\.\d{2})""")
+                )
+                else -> listOf(
+                    Regex("""(?:grand\s*total|total\s*due|total)[:\s]*${currencySymbolPattern}?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE)
+                )
+            }
+
+            // Priority-2: generic total patterns (catch-all)
+            val genericTotalPatterns = listOf(
+                Regex("""(?:grand\s*total|total\s*due|amount\s*due|total\s*amount|balance\s*due)[:\s]*[$₹€£֏¥₽₺₩]?\s?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
+                Regex("""(?:TOTAL|Total|GRAND TOTAL)\s*:?\s*[$₹€£֏¥₽₺₩]?\s?([\d,]+\.\d{2})"""),
                 Regex("""(?:total)[:\s]*(?:rs\.?|₹|\$|€|£|֏|[A-Z]{3})?\s?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
-                Regex("""(?:TOTAL)\s+[$₹€£֏]?([\d,]+\.?\d{0,2})"""),
-                // "ИТОГО" (Russian for total)
+                Regex("""(?:TOTAL)\s+[$₹€£֏¥₽₺₩]?([\d,]+\.?\d{0,2})"""),
                 Regex("""(?:ИТОГО|итого)[:\s]*([\d,\s]+\.?\d*)""")
             )
+
             var total: Double? = null
-            for (pattern in totalPatterns) {
-                val matches = pattern.findAll(ocrText)
-                // Take the last "total" match (usually the grand total is at the bottom)
-                val match = matches.lastOrNull()
+            for (pattern in currencyTotalPatterns + genericTotalPatterns) {
+                val match = pattern.findAll(ocrText).lastOrNull()
                 if (match != null) {
-                    total = match.groupValues[1].replace(",", "").toDoubleOrNull()
+                    total = match.groupValues[1].replace(Regex("""[\s,]"""), "").toDoubleOrNull()
                     if (total != null && total > 0) break
                     total = null
                 }
             }
 
-            // Fallback: use largest item price or sum
+            // Fallback: use largest item price or sum of items
             if (total == null && items.isNotEmpty()) {
                 val sum = items.sumOf { it.second }
                 val max = items.maxOf { it.second }

@@ -42,6 +42,7 @@ fun MainApp(viewModel: MainViewModel) {
     val reportPeriod by viewModel.reportPeriod.collectAsState()
     val importExportMessage by viewModel.importExportMessage.collectAsState()
     val smsScanState by viewModel.smsScanState.collectAsState()
+    val exchangeRates by viewModel.exchangeRates.collectAsState()
     val scope = rememberCoroutineScope()
 
     var currentScreen by remember { mutableStateOf("dashboard") }
@@ -98,7 +99,8 @@ fun MainApp(viewModel: MainViewModel) {
                     "reports" -> ReportsScreen(
                         generateReport = { viewModel.generateReport(it) },
                         currentPeriod = reportPeriod,
-                        onPeriodChange = { viewModel.setReportPeriod(it) }
+                        onPeriodChange = { viewModel.setReportPeriod(it) },
+                        currencyCode = uiState.settings.currencyCode
                     )
                     "add" -> AddTransactionScreen(
                         categories = uiState.categories,
@@ -125,13 +127,15 @@ fun MainApp(viewModel: MainViewModel) {
                     "settings" -> SettingsScreen(
                         settings = uiState.settings,
                         storageInfo = viewModel.getStorageInfoText(),
-                        onUpdateSettings = { s -> scope.launch { viewModel.repository.updateSettings(s) } },
+                        onUpdateSettings = { s -> viewModel.updateSettings(s) },
                         onExportToUri = { uri -> viewModel.exportDataToUri(uri) },
                         onImportFromUri = { uri -> viewModel.importDataFromUri(uri) },
                         onClearData = { scope.launch { viewModel.repository.clearAllData() } },
                         importExportMessage = importExportMessage,
                         onClearMessage = { viewModel.clearImportExportMessage() },
-                        onScanSms = { currentScreen = "sms_scan" }
+                        onScanSms = { currentScreen = "sms_scan" },
+                        exchangeRates = exchangeRates,
+                        onFetchRates = { viewModel.fetchExchangeRates() }
                     )
                 }
             }

@@ -11,8 +11,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -24,10 +24,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartexpense.tracker.data.model.AppSettings
+import com.smartexpense.tracker.data.model.SUPPORTED_CURRENCIES
 import com.smartexpense.tracker.data.model.ThemeMode
+import com.smartexpense.tracker.data.model.currencyInfoFor
 import com.smartexpense.tracker.ui.theme.*
 
 @Composable
@@ -40,19 +43,42 @@ fun SettingsScreen(
     onClearData: () -> Unit,
     importExportMessage: String?,
     onClearMessage: () -> Unit,
-    onScanSms: () -> Unit
+    onScanSms: () -> Unit,
+    /** Null = not yet fetched; empty map = fetch failed. */
+    exchangeRates: Map<String, Double> = emptyMap(),
+    onFetchRates: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var showClearDialog by remember { mutableStateOf(false) }
     var showImportConfirmDialog by remember { mutableStateOf(false) }
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
 
+    // Currency selector state
+    var showCurrencyDropdown by remember { mutableStateOf(false) }
+
+    // Currency converter state
+    var convertAmount by remember { mutableStateOf("") }
+    var convertFromCode by remember { mutableStateOf(settings.currencyCode) }
+    var convertToCode by remember { mutableStateOf(if (settings.currencyCode == "USD") "AMD" else "USD") }
+    var showFromDropdown by remember { mutableStateOf(false) }
+    var showToDropdown by remember { mutableStateOf(false) }
+
+    val convertedResult: String? = remember(convertAmount, convertFromCode, convertToCode, exchangeRates) {
+        val amt = convertAmount.toDoubleOrNull() ?: return@remember null
+        if (exchangeRates.isEmpty()) return@remember null
+        if (convertFromCode == convertToCode) return@remember "${currencyInfoFor(convertToCode).symbol}${String.format("%.2f", amt)}"
+        // Rates are relative to the fetched base.
+        // We need: toRate / fromRate (all relative to the same base)
+        val fromRate = exchangeRates[convertFromCode] ?: return@remember null
+        val toRate   = exchangeRates[convertToCode]   ?: return@remember null
+        val converted = amt * (toRate / fromRate)
+        "${currencyInfoFor(convertToCode).symbol}${String.format("%.2f", converted)}"
+    }
+
     // SAF launchers
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
-    ) { uri ->
-        uri?.let { onExportToUri(it) }
-    }
+    ) { uri -> uri?.let { onExportToUri(it) } }
 
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -70,6 +96,9 @@ fun SettingsScreen(
             onClearMessage()
         }
     }
+
+    // Fetch rates lazily when converter section comes into view
+    LaunchedEffect(Unit) { onFetchRates() }
 
     Column(
         modifier = Modifier
@@ -121,13 +150,218 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Theme Mode Selector — 3-option pill switcher
                 ThemeModePicker(
                     currentMode = settings.themeMode,
                     onModeSelected = { mode ->
                         onUpdateSettings(settings.copy(themeMode = mode))
                     }
                 )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ─── Currency Section ──────────────────────────────────────
+        Text(
+            "CURRENCY",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                // Currency picker row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Filled.AttachMoney,
+                        contentDescription = null,
+                        tint = GreenPrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Display Currency", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Text(
+                            "Used for formatting and OCR receipt scanning",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // Currency selector button
+                    Box {
+                        val selInfo = currencyInfoFor(settings.currencyCode)
+                        OutlinedButton(
+                            onClick = { showCurrencyDropdown = true },
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("${selInfo.symbol} ${selInfo.code}", fontWeight = FontWeight.SemiBold)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(Icons.Filled.ArrowDropDown, contentDescription = "Select currency", modifier = Modifier.size(18.dp))
+                        }
+
+                        DropdownMenu(
+                            expanded = showCurrencyDropdown,
+                            onDismissRequest = { showCurrencyDropdown = false }
+                        ) {
+                            SUPPORTED_CURRENCIES.forEach { info ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                info.symbol,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.width(30.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Column {
+                                                Text(info.code, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                                Text(info.name, style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                            if (info.code == settings.currencyCode) {
+                                                Spacer(modifier = Modifier.weight(1f))
+                                                Icon(Icons.Filled.Check, contentDescription = null,
+                                                    tint = GreenPrimary, modifier = Modifier.size(18.dp))
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        onUpdateSettings(
+                                            settings.copy(
+                                                currencyCode = info.code,
+                                                currency = info.symbol
+                                            )
+                                        )
+                                        showCurrencyDropdown = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // ── Currency Converter ─────────────────────────────
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.SwapHoriz, contentDescription = null,
+                        tint = BluePrimary, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Currency Converter", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Amount input
+                    OutlinedTextField(
+                        value = convertAmount,
+                        onValueChange = { convertAmount = it.filter { c -> c.isDigit() || c == '.' } },
+                        label = { Text("Amount") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.weight(1.8f),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    // From currency
+                    Box(modifier = Modifier.weight(1f)) {
+                        OutlinedButton(
+                            onClick = { showFromDropdown = true },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(convertFromCode, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Icon(Icons.Filled.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp))
+                        }
+                        DropdownMenu(expanded = showFromDropdown, onDismissRequest = { showFromDropdown = false }) {
+                            SUPPORTED_CURRENCIES.forEach { info ->
+                                DropdownMenuItem(
+                                    text = { Text("${info.symbol} ${info.code}") },
+                                    onClick = { convertFromCode = info.code; showFromDropdown = false }
+                                )
+                            }
+                        }
+                    }
+
+                    Icon(Icons.Filled.ArrowForward, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+
+                    // To currency
+                    Box(modifier = Modifier.weight(1f)) {
+                        OutlinedButton(
+                            onClick = { showToDropdown = true },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(convertToCode, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Icon(Icons.Filled.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp))
+                        }
+                        DropdownMenu(expanded = showToDropdown, onDismissRequest = { showToDropdown = false }) {
+                            SUPPORTED_CURRENCIES.forEach { info ->
+                                DropdownMenuItem(
+                                    text = { Text("${info.symbol} ${info.code}") },
+                                    onClick = { convertToCode = info.code; showToDropdown = false }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Result row
+                when {
+                    convertAmount.isNotEmpty() && exchangeRates.isEmpty() -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Fetching live rates…", style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    convertedResult != null -> {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Filled.CheckCircle, contentDescription = null,
+                                    tint = GreenPrimary, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    "$convertAmount ${currencyInfoFor(convertFromCode).symbol} = $convertedResult",
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+                        Text(
+                            "Rates from open.er-api.com · refreshed hourly",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
             }
         }
 
@@ -193,7 +427,6 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Scan SMS Inbox button
         Button(
             onClick = onScanSms,
             modifier = Modifier
@@ -226,9 +459,7 @@ fun SettingsScreen(
                     icon = Icons.Filled.FileUpload,
                     title = "Export Data as JSON",
                     subtitle = "Save all transactions, categories & settings to a file",
-                    onClick = {
-                        exportLauncher.launch("smart_expense_backup.json")
-                    }
+                    onClick = { exportLauncher.launch("smart_expense_backup.json") }
                 )
 
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -237,9 +468,7 @@ fun SettingsScreen(
                     icon = Icons.Filled.FileDownload,
                     title = "Import Data from JSON",
                     subtitle = "Restore data from a previously exported file",
-                    onClick = {
-                        importLauncher.launch(arrayOf("application/json", "*/*"))
-                    }
+                    onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }
                 )
             }
         }
@@ -314,7 +543,7 @@ fun SettingsScreen(
                     "OCR Receipt Scanning · SMS & Notification Tracking · " +
                             "AI Categorization · Smart Optimization Suggestions · " +
                             "Daily / Weekly / Monthly Reports · Local JSON Storage · " +
-                            "Import & Export · Dark Mode",
+                            "Multi-Currency Support · Import & Export · Dark Mode",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 18.sp
@@ -327,46 +556,30 @@ fun SettingsScreen(
 
     // ─── Dialogs ───────────────────────────────────────────────────
 
-    // Clear Data Confirmation
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
-            icon = {
-                Icon(Icons.Filled.Warning, contentDescription = null, tint = RedExpense)
-            },
+            icon = { Icon(Icons.Filled.Warning, contentDescription = null, tint = RedExpense) },
             title = { Text("Clear All Data?") },
             text = {
                 Text("This will permanently delete all transactions, categories, budgets, and settings. This action cannot be undone.")
             },
             confirmButton = {
                 TextButton(
-                    onClick = {
-                        onClearData()
-                        showClearDialog = false
-                    },
+                    onClick = { onClearData(); showClearDialog = false },
                     colors = ButtonDefaults.textButtonColors(contentColor = RedExpense)
-                ) {
-                    Text("Clear Everything")
-                }
+                ) { Text("Clear Everything") }
             },
             dismissButton = {
-                TextButton(onClick = { showClearDialog = false }) {
-                    Text("Cancel")
-                }
+                TextButton(onClick = { showClearDialog = false }) { Text("Cancel") }
             }
         )
     }
 
-    // Import Confirmation
     if (showImportConfirmDialog) {
         AlertDialog(
-            onDismissRequest = {
-                showImportConfirmDialog = false
-                pendingImportUri = null
-            },
-            icon = {
-                Icon(Icons.Filled.FileDownload, contentDescription = null, tint = BluePrimary)
-            },
+            onDismissRequest = { showImportConfirmDialog = false; pendingImportUri = null },
+            icon = { Icon(Icons.Filled.FileDownload, contentDescription = null, tint = BluePrimary) },
             title = { Text("Import Data?") },
             text = {
                 Text("This will replace all current data with the contents of the selected file. Your existing transactions and settings will be overwritten.\n\nMake sure to export your current data first if you want to keep it.")
@@ -378,15 +591,10 @@ fun SettingsScreen(
                         showImportConfirmDialog = false
                         pendingImportUri = null
                     }
-                ) {
-                    Text("Import & Replace")
-                }
+                ) { Text("Import & Replace") }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    showImportConfirmDialog = false
-                    pendingImportUri = null
-                }) {
+                TextButton(onClick = { showImportConfirmDialog = false; pendingImportUri = null }) {
                     Text("Cancel")
                 }
             }
@@ -418,13 +626,11 @@ private fun ThemeModePicker(
         modes.forEach { (mode, label, icon) ->
             val isSelected = currentMode == mode
             val backgroundColor by animateColorAsState(
-                targetValue = if (isSelected) MaterialTheme.colorScheme.surface
-                else Color.Transparent,
+                targetValue = if (isSelected) MaterialTheme.colorScheme.surface else Color.Transparent,
                 label = "theme_pill_bg"
             )
             val contentColor by animateColorAsState(
-                targetValue = if (isSelected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant,
+                targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 label = "theme_pill_content"
             )
 
@@ -442,12 +648,7 @@ private fun ThemeModePicker(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        icon,
-                        contentDescription = label,
-                        tint = contentColor,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    Icon(icon, contentDescription = label, tint = contentColor, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         label,
@@ -477,25 +678,13 @@ private fun SettingsToggleItem(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(24.dp)
-        )
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(title, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange
-        )
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
@@ -510,38 +699,27 @@ private fun SettingsClickItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(
-                if (onClick != null) Modifier.clickable { onClick() } else Modifier
-            )
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            icon,
-            contentDescription = null,
+            icon, contentDescription = null,
             tint = if (isDestructive) RedExpense else MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                title,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
+                title, fontWeight = FontWeight.Medium, fontSize = 14.sp,
                 color = if (isDestructive) RedExpense else MaterialTheme.colorScheme.onSurface
             )
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (onClick != null) {
             Icon(
-                Icons.Filled.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
+                Icons.Filled.ChevronRight, contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp)
             )
         }
     }
