@@ -22,6 +22,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
 import com.smartexpense.tracker.data.model.ExpenseReport
 import com.smartexpense.tracker.data.model.ReportPeriod
 import com.smartexpense.tracker.data.model.Transaction
@@ -63,6 +65,8 @@ fun ReportsScreen(
         Color(0xFFF44336), Color(0xFF3F51B5), Color(0xFF00BCD4)
     )
 
+    val context = LocalContext.current
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -70,7 +74,26 @@ fun ReportsScreen(
     ) {
         // Header
         item {
-            Text("Reports", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Reports", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                IconButton(onClick = {
+                    val text = buildShareText(report, currencyCode, currentPeriod,
+                        selectedYear, selectedMonth, monthYearFormatter)
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_SUBJECT, "Smart Expense Report")
+                        putExtra(Intent.EXTRA_TEXT, text)
+                    }
+                    context.startActivity(Intent.createChooser(intent, "Share Report"))
+                }) {
+                    Icon(Icons.Filled.Share, contentDescription = "Share report",
+                        tint = MaterialTheme.colorScheme.primary)
+                }
+            }
         }
 
         // Period selector
@@ -666,6 +689,72 @@ private fun StatCard(title: String, value: String, color: Color, modifier: Modif
     }
 }
 
+// ─── Share text builder ───────────────────────────────────────────────
+
+private fun buildShareText(
+    report: ExpenseReport,
+    currencyCode: String,
+    period: ReportPeriod,
+    selectedYear: Int,
+    selectedMonth: Int,
+    monthFmt: SimpleDateFormat
+): String {
+    val periodLabel = when (period) {
+        ReportPeriod.DAILY   -> "Today"
+        ReportPeriod.WEEKLY  -> "This Week"
+        ReportPeriod.MONTHLY -> {
+            val cal = Calendar.getInstance().apply {
+                set(Calendar.YEAR, selectedYear)
+                set(Calendar.MONTH, selectedMonth)
+                set(Calendar.DAY_OF_MONTH, 1)
+            }
+            monthFmt.format(cal.time)
+        }
+    }
+
+    val sb = StringBuilder()
+    sb.appendLine("📊 Smart Expense Report — $periodLabel")
+    sb.appendLine("─".repeat(34))
+    sb.appendLine("💸 Expenses : ${CurrencyUtils.format(report.totalExpenses, currencyCode)}")
+    sb.appendLine("💰 Income   : ${CurrencyUtils.format(report.totalIncome, currencyCode)}")
+    sb.appendLine("📈 Net Bal  : ${CurrencyUtils.format(report.netBalance, currencyCode)}")
+    sb.appendLine("📅 Avg Daily: ${CurrencyUtils.format(report.averageDailySpend, currencyCode)}")
+    sb.appendLine("🔢 Txns     : ${report.transactionCount}")
+
+    if (report.categoryBreakdown.isNotEmpty()) {
+        sb.appendLine()
+        sb.appendLine("Top Categories:")
+        report.categoryBreakdown.entries
+            .sortedByDescending { it.value }
+            .take(5)
+            .forEach { (cat, amt) ->
+                sb.appendLine("  • $cat: ${CurrencyUtils.format(amt, currencyCode)}")
+            }
+    }
+
+    if (report.totalIncome > 0) {
+        val savingsRate = ((report.totalIncome - report.totalExpenses) / report.totalIncome * 100)
+            .coerceIn(0.0, 100.0).roundToInt()
+        sb.appendLine()
+        sb.appendLine("💾 Savings Rate: $savingsRate%")
+    }
+
+    val change = report.comparisonWithPrevious
+    if (change != 0.0) {
+        val arrow = if (change <= 0) "▼" else "▲"
+        sb.appendLine("$arrow vs Previous: ${if (change > 0) "+" else ""}${String.format("%.1f", change)}%")
+    }
+
+    if (report.aiInsight.isNotEmpty()) {
+        sb.appendLine()
+        sb.appendLine("🤖 AI Insight: ${report.aiInsight}")
+    }
+
+    sb.appendLine()
+    sb.append("Shared from Smart Expense Tracker")
+    return sb.toString()
+}
+
 // ─── Category Donut Chart ─────────────────────────────────────────────
 
 @Composable
@@ -677,7 +766,7 @@ private fun CategoryDonutChart(
     val slices = categoryBreakdown.entries
         .sortedByDescending { it.value }
         .take(8)
-        .mapIndexed { i, (_, amt) -> Pair(amt / total * 360f, categoryColors[i % categoryColors.size]) }
+        .mapIndexed { i, (_, amt) -> Pair((amt / total * 360.0).toFloat(), categoryColors[i % categoryColors.size]) }
 
     val strokeWidth = 36f
     Canvas(modifier = Modifier
