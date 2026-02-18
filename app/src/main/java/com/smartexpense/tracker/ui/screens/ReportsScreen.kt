@@ -22,8 +22,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas as AndroidCanvas
+import android.graphics.Paint
+import android.graphics.pdf.PdfDocument
+import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
 import com.smartexpense.tracker.data.model.ExpenseReport
 import com.smartexpense.tracker.data.model.ReportPeriod
 import com.smartexpense.tracker.data.model.Transaction
@@ -31,6 +38,8 @@ import com.smartexpense.tracker.data.model.TransactionType
 import com.smartexpense.tracker.ui.theme.*
 import com.smartexpense.tracker.util.CurrencyUtils
 import com.smartexpense.tracker.util.DateUtils
+import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -66,6 +75,7 @@ fun ReportsScreen(
     )
 
     val context = LocalContext.current
+    var showSharePicker by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -80,16 +90,7 @@ fun ReportsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text("Reports", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                IconButton(onClick = {
-                    val text = buildShareText(report, currencyCode, currentPeriod,
-                        selectedYear, selectedMonth, monthYearFormatter)
-                    val intent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_SUBJECT, "Smart Expense Report")
-                        putExtra(Intent.EXTRA_TEXT, text)
-                    }
-                    context.startActivity(Intent.createChooser(intent, "Share Report"))
-                }) {
+                IconButton(onClick = { showSharePicker = true }) {
                     Icon(Icons.Filled.Share, contentDescription = "Share report",
                         tint = MaterialTheme.colorScheme.primary)
                 }
@@ -675,6 +676,111 @@ fun ReportsScreen(
 
         item { Spacer(modifier = Modifier.height(80.dp)) }
     }
+
+    // ─── Share format picker dialog ─────────────────────────────────
+    if (showSharePicker) {
+        val periodLabel = when (currentPeriod) {
+            ReportPeriod.DAILY -> "Today"
+            ReportPeriod.WEEKLY -> "This Week"
+            ReportPeriod.MONTHLY -> {
+                val cal = Calendar.getInstance().apply {
+                    set(Calendar.YEAR, selectedYear)
+                    set(Calendar.MONTH, selectedMonth)
+                    set(Calendar.DAY_OF_MONTH, 1)
+                }
+                monthYearFormatter.format(cal.time)
+            }
+        }
+        AlertDialog(
+            onDismissRequest = { showSharePicker = false },
+            icon = { Icon(Icons.Filled.Share, null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Share Report") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Choose format:", style = MaterialTheme.typography.bodyMedium)
+                    // Text
+                    OutlinedCard(
+                        onClick = {
+                            showSharePicker = false
+                            val text = buildShareText(report, currencyCode, currentPeriod,
+                                selectedYear, selectedMonth, monthYearFormatter)
+                            val intent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, "Smart Expense Report")
+                                putExtra(Intent.EXTRA_TEXT, text)
+                            }
+                            context.startActivity(Intent.createChooser(intent, "Share Report"))
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.TextSnippet, null,
+                                tint = BluePrimary, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("Text", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Text("Plain text summary", fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    // Image
+                    OutlinedCard(
+                        onClick = {
+                            showSharePicker = false
+                            shareReportAsImage(context, report, currencyCode, periodLabel)
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.Image, null,
+                                tint = GreenIncome, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("Image", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Text("PNG image for messaging apps", fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    // PDF
+                    OutlinedCard(
+                        onClick = {
+                            showSharePicker = false
+                            shareReportAsPdf(context, report, currencyCode, periodLabel)
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.PictureAsPdf, null,
+                                tint = RedExpense, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("PDF", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Text("PDF document for email & printing", fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSharePicker = false }) { Text("Cancel") }
+            }
+        )
+    }
 }
 
 @Composable
@@ -884,5 +990,189 @@ private fun MonthlyTrendChart(
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+    }
+}
+
+// ─── Image / PDF report sharing ──────────────────────────────────────
+
+/** Builds a multi-line report text for rendering on a canvas (image/PDF). */
+private fun buildReportLines(
+    report: ExpenseReport,
+    currencyCode: String,
+    periodLabel: String
+): List<Pair<String, Boolean>> {
+    // Pair<text, isBold>
+    val lines = mutableListOf<Pair<String, Boolean>>()
+    lines += "Smart Expense Report" to true
+    lines += periodLabel to false
+    lines += "" to false
+    lines += "Expenses:   ${CurrencyUtils.format(report.totalExpenses, currencyCode)}" to false
+    lines += "Income:     ${CurrencyUtils.format(report.totalIncome, currencyCode)}" to false
+    lines += "Net Balance: ${CurrencyUtils.format(report.netBalance, currencyCode)}" to false
+    lines += "Avg Daily:   ${CurrencyUtils.format(report.averageDailySpend, currencyCode)}" to false
+    lines += "Transactions: ${report.transactionCount}" to false
+
+    if (report.comparisonWithPrevious != 0.0) {
+        val sign = if (report.comparisonWithPrevious > 0) "+" else ""
+        lines += "vs Previous: $sign${String.format("%.1f", report.comparisonWithPrevious)}%" to false
+    }
+
+    if (report.categoryBreakdown.isNotEmpty()) {
+        lines += "" to false
+        lines += "Top Categories" to true
+        report.categoryBreakdown.entries.sortedByDescending { it.value }.take(5)
+            .forEach { (cat, amt) ->
+                val pct = if (report.totalExpenses > 0) (amt / report.totalExpenses * 100).roundToInt() else 0
+                lines += "  $cat: ${CurrencyUtils.format(amt, currencyCode)} ($pct%)" to false
+            }
+    }
+
+    if (report.topMerchants.isNotEmpty()) {
+        lines += "" to false
+        lines += "Top Merchants" to true
+        report.topMerchants.entries.take(5).forEach { (merchant, amt) ->
+            lines += "  $merchant: ${CurrencyUtils.format(amt, currencyCode)}" to false
+        }
+    }
+
+    if (report.totalIncome > 0) {
+        val savingsRate = ((report.totalIncome - report.totalExpenses) / report.totalIncome * 100)
+            .coerceIn(0.0, 100.0).roundToInt()
+        lines += "" to false
+        lines += "Savings Rate: $savingsRate%" to false
+    }
+
+    if (report.aiInsight.isNotEmpty()) {
+        lines += "" to false
+        lines += "AI Insight" to true
+        lines += report.aiInsight to false
+    }
+
+    lines += "" to false
+    lines += "Shared from Smart Expense Tracker" to false
+    return lines
+}
+
+/** Renders report lines onto a Bitmap canvas. */
+private fun renderReportBitmap(
+    report: ExpenseReport,
+    currencyCode: String,
+    periodLabel: String
+): Bitmap {
+    val lines = buildReportLines(report, currencyCode, periodLabel)
+    val width = 1080
+    val lineHeight = 48
+    val topMargin = 60
+    val leftMargin = 50
+    val height = topMargin + lines.size * lineHeight + 60
+
+    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val canvas = AndroidCanvas(bitmap)
+    canvas.drawColor(android.graphics.Color.WHITE)
+
+    val paintNormal = Paint().apply {
+        color = android.graphics.Color.parseColor("#212121")
+        textSize = 34f
+        isAntiAlias = true
+    }
+    val paintBold = Paint().apply {
+        color = android.graphics.Color.parseColor("#1565C0")
+        textSize = 38f
+        isFakeBoldText = true
+        isAntiAlias = true
+    }
+
+    var y = topMargin.toFloat()
+    for ((text, isBold) in lines) {
+        y += lineHeight
+        canvas.drawText(text, leftMargin.toFloat(), y, if (isBold) paintBold else paintNormal)
+    }
+    return bitmap
+}
+
+/** Shares the report as a PNG image via the system share sheet. */
+private fun shareReportAsImage(
+    context: Context,
+    report: ExpenseReport,
+    currencyCode: String,
+    periodLabel: String
+) {
+    try {
+        val bitmap = renderReportBitmap(report, currencyCode, periodLabel)
+        val file = File(context.cacheDir, "report_share.png")
+        FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "image/png"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(intent, "Share Report Image"))
+    } catch (e: Exception) {
+        Toast.makeText(context, "Failed to create image: ${e.message}", Toast.LENGTH_SHORT).show()
+    }
+}
+
+/** Shares the report as a PDF document via the system share sheet. */
+private fun shareReportAsPdf(
+    context: Context,
+    report: ExpenseReport,
+    currencyCode: String,
+    periodLabel: String
+) {
+    try {
+        val lines = buildReportLines(report, currencyCode, periodLabel)
+        val pageWidth = 595  // A4 in pts at 72 dpi
+        val pageHeight = 842
+        val leftMargin = 40f
+        val lineHeight = 22f
+        val topMargin = 50f
+
+        val document = PdfDocument()
+        var pageNumber = 1
+        var page = document.startPage(PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create())
+        var canvas = page.canvas
+        var y = topMargin
+
+        val paintNormal = Paint().apply {
+            color = android.graphics.Color.parseColor("#212121")
+            textSize = 14f
+            isAntiAlias = true
+        }
+        val paintBold = Paint().apply {
+            color = android.graphics.Color.parseColor("#1565C0")
+            textSize = 16f
+            isFakeBoldText = true
+            isAntiAlias = true
+        }
+
+        for ((text, isBold) in lines) {
+            y += lineHeight
+            if (y > pageHeight - 40) {
+                document.finishPage(page)
+                pageNumber++
+                page = document.startPage(
+                    PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create()
+                )
+                canvas = page.canvas
+                y = topMargin + lineHeight
+            }
+            canvas.drawText(text, leftMargin, y, if (isBold) paintBold else paintNormal)
+        }
+        document.finishPage(page)
+
+        val file = File(context.cacheDir, "report_share.pdf")
+        FileOutputStream(file).use { document.writeTo(it) }
+        document.close()
+
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/pdf"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(intent, "Share Report PDF"))
+    } catch (e: Exception) {
+        Toast.makeText(context, "Failed to create PDF: ${e.message}", Toast.LENGTH_SHORT).show()
     }
 }

@@ -16,6 +16,90 @@ class AiExpenseEngine {
 
     // ─── Smart Categorization ──────────────────────────────────────
 
+    /**
+     * Known merchant → category mappings. Checked first for precise classification.
+     * Merchant names are lowercase; matched as substring against the description.
+     */
+    private val merchantCategoryMap: Map<String, String> = mapOf(
+        // ── Ride-hailing / Taxi ──
+        "yandex.go" to "Transportation", "yandex go" to "Transportation",
+        "yandex taxi" to "Transportation", "yango" to "Transportation",
+        "uber" to "Transportation", "lyft" to "Transportation",
+        "bolt" to "Transportation", "gett" to "Transportation",
+        "grab" to "Transportation", "didi" to "Transportation",
+        "ola" to "Transportation", "rapido" to "Transportation",
+        "cabify" to "Transportation", "freenow" to "Transportation",
+        "indriver" to "Transportation", "maxim taxi" to "Transportation",
+        "gg taxi" to "Transportation",
+        // ── Fuel / Gas ──
+        "shell" to "Transportation", "chevron" to "Transportation",
+        "bp " to "Transportation", "exxon" to "Transportation",
+        "lukoil" to "Transportation", "gazprom" to "Transportation",
+        "petrol" to "Transportation",
+        // ── Airlines / Travel ──
+        "airline" to "Transportation", "airways" to "Transportation",
+        "flyone" to "Transportation", "ryanair" to "Transportation",
+        "wizzair" to "Transportation", "booking.com" to "Transportation",
+        "airbnb" to "Rent & Housing", "irctc" to "Transportation",
+        // ── Food delivery ──
+        "uber eats" to "Food & Dining", "doordash" to "Food & Dining",
+        "grubhub" to "Food & Dining", "deliveroo" to "Food & Dining",
+        "glovo" to "Food & Dining", "wolt" to "Food & Dining",
+        "swiggy" to "Food & Dining", "zomato" to "Food & Dining",
+        "yandex eda" to "Food & Dining", "yandex.eda" to "Food & Dining",
+        // ── Restaurants / Coffee ──
+        "mcdonald" to "Food & Dining", "starbucks" to "Food & Dining",
+        "chipotle" to "Food & Dining", "subway" to "Food & Dining",
+        "kfc" to "Food & Dining", "domino" to "Food & Dining",
+        "pizza hut" to "Food & Dining", "burger king" to "Food & Dining",
+        "dunkin" to "Food & Dining", "taco bell" to "Food & Dining",
+        "panda express" to "Food & Dining", "wendy" to "Food & Dining",
+        "popeyes" to "Food & Dining", "chick-fil-a" to "Food & Dining",
+        "five guys" to "Food & Dining", "panera" to "Food & Dining",
+        // ── Grocery chains ──
+        "walmart" to "Groceries", "target" to "Groceries",
+        "costco" to "Groceries", "kroger" to "Groceries",
+        "whole foods" to "Groceries", "trader joe" to "Groceries",
+        "safeway" to "Groceries", "aldi" to "Groceries",
+        "publix" to "Groceries", "bigbasket" to "Groceries",
+        "blinkit" to "Groceries", "dmart" to "Groceries",
+        // ── E-commerce / Shopping ──
+        "amazon" to "Shopping", "ebay" to "Shopping",
+        "etsy" to "Shopping", "aliexpress" to "Shopping",
+        "flipkart" to "Shopping", "myntra" to "Shopping",
+        "wildberries" to "Shopping", "ozon" to "Shopping",
+        "best buy" to "Shopping", "apple store" to "Shopping",
+        "nike" to "Shopping", "zara" to "Shopping",
+        "h&m" to "Shopping", "nordstrom" to "Shopping",
+        "macy" to "Shopping", "ikea" to "Rent & Housing",
+        // ── Streaming / Entertainment ──
+        "netflix" to "Entertainment", "spotify" to "Entertainment",
+        "hulu" to "Entertainment", "disney+" to "Entertainment",
+        "disney plus" to "Entertainment", "hbo max" to "Entertainment",
+        "apple tv" to "Entertainment", "prime video" to "Entertainment",
+        "youtube premium" to "Entertainment", "hotstar" to "Entertainment",
+        "steam" to "Entertainment", "playstation" to "Entertainment",
+        "xbox" to "Entertainment", "nintendo" to "Entertainment",
+        "epic games" to "Entertainment",
+        // ── Telecom / Utilities ──
+        "at&t" to "Bills & Utilities", "verizon" to "Bills & Utilities",
+        "t-mobile" to "Bills & Utilities", "comcast" to "Bills & Utilities",
+        "jio" to "Bills & Utilities", "airtel" to "Bills & Utilities",
+        "vodafone" to "Bills & Utilities", "bsnl" to "Bills & Utilities",
+        "beeline" to "Bills & Utilities", "ucom" to "Bills & Utilities",
+        "viva-mts" to "Bills & Utilities", "team telecom" to "Bills & Utilities",
+        // ── Health / Pharmacy ──
+        "cvs" to "Healthcare", "walgreens" to "Healthcare",
+        "apollo" to "Healthcare", "medplus" to "Healthcare",
+        // ── Education ──
+        "udemy" to "Education", "coursera" to "Education",
+        "skillshare" to "Education", "linkedin learning" to "Education",
+        // ── Yandex services ──
+        "yandex.market" to "Shopping", "yandex market" to "Shopping",
+        "yandex.lavka" to "Groceries", "yandex lavka" to "Groceries",
+        "yandex.plus" to "Entertainment", "yandex plus" to "Entertainment"
+    )
+
     private val categoryKeywords = mapOf(
         "Food & Dining" to listOf(
             "restaurant", "cafe", "coffee", "pizza", "burger", "sushi", "doordash",
@@ -29,10 +113,10 @@ class AiExpenseEngine {
             "fresh", "organic", "produce", "bigbasket", "blinkit", "dmart"
         ),
         "Transportation" to listOf(
-            "uber", "lyft", "taxi", "gas", "fuel", "parking", "toll", "metro",
-            "bus", "train", "airline", "flight", "car wash", "auto", "mechanic",
+            "taxi", "cab", "ride", "gas", "fuel", "parking", "toll", "metro",
+            "bus", "train", "airline", "flight", "car wash", "mechanic",
             "oil change", "tire", "transit", "shell", "chevron", "bp", "exxon",
-            "ola", "rapido", "irctc"
+            "rapido", "irctc"
         ),
         "Shopping" to listOf(
             "amazon", "ebay", "etsy", "mall", "store", "shop", "clothing",
@@ -87,6 +171,12 @@ class AiExpenseEngine {
     fun categorize(description: String, isExpense: Boolean = true): String {
         val lowerDesc = description.lowercase()
         val incomeOnlyCategories = setOf("Salary", "Freelance", "Investment")
+
+        // Pass 0 – known merchant lookup (highest precision)
+        for ((merchant, category) in merchantCategoryMap) {
+            if (isExpense && category in incomeOnlyCategories) continue
+            if (lowerDesc.contains(merchant)) return category
+        }
 
         // Pass 1 – exact substring match, scored by keyword length (longer = more specific)
         var bestMatch: String? = null

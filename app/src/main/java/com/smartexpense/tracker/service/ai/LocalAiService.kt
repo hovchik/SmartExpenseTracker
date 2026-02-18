@@ -109,15 +109,28 @@ class LocalAiService(private val appContext: Context) {
         }
     }
 
+    /** Shared engine used for AI-powered categorisation when local AI is enabled. */
+    private val aiEngine = AiExpenseEngine()
+
     /**
-     * Categorises a transaction description. Returns null so the caller
-     * falls back to [AiExpenseEngine]'s multi-pass rule engine, which is
-     * comprehensive and doesn't require an LLM.
+     * AI-powered categorisation that uses merchant knowledge + multi-pass
+     * rule engine. When local AI is enabled, this returns the best category
+     * (possibly a new one not yet in [availableCategories]), allowing the
+     * caller to auto-create it. Returns null only if it cannot determine any
+     * category at all (should not happen with AiExpenseEngine).
      */
     suspend fun categorize(
         description: String,
-        availableCategories: List<String>
-    ): String? = null  // AiExpenseEngine handles categorisation
+        availableCategories: List<String>,
+        isExpense: Boolean = true
+    ): String? = withContext(Dispatchers.Default) {
+        try {
+            aiEngine.categorize(description, isExpense)
+        } catch (e: Exception) {
+            Log.w(TAG, "AI categorize failed: ${e.message}")
+            null
+        }
+    }
 
     /**
      * Generates a concise, actionable financial insight using smart templates.

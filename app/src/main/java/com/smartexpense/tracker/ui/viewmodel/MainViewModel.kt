@@ -149,15 +149,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Returns a category using on-device AI when enabled, otherwise falls back to rules. */
+    /**
+     * Returns a category using on-device AI when enabled, otherwise falls back to rules.
+     * When AI suggests a category that doesn't exist yet, it is auto-created.
+     */
     private suspend fun smartCategorize(description: String, isExpense: Boolean = true): String {
         val settings = repository.appData.value.settings
         if (settings.localAiEnabled) {
             val categoryNames = repository.appData.value.categories.map { it.name }
-            val aiCategory = localAiService.categorize(description, categoryNames)
-            if (aiCategory != null) return aiCategory
+            val aiCategory = localAiService.categorize(description, categoryNames, isExpense)
+            if (aiCategory != null) {
+                repository.ensureCategoryExists(aiCategory)
+                return aiCategory
+            }
         }
-        return aiEngine.categorize(description, isExpense)
+        val category = aiEngine.categorize(description, isExpense)
+        repository.ensureCategoryExists(category)
+        return category
     }
 
     fun addTransaction(
