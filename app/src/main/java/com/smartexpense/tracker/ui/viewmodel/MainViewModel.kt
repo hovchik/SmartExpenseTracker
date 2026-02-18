@@ -187,15 +187,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     private suspend fun smartCategorize(description: String, isExpense: Boolean = true): String {
         val settings = repository.appData.value.settings
+        val userCatNames = repository.appData.value.categories
+            .filter { !it.isDefault }.map { it.name }
         if (settings.localAiEnabled) {
             val categoryNames = repository.appData.value.categories.map { it.name }
-            val aiCategory = localAiService.categorize(description, categoryNames, isExpense)
+            val aiCategory = localAiService.categorize(description, categoryNames, isExpense, userCatNames)
             if (aiCategory != null) {
                 repository.ensureCategoryExists(aiCategory)
                 return aiCategory
             }
         }
-        val category = aiEngine.categorize(description, isExpense)
+        val category = aiEngine.categorize(description, isExpense, userCatNames)
         repository.ensureCategoryExists(category)
         return category
     }
@@ -505,10 +507,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         .toSet()
                 } catch (_: Throwable) { emptySet() }
 
+                val userCatNames = repository.appData.value.categories
+                    .filter { !it.isDefault }.map { it.name }
                 val result = withContext(Dispatchers.IO) {
                     try {
                         com.smartexpense.tracker.service.sms.SmsInboxScanner(getApplication())
-                            .scanInbox(maxMessages = 500, existingTransactionNotes = existingNotes)
+                            .scanInbox(maxMessages = 500, existingTransactionNotes = existingNotes, userCategoryNames = userCatNames)
                     } catch (e: Throwable) {
                         com.smartexpense.tracker.service.sms.SmsInboxScanner.ScanResult(
                             0, 0, 0, emptyList(), 1, "Error: ${e.message}"

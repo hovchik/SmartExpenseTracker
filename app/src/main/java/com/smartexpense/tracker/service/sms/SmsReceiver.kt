@@ -124,6 +124,8 @@ class SmsReceiver : BroadcastReceiver() {
                         val repo = app.repository
                         val settings = repo.appData.value.settings
                         val appCurrency = settings.currencyCode
+                        val userCatNames = repo.appData.value.categories
+                            .filter { !it.isDefault }.map { it.name }
 
                         // ── Currency conversion ──────────────────────────────────
                         // If the SMS reports a different currency than the app's currency, convert.
@@ -150,7 +152,7 @@ class SmsReceiver : BroadcastReceiver() {
                         val transaction = Transaction(
                             amount = finalAmount,
                             description = parsed.description.ifEmpty { fullMessage.take(80) },
-                            category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }, parsed.isExpense),
+                            category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }, parsed.isExpense, userCatNames),
                             type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                             source = TransactionSource.SMS,
                             merchantName = parsed.merchantName,
@@ -189,12 +191,14 @@ class SmsReceiver : BroadcastReceiver() {
                     } else {
                         // Fallback: own storage instance (no conversion possible without settings)
                         val storage = com.smartexpense.tracker.data.json.JsonStorageManager(context)
-                        val repo = com.smartexpense.tracker.data.repository.ExpenseRepository(storage)
-                        repo.initialize()
-                        repo.addTransaction(Transaction(
+                        val fallbackRepo = com.smartexpense.tracker.data.repository.ExpenseRepository(storage)
+                        fallbackRepo.initialize()
+                        val fallbackCatNames = fallbackRepo.appData.value.categories
+                            .filter { !it.isDefault }.map { it.name }
+                        fallbackRepo.addTransaction(Transaction(
                             amount = parsed.amount,
                             description = parsed.description.ifEmpty { fullMessage.take(80) },
-                            category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }, parsed.isExpense),
+                            category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }, parsed.isExpense, fallbackCatNames),
                             type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                             source = TransactionSource.SMS,
                             merchantName = parsed.merchantName,

@@ -167,8 +167,15 @@ class AiExpenseEngine {
      * @param isExpense Pass false for income transactions — prevents income-only categories
      *   (Salary, Freelance, Investment) from matching POS / expense descriptions that happen
      *   to contain keywords like "pay" or "salary" (e.g. "payment at Paytm").
+     * @param userCategoryNames Names of user-created categories. When a category name appears
+     *   as a substring in the description it takes priority over hardcoded keyword scoring,
+     *   so that custom categories like "ATM" match SMS text such as "ATM cash at ATM AEB …".
      */
-    fun categorize(description: String, isExpense: Boolean = true): String {
+    fun categorize(
+        description: String,
+        isExpense: Boolean = true,
+        userCategoryNames: List<String> = emptyList()
+    ): String {
         val lowerDesc = description.lowercase()
         val incomeOnlyCategories = setOf("Salary", "Freelance", "Investment")
 
@@ -177,6 +184,21 @@ class AiExpenseEngine {
             if (isExpense && category in incomeOnlyCategories) continue
             if (lowerDesc.contains(merchant)) return category
         }
+
+        // Pass 0.5 – user-created category name matching (before hardcoded keywords)
+        // Longest matching name wins (more specific). Minimum 2 chars to avoid noise.
+        var bestUserMatch: String? = null
+        var bestUserScore = 0
+        for (name in userCategoryNames) {
+            val lowerName = name.lowercase()
+            if (lowerName.length >= 2 && lowerDesc.contains(lowerName)) {
+                if (lowerName.length > bestUserScore) {
+                    bestUserScore = lowerName.length
+                    bestUserMatch = name
+                }
+            }
+        }
+        if (bestUserMatch != null) return bestUserMatch
 
         // Pass 1 – exact substring match, scored by keyword length (longer = more specific)
         var bestMatch: String? = null

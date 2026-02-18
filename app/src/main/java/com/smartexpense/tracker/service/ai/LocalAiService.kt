@@ -122,10 +122,11 @@ class LocalAiService(private val appContext: Context) {
     suspend fun categorize(
         description: String,
         availableCategories: List<String>,
-        isExpense: Boolean = true
+        isExpense: Boolean = true,
+        userCategoryNames: List<String> = emptyList()
     ): String? = withContext(Dispatchers.Default) {
         try {
-            aiEngine.categorize(description, isExpense)
+            aiEngine.categorize(description, isExpense, userCategoryNames)
         } catch (e: Exception) {
             Log.w(TAG, "AI categorize failed: ${e.message}")
             null
