@@ -1,5 +1,6 @@
 package com.smartexpense.tracker.ui.screens
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,12 +14,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartexpense.tracker.data.model.ExpenseReport
 import com.smartexpense.tracker.data.model.ReportPeriod
+import com.smartexpense.tracker.data.model.Transaction
+import com.smartexpense.tracker.data.model.TransactionType
 import com.smartexpense.tracker.ui.theme.*
 import com.smartexpense.tracker.util.CurrencyUtils
 import com.smartexpense.tracker.util.DateUtils
@@ -35,6 +42,7 @@ fun ReportsScreen(
     generateMonthlyReport: (year: Int, month: Int) -> ExpenseReport = { _, _ -> generateReport(ReportPeriod.MONTHLY) },
     currentPeriod: ReportPeriod,
     onPeriodChange: (ReportPeriod) -> Unit,
+    allTransactions: List<Transaction> = emptyList(),
     currencyCode: String = "USD"
 ) {
     // Month selector state – defaults to current month
@@ -514,6 +522,118 @@ fun ReportsScreen(
                 }
         }
 
+        // ─── Category Donut Chart ─────────────────────────────
+        if (report.categoryBreakdown.size >= 2) {
+            item {
+                Text("Spending Breakdown",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 4.dp))
+            }
+            item {
+                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                    Column(modifier = Modifier.padding(16.dp),
+                           horizontalAlignment = Alignment.CenterHorizontally) {
+                        CategoryDonutChart(
+                            categoryBreakdown = report.categoryBreakdown,
+                            categoryColors = categoryColors)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        report.categoryBreakdown.entries.sortedByDescending { it.value }
+                            .take(5).forEachIndexed { idx, (cat, amt) ->
+                                val pct = if (report.totalExpenses > 0)
+                                    (amt / report.totalExpenses * 100).roundToInt() else 0
+                                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically) {
+                                    Box(modifier = Modifier.size(10.dp).clip(CircleShape)
+                                        .background(categoryColors[idx % categoryColors.size]))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(cat, modifier = Modifier.weight(1f), fontSize = 13.sp)
+                                    Text("$pct%", fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(CurrencyUtils.format(amt, currencyCode),
+                                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                    }
+                }
+            }
+        }
+
+        // ─── Savings Rate ─────────────────────────────────────
+        if (report.totalIncome > 0) {
+            item {
+                val savingsRate = ((report.totalIncome - report.totalExpenses) /
+                    report.totalIncome * 100).coerceIn(0.0, 100.0)
+                val savingsColor = when {
+                    savingsRate >= 20 -> GreenIncome
+                    savingsRate >= 10 -> OrangeWarning
+                    else -> RedExpense
+                }
+                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.Savings, null, tint = savingsColor,
+                                modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Savings Rate", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text("${savingsRate.roundToInt()}%",
+                                fontWeight = FontWeight.Bold, fontSize = 18.sp, color = savingsColor)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            progress = { (savingsRate / 100).toFloat().coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                            color = savingsColor,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            when {
+                                savingsRate >= 20 -> "Great! You're meeting the 20% savings goal."
+                                savingsRate >= 10 -> "Getting closer — aim for 20% to build a safety net."
+                                else -> "Spending exceeds recommended limits. Review your expenses."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        // ─── 6-Month Income vs Expense Trend ─────────────────
+        if (allTransactions.isNotEmpty()) {
+            item {
+                Text("6-Month Trend",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 4.dp))
+            }
+            item {
+                val monthlyData = remember(allTransactions) { buildMonthlyTrend(allTransactions) }
+                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(GreenIncome))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Income", fontSize = 12.sp)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(RedExpense))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Expenses", fontSize = 12.sp)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        MonthlyTrendChart(monthlyData = monthlyData, currencyCode = currencyCode)
+                    }
+                }
+            }
+        }
+
         // ─── Empty state ───────────────────────────────
         if (report.transactionCount == 0) {
             item {
@@ -542,6 +662,138 @@ private fun StatCard(title: String, value: String, color: Color, modifier: Modif
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(modifier = Modifier.height(4.dp))
             Text(value, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = color)
+        }
+    }
+}
+
+// ─── Category Donut Chart ─────────────────────────────────────────────
+
+@Composable
+private fun CategoryDonutChart(
+    categoryBreakdown: Map<String, Double>,
+    categoryColors: List<Color>
+) {
+    val total = categoryBreakdown.values.sum().takeIf { it > 0 } ?: return
+    val slices = categoryBreakdown.entries
+        .sortedByDescending { it.value }
+        .take(8)
+        .mapIndexed { i, (_, amt) -> Pair(amt / total * 360f, categoryColors[i % categoryColors.size]) }
+
+    val strokeWidth = 36f
+    Canvas(modifier = Modifier
+        .fillMaxWidth()
+        .height(180.dp)) {
+        val diameter = minOf(size.width, size.height) * 0.72f
+        val topLeft = Offset((size.width - diameter) / 2f, (size.height - diameter) / 2f)
+        val arcSize = Size(diameter, diameter)
+        var startAngle = -90f
+        slices.forEach { (sweep, color) ->
+            drawArc(
+                color = color,
+                startAngle = startAngle,
+                sweepAngle = sweep - 2f,   // 2° gap between slices
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
+            )
+            startAngle += sweep
+        }
+    }
+}
+
+// ─── 6-Month Trend Chart ─────────────────────────────────────────────
+
+data class MonthBucket(val label: String, val income: Double, val expense: Double)
+
+private fun buildMonthlyTrend(transactions: List<Transaction>): List<MonthBucket> {
+    val fmt = SimpleDateFormat("MMM", Locale.getDefault())
+    val cal = Calendar.getInstance()
+    return (5 downTo 0).map { monthsBack ->
+        val c = Calendar.getInstance().apply { add(Calendar.MONTH, -monthsBack) }
+        val year = c.get(Calendar.YEAR); val month = c.get(Calendar.MONTH)
+        val startCal = Calendar.getInstance().apply {
+            set(year, month, 1, 0, 0, 0); set(Calendar.MILLISECOND, 0)
+        }
+        val endCal = Calendar.getInstance().apply {
+            set(year, month, c.getActualMaximum(Calendar.DAY_OF_MONTH), 23, 59, 59)
+            set(Calendar.MILLISECOND, 999)
+        }
+        val inRange = transactions.filter { it.timestamp in startCal.timeInMillis..endCal.timeInMillis }
+        cal.set(year, month, 1)
+        MonthBucket(
+            label = fmt.format(cal.time),
+            income = inRange.filter { it.type == TransactionType.INCOME }.sumOf { it.amount },
+            expense = inRange.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+        )
+    }
+}
+
+@Composable
+private fun MonthlyTrendChart(
+    monthlyData: List<MonthBucket>,
+    currencyCode: String
+) {
+    if (monthlyData.isEmpty()) return
+    val maxVal = monthlyData.maxOf { maxOf(it.income, it.expense) }.coerceAtLeast(1.0)
+    val barWidth = 14.dp
+    val chartHeight = 120.dp
+    val labelStyle = MaterialTheme.typography.labelSmall
+    val incomeColor = GreenIncome
+    val expenseColor = RedExpense
+    val surfaceVar = MaterialTheme.colorScheme.surfaceVariant
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.Bottom
+    ) {
+        monthlyData.forEach { bucket ->
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.weight(1f)
+            ) {
+                // Bars
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    verticalAlignment = Alignment.Bottom,
+                    modifier = Modifier.height(chartHeight)
+                ) {
+                    // Income bar
+                    val incomeFrac = (bucket.income / maxVal).toFloat().coerceIn(0f, 1f)
+                    Box(
+                        modifier = Modifier
+                            .width(barWidth)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Box(modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight(incomeFrac.coerceAtLeast(0.02f))
+                            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                            .background(incomeColor))
+                    }
+                    // Expense bar
+                    val expFrac = (bucket.expense / maxVal).toFloat().coerceIn(0f, 1f)
+                    Box(
+                        modifier = Modifier
+                            .width(barWidth)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Box(modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight(expFrac.coerceAtLeast(0.02f))
+                            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                            .background(expenseColor))
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(bucket.label, style = labelStyle,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }

@@ -165,8 +165,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         merchantName: String = "", notes: String = ""
     ) {
         viewModelScope.launch {
-            val finalCategory = category ?: smartCategorize(description)
             val now = System.currentTimeMillis()
+            // Dedup: skip if an identical manual transaction was saved within 5 seconds
+            // (guards against accidental double-tap on the Save button)
+            val isDuplicate = repository.appData.value.transactions.any { t ->
+                t.source == source &&
+                t.amount == amount &&
+                t.description.equals(description, ignoreCase = true) &&
+                kotlin.math.abs(t.timestamp - now) < 5_000
+            }
+            if (isDuplicate) return@launch
+
+            val finalCategory = category ?: smartCategorize(description)
             val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
             repository.addTransaction(Transaction(
                 amount = amount, description = description, category = finalCategory,

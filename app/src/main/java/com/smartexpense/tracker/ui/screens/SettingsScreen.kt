@@ -263,24 +263,32 @@ fun SettingsScreen(
                     Text("Currency Converter", fontWeight = FontWeight.Medium, fontSize = 14.sp)
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
+                // Row 1: Amount input (full width)
+                OutlinedTextField(
+                    value = convertAmount,
+                    onValueChange = { convertAmount = it.filter { c -> c.isDigit() || c == '.' } },
+                    label = { Text("Amount to convert") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    leadingIcon = {
+                        Text(currencyInfoFor(convertFromCode).symbol,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 4.dp))
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Row 2: From / Swap / To selectors
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Amount input
-                    OutlinedTextField(
-                        value = convertAmount,
-                        onValueChange = { convertAmount = it.filter { c -> c.isDigit() || c == '.' } },
-                        label = { Text("Amount") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
-                        modifier = Modifier.weight(1.8f),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-
                     // From currency
                     Box(modifier = Modifier.weight(1f)) {
                         OutlinedButton(
@@ -288,21 +296,47 @@ fun SettingsScreen(
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(convertFromCode, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Icon(Icons.Filled.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("From", style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(currencyInfoFor(convertFromCode).symbol,
+                                        fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(convertFromCode, fontSize = 12.sp)
+                                    Icon(Icons.Filled.ArrowDropDown, null, modifier = Modifier.size(16.dp))
+                                }
+                            }
                         }
                         DropdownMenu(expanded = showFromDropdown, onDismissRequest = { showFromDropdown = false }) {
                             SUPPORTED_CURRENCIES.forEach { info ->
                                 DropdownMenuItem(
-                                    text = { Text("${info.symbol} ${info.code}") },
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(info.symbol, fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.width(28.dp))
+                                            Text("${info.code}  ", fontSize = 13.sp)
+                                            Text(info.name, fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    },
                                     onClick = { convertFromCode = info.code; showFromDropdown = false }
                                 )
                             }
                         }
                     }
 
-                    Icon(Icons.Filled.ArrowForward, contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                    // Swap button
+                    FilledTonalIconButton(
+                        onClick = {
+                            val tmp = convertFromCode
+                            convertFromCode = convertToCode
+                            convertToCode = tmp
+                        }
+                    ) {
+                        Icon(Icons.Filled.SwapHoriz, contentDescription = "Swap currencies",
+                            modifier = Modifier.size(20.dp))
+                    }
 
                     // To currency
                     Box(modifier = Modifier.weight(1f)) {
@@ -311,13 +345,30 @@ fun SettingsScreen(
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(convertToCode, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Icon(Icons.Filled.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("To", style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(currencyInfoFor(convertToCode).symbol,
+                                        fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(convertToCode, fontSize = 12.sp)
+                                    Icon(Icons.Filled.ArrowDropDown, null, modifier = Modifier.size(16.dp))
+                                }
+                            }
                         }
                         DropdownMenu(expanded = showToDropdown, onDismissRequest = { showToDropdown = false }) {
                             SUPPORTED_CURRENCIES.forEach { info ->
                                 DropdownMenuItem(
-                                    text = { Text("${info.symbol} ${info.code}") },
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(info.symbol, fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.width(28.dp))
+                                            Text("${info.code}  ", fontSize = 13.sp)
+                                            Text(info.name, fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    },
                                     onClick = { convertToCode = info.code; showToDropdown = false }
                                 )
                             }
@@ -325,12 +376,13 @@ fun SettingsScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Result row
+                // Result area
                 when {
                     convertAmount.isNotEmpty() && exchangeRates.isEmpty() -> {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(vertical = 4.dp)) {
                             CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Fetching live rates…", style = MaterialTheme.typography.bodySmall,
@@ -339,20 +391,30 @@ fun SettingsScreen(
                     }
                     convertedResult != null -> {
                         Surface(
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(12.dp),
                             color = MaterialTheme.colorScheme.primaryContainer,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Filled.CheckCircle, contentDescription = null,
-                                    tint = GreenPrimary, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Filled.CheckCircle, contentDescription = null,
+                                        tint = GreenPrimary, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Conversion Result",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
                                 Text(
-                                    "$convertAmount ${currencyInfoFor(convertFromCode).symbol} = $convertedResult",
-                                    fontWeight = FontWeight.SemiBold,
+                                    "$convertAmount ${currencyInfoFor(convertFromCode).symbol}" +
+                                        " (${convertFromCode}) = ",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    "$convertedResult (${convertToCode})",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 20.sp,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                             }

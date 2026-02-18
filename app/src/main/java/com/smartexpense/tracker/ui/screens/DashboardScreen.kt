@@ -328,9 +328,10 @@ fun TransactionItem(
     currencyCode: String = "USD",
     onDelete: () -> Unit
 ) {
-    var showDelete by remember { mutableStateOf(false) }
+    var showDetail by remember { mutableStateOf(false) }
+    val isExpense = transaction.type == TransactionType.EXPENSE
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { showDelete = !showDelete },
+        modifier = Modifier.fillMaxWidth().clickable { showDetail = true },
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -338,10 +339,7 @@ fun TransactionItem(
                 modifier = Modifier
                     .size(42.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        if (transaction.type == TransactionType.EXPENSE) RedExpense.copy(alpha = 0.1f)
-                        else GreenIncome.copy(alpha = 0.1f)
-                    ),
+                    .background(if (isExpense) RedExpense.copy(alpha = 0.1f) else GreenIncome.copy(alpha = 0.1f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -349,11 +347,10 @@ fun TransactionItem(
                         TransactionSource.OCR_SCAN -> Icons.Filled.CameraAlt
                         TransactionSource.SMS -> Icons.Filled.Sms
                         TransactionSource.NOTIFICATION -> Icons.Filled.Notifications
-                        else -> if (transaction.type == TransactionType.EXPENSE)
-                            Icons.Filled.ShoppingCart else Icons.Filled.AccountBalance
+                        else -> if (isExpense) Icons.Filled.ShoppingCart else Icons.Filled.AccountBalance
                     },
                     contentDescription = null,
-                    tint = if (transaction.type == TransactionType.EXPENSE) RedExpense else GreenIncome,
+                    tint = if (isExpense) RedExpense else GreenIncome,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -373,20 +370,20 @@ fun TransactionItem(
                     }
                 }
             }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    "${if (transaction.type == TransactionType.EXPENSE) "-" else "+"}${CurrencyUtils.format(transaction.amount, currencyCode)}",
-                    fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
-                    color = if (transaction.type == TransactionType.EXPENSE) RedExpense else GreenIncome
-                )
-                if (showDelete) {
-                    TextButton(
-                        onClick = onDelete,
-                        contentPadding = PaddingValues(0.dp),
-                        modifier = Modifier.height(24.dp)
-                    ) { Text("Delete", fontSize = 11.sp, color = RedExpense) }
-                }
-            }
+            Text(
+                "${if (isExpense) "−" else "+"}${CurrencyUtils.format(transaction.amount, currencyCode)}",
+                fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                color = if (isExpense) RedExpense else GreenIncome
+            )
         }
+    }
+
+    if (showDetail) {
+        TransactionDetailDialog(
+            transaction = transaction,
+            currencyCode = currencyCode,
+            onDismiss = { showDetail = false },
+            onDelete = { onDelete(); showDetail = false }
+        )
     }
 }

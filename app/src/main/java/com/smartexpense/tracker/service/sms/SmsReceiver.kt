@@ -50,6 +50,17 @@ class SmsReceiver : BroadcastReceiver() {
         "credit account", "debit account", "completion"
     )
 
+    /**
+     * Pre-authorisation keywords – these messages must be silently ignored.
+     * The real charge arrives in a separate "approved"/"completion" message.
+     */
+    private val preAuthKeywords = listOf(
+        "pre-auth", "pre auth", "preauth", "pre-authorization", "pre authorization",
+        "preauthorization", "authorisation hold", "authorization hold", "auth hold",
+        "card authorised", "card authorized", "temporary hold", "temp hold",
+        "pending authorization", "pending authorisation"
+    )
+
     override fun onReceive(context: Context, intent: Intent) {
         try {
             if (intent.action != SMS_RECEIVED) return
@@ -80,6 +91,12 @@ class SmsReceiver : BroadcastReceiver() {
             val sender = messages.firstOrNull()?.originatingAddress ?: "unknown"
 
             if (fullMessage.isBlank()) return
+            // Drop pre-auth / authorisation-hold messages before any further processing
+            val lower = fullMessage.lowercase()
+            if (preAuthKeywords.any { lower.contains(it) }) {
+                Log.d(TAG, "Pre-auth SMS ignored from $sender")
+                return
+            }
             if (!isFinancialMessage(sender, fullMessage)) return
 
             Log.d(TAG, "Financial SMS detected from: $sender")

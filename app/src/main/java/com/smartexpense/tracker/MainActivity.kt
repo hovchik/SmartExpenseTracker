@@ -154,6 +154,7 @@ fun MainApp(viewModel: MainViewModel) {
                         },
                         currentPeriod = reportPeriod,
                         onPeriodChange = { viewModel.setReportPeriod(it) },
+                        allTransactions = uiState.allTransactions,
                         currencyCode = currencyCode
                     )
                     "add" -> AddTransactionScreen(

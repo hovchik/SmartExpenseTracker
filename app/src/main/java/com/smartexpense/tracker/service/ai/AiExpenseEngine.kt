@@ -80,7 +80,8 @@ class AiExpenseEngine {
 
     fun categorize(description: String): String {
         val lowerDesc = description.lowercase()
-        var bestMatch = "Other"
+        // Pass 1 – exact substring match, scored by keyword length (longer = more specific)
+        var bestMatch: String? = null
         var bestScore = 0
         for ((category, keywords) in categoryKeywords) {
             var score = 0
@@ -89,7 +90,40 @@ class AiExpenseEngine {
             }
             if (score > bestScore) { bestScore = score; bestMatch = category }
         }
-        return bestMatch
+        if (bestMatch != null) return bestMatch
+
+        // Pass 2 – word-token overlap: tokenise description, check prefix matches
+        val tokens = lowerDesc.split(Regex("""[\s\-_/.,;:]+""")).filter { it.length >= 3 }
+        var fallbackMatch: String? = null
+        var fallbackScore = 0
+        for ((category, keywords) in categoryKeywords) {
+            // Skip pure income/investment categories for fallback (unlikely for POS merchants)
+            if (category in listOf("Salary", "Freelance", "Investment")) continue
+            var score = 0
+            for (token in tokens) {
+                for (keyword in keywords) {
+                    val minLen = minOf(token.length, keyword.length, 5)
+                    if (minLen >= 3 && (token.startsWith(keyword.take(minLen)) ||
+                                        keyword.startsWith(token.take(minLen)))) {
+                        score += minLen
+                    }
+                }
+            }
+            if (score > fallbackScore) { fallbackScore = score; fallbackMatch = category }
+        }
+        if (fallbackMatch != null && fallbackScore >= 3) return fallbackMatch
+
+        // Pass 3 – structural heuristics for unrecognised merchants
+        return when {
+            // Armenian/CIS/regional store-type name patterns
+            lowerDesc.any { it.code in 0x0530..0x058F } -> "Shopping" // Armenian Unicode block
+            lowerDesc.matches(Regex(""".*\b(llc|ltd|inc|corp|gmbh|srl|sas|ojsc|cjsc)\b.*""")) -> "Shopping"
+            lowerDesc.contains("market") || lowerDesc.contains("shop") ||
+                lowerDesc.contains("store") || lowerDesc.contains("mart") -> "Shopping"
+            lowerDesc.contains("fee") || lowerDesc.contains("charge") ||
+                lowerDesc.contains("bill") -> "Bills & Utilities"
+            else -> "Shopping"   // POS/card transactions with unknown merchant → Shopping beats Other
+        }
     }
 
     fun detectTransactionType(description: String, amount: Double): TransactionType {
@@ -413,9 +447,29 @@ class AiExpenseEngine {
      * Supports: US banks, Indian banks (INR/UPI), Armenian banks (AMD),
      * European banks (EUR/GBP), and generic international formats.
      */
+    /**
+     * Keywords that identify a pre-authorisation hold (not a real debit).
+     * Pre-auth messages should be silently discarded — the actual charge
+     * arrives in a separate "approved" / "completion" message.
+     */
+    private val preAuthKeywords = listOf(
+        "pre-auth", "pre auth", "preauth", "pre-authorization", "pre authorization",
+        "preauthorization", "authorisation hold", "authorization hold", "auth hold",
+        "card authorised", "card authorized",
+        "temporary hold", "temp hold", "pending authorization", "pending authorisation",
+        // Armenian POS terminal pre-auth strings
+        "Նախաէttv", "авторизация", "предавторизация"
+    )
+
     fun parseFinancialMessage(message: String): ParsedTransaction? {
         try {
             val lowerMsg = message.lowercase()
+
+            // Reject pre-auth / authorisation-hold messages — they are not real transactions
+            if (preAuthKeywords.any { lowerMsg.contains(it.lowercase()) }) {
+                return null
+            }
+
             val oneLine = message.replace(Regex("""\s*\n\s*"""), " ").trim()
 
             // ── TRY SPECIFIC BANK FORMATS FIRST ─────────────
