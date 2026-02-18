@@ -143,7 +143,7 @@ data class ExpenseReport(
 )
 
 enum class ReportPeriod {
-    DAILY, WEEKLY, MONTHLY
+    DAILY, WEEKLY, MONTHLY, CUSTOM
 }
 
 /**
@@ -197,9 +197,9 @@ enum class ThemeMode {
 
 data class AppSettings(
     /** Legacy single-char symbol kept for backward-compat. Use currencyCode instead. */
-    val currency: String = "$",
+    val currency: String = "֏",
     /** ISO-4217 currency code (e.g. "USD", "AMD"). Drives all formatting and OCR parsing. */
-    val currencyCode: String = "USD",
+    val currencyCode: String = "AMD",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val notificationListenerEnabled: Boolean = false,
     val smsParsingEnabled: Boolean = false,

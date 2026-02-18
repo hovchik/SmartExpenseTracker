@@ -6,7 +6,11 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -21,6 +25,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -57,7 +62,12 @@ fun SettingsScreen(
     onAddCategory: (String) -> Unit = {},
     onDeleteCategory: (String) -> Unit = {},
     onSetMonthlyLimit: (Double) -> Unit = {},
-    onConfigureSalary: (enabled: Boolean, amount: Double, dayOfMonth: Int, description: String) -> Unit = { _, _, _, _ -> }
+    onConfigureSalary: (enabled: Boolean, amount: Double, dayOfMonth: Int, description: String) -> Unit = { _, _, _, _ -> },
+    /** Discovered banking apps from device scan. */
+    discoveredBankingApps: List<com.smartexpense.tracker.ui.viewmodel.MainViewModel.DiscoveredApp> = emptyList(),
+    onScanBankingApps: () -> Unit = {},
+    onAddBankingApp: (String) -> Unit = {},
+    onRemoveBankingApp: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     var showClearDialog by remember { mutableStateOf(false) }
@@ -83,6 +93,17 @@ fun SettingsScreen(
 
     // Category management state
     var newCategoryText by remember { mutableStateOf("") }
+
+    // Section collapsed state (all collapsed by default)
+    var appearanceExpanded by remember { mutableStateOf(false) }
+    var currencyExpanded by remember { mutableStateOf(false) }
+    var dataSourcesExpanded by remember { mutableStateOf(false) }
+    var budgetExpanded by remember { mutableStateOf(false) }
+    var salaryExpanded by remember { mutableStateOf(false) }
+    var categoriesExpanded by remember { mutableStateOf(false) }
+    var localAiExpanded by remember { mutableStateOf(false) }
+    var importExportExpanded by remember { mutableStateOf(false) }
+    var storageExpanded by remember { mutableStateOf(false) }
 
     // Currency selector state
     var showCurrencyDropdown by remember { mutableStateOf(false) }
@@ -146,60 +167,61 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         // ─── Appearance Section ────────────────────────────────────
-        Text(
-            "APPEARANCE",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        CollapsibleSectionHeader("APPEARANCE", appearanceExpanded) { appearanceExpanded = !appearanceExpanded }
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
+        AnimatedVisibility(
+            visible = appearanceExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Filled.Palette,
-                        contentDescription = null,
-                        tint = PurpleAccent,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column {
-                        Text("Theme", fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                        Text(
-                            "Choose between Light, Dark, or System default",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.Palette,
+                            contentDescription = null,
+                            tint = PurpleAccent,
+                            modifier = Modifier.size(24.dp)
                         )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text("Theme", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                            Text(
+                                "Choose between Light, Dark, or System default",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    ThemeModePicker(
+                        currentMode = settings.themeMode,
+                        onModeSelected = { mode ->
+                            onUpdateSettings(settings.copy(themeMode = mode))
+                        }
+                    )
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                ThemeModePicker(
-                    currentMode = settings.themeMode,
-                    onModeSelected = { mode ->
-                        onUpdateSettings(settings.copy(themeMode = mode))
-                    }
-                )
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
         // ─── Currency Section ──────────────────────────────────────
-        Text(
-            "CURRENCY",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        CollapsibleSectionHeader("CURRENCY", currencyExpanded) { currencyExpanded = !currencyExpanded }
 
+        AnimatedVisibility(
+            visible = currencyExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp)
@@ -457,17 +479,19 @@ fun SettingsScreen(
                 }
             }
         }
+        } // end AnimatedVisibility for Currency
 
         Spacer(modifier = Modifier.height(24.dp))
 
         // ─── Data Sources Section ──────────────────────────────────
-        Text(
-            "DATA SOURCES",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        CollapsibleSectionHeader("DATA SOURCES", dataSourcesExpanded) { dataSourcesExpanded = !dataSourcesExpanded }
 
+        AnimatedVisibility(
+            visible = dataSourcesExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+        Column {
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp)
@@ -533,16 +557,130 @@ fun SettingsScreen(
             Text("Scan SMS Inbox for Transactions", fontWeight = FontWeight.SemiBold)
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ─── Banking App Scanner ─────────────────────────────
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.PhoneAndroid,
+                        contentDescription = null,
+                        tint = BluePrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Banking App Scanner", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Text(
+                            "Scan installed apps to find banking and payment applications",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = onScanBankingApps,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary)
+                ) {
+                    Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Scan for Banking Apps", fontWeight = FontWeight.SemiBold)
+                }
+
+                if (discoveredBankingApps.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "${discoveredBankingApps.size} banking app(s) found",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    discoveredBankingApps.forEach { app ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                if (app.isAlreadyMonitored) Icons.Filled.CheckCircle else Icons.Filled.PhoneAndroid,
+                                contentDescription = null,
+                                tint = if (app.isAlreadyMonitored) GreenPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(app.appName, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                                Text(
+                                    app.packageName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            if (app.isAlreadyMonitored) {
+                                IconButton(
+                                    onClick = { onRemoveBankingApp(app.packageName) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.RemoveCircle,
+                                        contentDescription = "Remove ${app.appName}",
+                                        tint = RedExpense,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            } else {
+                                IconButton(
+                                    onClick = { onAddBankingApp(app.packageName) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.AddCircle,
+                                        contentDescription = "Add ${app.appName}",
+                                        tint = GreenPrimary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Show currently monitored apps count
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "${settings.bankingAppPackages.size} app(s) currently monitored",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+        } // end Column in AnimatedVisibility for Data Sources
+        } // end AnimatedVisibility for Data Sources
+
         Spacer(modifier = Modifier.height(24.dp))
 
         // ─── Monthly Expense Limit Section ────────────────────────
-        Text(
-            "BUDGET THRESHOLD",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        CollapsibleSectionHeader("BUDGET THRESHOLD", budgetExpanded) { budgetExpanded = !budgetExpanded }
 
+        AnimatedVisibility(
+            visible = budgetExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp)
@@ -615,17 +753,18 @@ fun SettingsScreen(
                 }
             }
         }
+        } // end AnimatedVisibility for Budget
 
         Spacer(modifier = Modifier.height(24.dp))
 
         // ─── Salary Scheduler Section ──────────────────────────────
-        Text(
-            "SALARY SCHEDULER",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        CollapsibleSectionHeader("SALARY SCHEDULER", salaryExpanded) { salaryExpanded = !salaryExpanded }
 
+        AnimatedVisibility(
+            visible = salaryExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp)
@@ -759,17 +898,18 @@ fun SettingsScreen(
                 }
             }
         }
+        } // end AnimatedVisibility for Salary
 
         Spacer(modifier = Modifier.height(24.dp))
 
         // ─── Categories Section ────────────────────────────────────
-        Text(
-            "CATEGORIES",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        CollapsibleSectionHeader("CATEGORIES", categoriesExpanded) { categoriesExpanded = !categoriesExpanded }
 
+        AnimatedVisibility(
+            visible = categoriesExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp)
@@ -844,17 +984,19 @@ fun SettingsScreen(
                 }
             }
         }
+        } // end AnimatedVisibility for Categories
 
         Spacer(modifier = Modifier.height(24.dp))
 
         // ─── Local AI Section ──────────────────────────────────────
-        Text(
-            "LOCAL AI",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        CollapsibleSectionHeader("LOCAL AI", localAiExpanded) { localAiExpanded = !localAiExpanded }
 
+        AnimatedVisibility(
+            visible = localAiExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+        Column {
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp)
@@ -1012,17 +1154,19 @@ fun SettingsScreen(
                 )
             }
         }
+        } // end Column in AnimatedVisibility for Local AI
+        } // end AnimatedVisibility for Local AI
 
         Spacer(modifier = Modifier.height(24.dp))
 
         // ─── Import & Export Section ───────────────────────────────
-        Text(
-            "IMPORT & EXPORT",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        CollapsibleSectionHeader("IMPORT & EXPORT", importExportExpanded) { importExportExpanded = !importExportExpanded }
 
+        AnimatedVisibility(
+            visible = importExportExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp)
@@ -1045,17 +1189,18 @@ fun SettingsScreen(
                 )
             }
         }
+        } // end AnimatedVisibility for Import/Export
 
         Spacer(modifier = Modifier.height(24.dp))
 
         // ─── Storage Section ───────────────────────────────────────
-        Text(
-            "STORAGE",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        CollapsibleSectionHeader("STORAGE", storageExpanded) { storageExpanded = !storageExpanded }
 
+        AnimatedVisibility(
+            visible = storageExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp)
@@ -1078,6 +1223,7 @@ fun SettingsScreen(
                 )
             }
         }
+        } // end AnimatedVisibility for Storage
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -1233,6 +1379,40 @@ private fun ThemeModePicker(
                 }
             }
         }
+    }
+}
+
+// ─── Collapsible Section Header ─────────────────────────────────────
+
+@Composable
+private fun CollapsibleSectionHeader(
+    title: String,
+    expanded: Boolean,
+    onToggle: () -> Unit
+) {
+    val rotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        label = "chevron_rotation"
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onToggle() }
+            .padding(bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(
+            Icons.Filled.KeyboardArrowDown,
+            contentDescription = if (expanded) "Collapse" else "Expand",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp).rotate(rotation)
+        )
     }
 }
 

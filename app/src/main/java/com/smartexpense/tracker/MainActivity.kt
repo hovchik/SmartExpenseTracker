@@ -48,6 +48,7 @@ fun MainApp(viewModel: MainViewModel) {
     val unreadCount by viewModel.unreadNotificationCount.collectAsState()
     val localAiStatus by viewModel.localAiStatus.collectAsState()
     val localAiSuggestion by viewModel.localAiSuggestion.collectAsState()
+    val discoveredBankingApps by viewModel.discoveredBankingApps.collectAsState()
     val scope = rememberCoroutineScope()
 
     // Shortcut to always-up-to-date currency code
@@ -153,6 +154,9 @@ fun MainApp(viewModel: MainViewModel) {
                         generateMonthlyReport = { year, month ->
                             viewModel.generateReportForMonth(year, month)
                         },
+                        generateCustomReport = { startMillis, endMillis ->
+                            viewModel.generateReportForRange(startMillis, endMillis)
+                        },
                         currentPeriod = reportPeriod,
                         onPeriodChange = { viewModel.setReportPeriod(it) },
                         allTransactions = uiState.allTransactions,
@@ -209,7 +213,11 @@ fun MainApp(viewModel: MainViewModel) {
                         onSetMonthlyLimit = { limit -> viewModel.setMonthlyExpenseLimit(limit) },
                         onConfigureSalary = { enabled, amount, day, desc ->
                             viewModel.configureSalaryScheduler(enabled, amount, day, desc)
-                        }
+                        },
+                        discoveredBankingApps = discoveredBankingApps,
+                        onScanBankingApps = { viewModel.scanForBankingApps() },
+                        onAddBankingApp = { pkg -> viewModel.addBankingApp(pkg) },
+                        onRemoveBankingApp = { pkg -> viewModel.removeBankingApp(pkg) }
                     )
                 }
             }

@@ -313,6 +313,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ReportPeriod.DAILY -> DateUtils.getStartOfDay(now) to DateUtils.getEndOfDay(now)
             ReportPeriod.WEEKLY -> DateUtils.getStartOfWeek(now) to DateUtils.getEndOfWeek(now)
             ReportPeriod.MONTHLY -> DateUtils.getStartOfMonth(now) to DateUtils.getEndOfMonth(now)
+            ReportPeriod.CUSTOM -> DateUtils.getStartOfMonth(now) to DateUtils.getEndOfMonth(now) // fallback; use generateReportForRange for custom
         }
         val currencyCode = repository.appData.value.settings.currencyCode
         return aiEngine.generateReport(repository.appData.value.transactions, period, start, end, currencyCode)
@@ -347,6 +348,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ReportPeriod.MONTHLY,
             startCal.timeInMillis,
             endCal.timeInMillis,
+            currencyCode
+        )
+    }
+
+    /**
+     * Generates a report for an arbitrary date range (Custom period).
+     */
+    fun generateReportForRange(startMillis: Long, endMillis: Long): ExpenseReport {
+        val currencyCode = repository.appData.value.settings.currencyCode
+        return aiEngine.generateReport(
+            repository.appData.value.transactions,
+            ReportPeriod.CUSTOM,
+            startMillis,
+            endMillis,
             currencyCode
         )
     }
@@ -587,6 +602,86 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun resetSmsScanState() { _smsScanState.value = SmsScanState() }
+
+    // ─── Banking App Scanner ──────────────────────────────────────
+
+    /**
+     * Known banking/payment app keywords used to identify financial apps among installed packages.
+     */
+    private val bankingAppKeywords = listOf(
+        "bank", "arca", "pay", "wallet", "finance", "credit", "loan",
+        "money", "cash", "transfer", "saving", "invest", "revolut",
+        "wise", "zelle", "venmo", "paypal", "idram", "ineco", "ameria",
+        "ardshin", "acba", "converse", "evoca", "unibank", "vtb",
+        "mellat", "araratbank", "telcell", "easypay"
+    )
+
+    data class DiscoveredApp(
+        val packageName: String,
+        val appName: String,
+        val isAlreadyMonitored: Boolean
+    )
+
+    private val _discoveredBankingApps = MutableStateFlow<List<DiscoveredApp>>(emptyList())
+    val discoveredBankingApps: StateFlow<List<DiscoveredApp>> = _discoveredBankingApps.asStateFlow()
+
+    /**
+     * Scans all installed applications and finds those matching banking/payment keywords.
+     * Results are stored in [discoveredBankingApps].
+     */
+    fun scanForBankingApps() {
+        viewModelScope.launch {
+            val pm = getApplication<android.app.Application>().packageManager
+            val currentPackages = repository.appData.value.settings.bankingAppPackages.toSet()
+
+            val installed = withContext(Dispatchers.IO) {
+                pm.getInstalledApplications(0).mapNotNull { appInfo ->
+                    val label = pm.getApplicationLabel(appInfo).toString().lowercase()
+                    val pkg = appInfo.packageName.lowercase()
+                    val isBank = bankingAppKeywords.any { kw -> label.contains(kw) || pkg.contains(kw) }
+                    if (isBank) {
+                        DiscoveredApp(
+                            packageName = appInfo.packageName,
+                            appName = pm.getApplicationLabel(appInfo).toString(),
+                            isAlreadyMonitored = appInfo.packageName in currentPackages
+                        )
+                    } else null
+                }.sortedWith(compareBy({ it.isAlreadyMonitored }, { it.appName.lowercase() }))
+            }
+            _discoveredBankingApps.value = installed
+        }
+    }
+
+    /**
+     * Adds a banking app package to the monitored list in settings.
+     */
+    fun addBankingApp(packageName: String) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            if (packageName !in settings.bankingAppPackages) {
+                val updated = settings.copy(
+                    bankingAppPackages = settings.bankingAppPackages + packageName
+                )
+                repository.updateSettings(updated)
+                // Refresh discovered list to update isAlreadyMonitored flags
+                scanForBankingApps()
+            }
+        }
+    }
+
+    /**
+     * Removes a banking app package from the monitored list.
+     */
+    fun removeBankingApp(packageName: String) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            val updated = settings.copy(
+                bankingAppPackages = settings.bankingAppPackages.filter { it != packageName }
+            )
+            repository.updateSettings(updated)
+            scanForBankingApps()
+        }
+    }
 
     // ─── In-App Notification Management ───────────────────────────
 

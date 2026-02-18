@@ -37,7 +37,9 @@ class BankingNotificationListener : NotificationListenerService() {
         val BANKING_APP_NAME_KEYWORDS = listOf(
             "bank", "arca", "pay", "wallet", "finance", "credit", "loan",
             "money", "cash", "transfer", "saving", "invest", "revolut",
-            "wise", "zelle", "venmo", "paypal"
+            "wise", "zelle", "venmo", "paypal", "idram", "ineco",
+            "telcell", "easypay", "ameria", "ardshin", "acba",
+            "converse", "evoca", "unibank"
         )
     }
 
@@ -84,7 +86,12 @@ class BankingNotificationListener : NotificationListenerService() {
         // Additional Armenian apps
         "com.sflpro.inecomobile",
         "com.banqr.ameriabank",
-        "am.imwallet.android"
+        "am.imwallet.android",
+        // Idram & Telcell
+        "am.idram",
+        "am.idram.android",
+        "com.telcell.app",
+        "am.easypay"
     )
 
     // Financial keywords to filter non-transaction notifications
@@ -104,6 +111,10 @@ class BankingNotificationListener : NotificationListenerService() {
     /** True if the notification source looks like a banking/financial app. */
     private fun isBankingSource(packageName: String): Boolean {
         if (packageName in monitoredPackages) return true
+        // Also check dynamically configured packages from user settings
+        val app = applicationContext as? SmartExpenseApp
+        val userPackages = app?.repository?.appData?.value?.settings?.bankingAppPackages.orEmpty()
+        if (packageName in userPackages) return true
         val label = appLabel(packageName)?.lowercase() ?: ""
         val pkg   = packageName.lowercase()
         return BANKING_APP_NAME_KEYWORDS.any { kw -> label.contains(kw) || pkg.contains(kw) }
