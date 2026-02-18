@@ -606,24 +606,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ─── Banking App Scanner ──────────────────────────────────────
 
     /**
-     * Known banking/payment app keywords used to identify financial apps among installed packages.
+     * Keywords matched against the app **name** (label) to discover banking/payment apps.
+     * The scanner checks if the app name contains any of these words.
      */
-    private val bankingAppKeywords = listOf(
-        // Generic financial keywords
-        "bank", "arca", "pay", "wallet", "finance", "credit", "loan",
-        "money", "cash", "transfer", "saving", "invest",
-        // International payment apps
-        "revolut", "wise", "zelle", "venmo", "paypal", "stripe",
-        // Armenian banks & payment apps (match by brand name)
-        "idram", "ineco", "ameria", "ameriabank", "ardshin", "ardshinbank",
-        "acba", "converse", "conversebank", "evoca", "evocabank",
-        "unibank", "vtb", "mellat", "araratbank", "armswiss",
-        "telcell", "easypay", "idbank", "inecobank",
-        // Indian banks / UPI
-        "paytm", "phonepe", "gpay", "bhim", "upi",
-        // Common international
-        "chase", "citi", "hsbc", "barclays", "monzo", "n26"
-    )
+    private val scanKeywords = listOf("bank", "payment", "wallet")
 
     data class DiscoveredApp(
         val packageName: String,
@@ -635,8 +621,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val discoveredBankingApps: StateFlow<List<DiscoveredApp>> = _discoveredBankingApps.asStateFlow()
 
     /**
-     * Scans all installed applications and finds those matching banking/payment keywords.
-     * Results are stored in [discoveredBankingApps].
+     * Scans all installed applications whose **name** contains "bank", "payment", or "wallet".
+     * Retrieves their package names, suppresses duplicates, and stores them in [discoveredBankingApps].
      */
     fun scanForBankingApps() {
         viewModelScope.launch {
@@ -644,14 +630,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val currentPackages = repository.appData.value.settings.bankingAppPackages.toSet()
 
             val installed = withContext(Dispatchers.IO) {
+                val seenPackages = mutableSetOf<String>()
                 pm.getInstalledApplications(0).mapNotNull { appInfo ->
-                    val label = pm.getApplicationLabel(appInfo).toString().lowercase()
-                    val pkg = appInfo.packageName.lowercase()
-                    val isBank = bankingAppKeywords.any { kw -> label.contains(kw) || pkg.contains(kw) }
-                    if (isBank) {
+                    val label = pm.getApplicationLabel(appInfo).toString()
+                    val labelLower = label.lowercase()
+                    val matches = scanKeywords.any { kw -> labelLower.contains(kw) }
+                    if (matches && seenPackages.add(appInfo.packageName)) {
                         DiscoveredApp(
                             packageName = appInfo.packageName,
-                            appName = pm.getApplicationLabel(appInfo).toString(),
+                            appName = label,
                             isAlreadyMonitored = appInfo.packageName in currentPackages
                         )
                     } else null

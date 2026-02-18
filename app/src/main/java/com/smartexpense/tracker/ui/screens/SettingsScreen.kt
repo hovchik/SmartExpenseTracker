@@ -94,16 +94,16 @@ fun SettingsScreen(
     // Category management state
     var newCategoryText by remember { mutableStateOf("") }
 
-    // Section collapsed state (all collapsed by default)
-    var appearanceExpanded by remember { mutableStateOf(false) }
-    var currencyExpanded by remember { mutableStateOf(false) }
-    var dataSourcesExpanded by remember { mutableStateOf(false) }
-    var budgetExpanded by remember { mutableStateOf(false) }
-    var salaryExpanded by remember { mutableStateOf(false) }
-    var categoriesExpanded by remember { mutableStateOf(false) }
-    var localAiExpanded by remember { mutableStateOf(false) }
-    var importExportExpanded by remember { mutableStateOf(false) }
-    var storageExpanded by remember { mutableStateOf(false) }
+    // Section expanded state (all open by default)
+    var appearanceExpanded by remember { mutableStateOf(true) }
+    var currencyExpanded by remember { mutableStateOf(true) }
+    var dataSourcesExpanded by remember { mutableStateOf(true) }
+    var budgetExpanded by remember { mutableStateOf(true) }
+    var salaryExpanded by remember { mutableStateOf(true) }
+    var categoriesExpanded by remember { mutableStateOf(true) }
+    var localAiExpanded by remember { mutableStateOf(true) }
+    var importExportExpanded by remember { mutableStateOf(true) }
+    var storageExpanded by remember { mutableStateOf(true) }
 
     // Currency selector state
     var showCurrencyDropdown by remember { mutableStateOf(false) }
@@ -640,7 +640,7 @@ fun SettingsScreen(
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    "Scan installed applications to discover banking and payment apps (Ameriabank, Evocabank, Idram, Ineco, etc.)",
+                    "Scans installed apps whose name contains \"bank\", \"payment\", or \"wallet\" and shows their package names.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -717,6 +717,53 @@ fun SettingsScreen(
                             color = GreenPrimary,
                             fontWeight = FontWeight.Medium
                         )
+                    }
+                }
+
+                // ─── Manual package input ────────────────────
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(12.dp))
+                var manualPackageName by remember { mutableStateOf("") }
+                Text(
+                    "Add app manually by package name",
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "If the scanner doesn't find your app, enter its package name directly (e.g. com.sflpro.inecomobile).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = manualPackageName,
+                        onValueChange = { manualPackageName = it.trim() },
+                        label = { Text("Package name") },
+                        placeholder = { Text("com.example.app", fontSize = 12.sp) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    Button(
+                        onClick = {
+                            val pkg = manualPackageName.trim()
+                            if (pkg.isNotEmpty() && pkg.contains(".")) {
+                                onAddBankingApp(pkg)
+                                manualPackageName = ""
+                            }
+                        },
+                        enabled = manualPackageName.trim().let { it.isNotEmpty() && it.contains(".") },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Add")
                     }
                 }
             }
