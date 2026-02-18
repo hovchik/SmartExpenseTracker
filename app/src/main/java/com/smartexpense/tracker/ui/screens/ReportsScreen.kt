@@ -78,6 +78,10 @@ fun ReportsScreen(
     // Category drill-down state
     var selectedCategory by remember { mutableStateOf<String?>(null) }
 
+    // Collapse state for Top Expenses and Transactions by Date
+    var topExpensesExpanded by remember { mutableStateOf(false) }
+    var transactionsByDateExpanded by remember { mutableStateOf(false) }
+
     val report = remember(currentPeriod, selectedYear, selectedMonth, customStartMillis, customEndMillis) {
         when (currentPeriod) {
             ReportPeriod.MONTHLY -> generateMonthlyReport(selectedYear, selectedMonth)
@@ -577,123 +581,199 @@ fun ReportsScreen(
             }
         }
 
-        // ─── Top Expenses ──────────────────────────────
-        if (report.topExpenses.isNotEmpty()) {
+        // ─── AI Expense Reduction Tips ───────────────────────
+        if (expenseReductionTips.isNotEmpty()) {
             item {
-                Text("Top Expenses", style = MaterialTheme.typography.titleMedium,
+                Text("How to Reduce Expenses", style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
             }
-            items(report.topExpenses) { transaction ->
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(transaction.description, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                            Text("${transaction.category} · ${DateUtils.formatShortDate(transaction.timestamp)}",
-                                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = BluePrimary.copy(alpha = 0.06f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.Lightbulb, null,
+                                tint = BluePrimary, modifier = Modifier.size(22.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("AI Recommendations", fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp, color = BluePrimary)
                         }
-                        Text(CurrencyUtils.format(transaction.amount, currencyCode), fontWeight = FontWeight.Bold, color = RedExpense)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        expenseReductionTips.forEachIndexed { index, tip ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Text(
+                                    "${index + 1}.",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = BluePrimary,
+                                    modifier = Modifier.width(20.dp)
+                                )
+                                Text(
+                                    tip,
+                                    fontSize = 13.sp,
+                                    lineHeight = 18.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
 
-        // ─── Transactions by Date ──────────────────────
-        if (report.transactionsByDate.isNotEmpty()) {
+        // ─── Top Expenses (collapsible) ─────────────────
+        if (report.topExpenses.isNotEmpty()) {
             item {
-                Text(
-                    "Transactions by Date",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { topExpensesExpanded = !topExpensesExpanded }
+                        .padding(top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Top Expenses", style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold)
+                    Icon(
+                        if (topExpensesExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = if (topExpensesExpanded) "Collapse" else "Expand",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
-            report.transactionsByDate.entries
-                .sortedByDescending { it.key }
-                .forEach { (dateStr, txList) ->
-                    // Date header
-                    item(key = "date_$dateStr") {
+            if (topExpensesExpanded) {
+                items(report.topExpenses) { transaction ->
+                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Filled.CalendarToday,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    dateStr,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(transaction.description, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                                Text("${transaction.category} · ${DateUtils.formatShortDate(transaction.timestamp)}",
+                                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            val dayTotal = txList.filter {
-                                it.type == com.smartexpense.tracker.data.model.TransactionType.EXPENSE
-                            }.sumOf { it.amount }
-                            if (dayTotal > 0) {
-                                Text(
-                                    CurrencyUtils.format(dayTotal, currencyCode),
-                                    fontSize = 12.sp,
-                                    color = RedExpense,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
-                    }
-                    // Transactions for that date
-                    items(txList, key = { it.id }) { tx ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 4.dp),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Type indicator dot
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            if (tx.type == com.smartexpense.tracker.data.model.TransactionType.EXPENSE)
-                                                RedExpense else GreenIncome
-                                        )
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(tx.description, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                    Text(
-                                        "${tx.category} · ${tx.dateTime.take(16).replace("T", " ")}",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Text(
-                                    CurrencyUtils.format(tx.amount, currencyCode),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (tx.type == com.smartexpense.tracker.data.model.TransactionType.EXPENSE)
-                                        RedExpense else GreenIncome
-                                )
-                            }
+                            Text(CurrencyUtils.format(transaction.amount, currencyCode), fontWeight = FontWeight.Bold, color = RedExpense)
                         }
                     }
                 }
+            }
+        }
+
+        // ─── Transactions by Date (collapsible) ─────────
+        if (report.transactionsByDate.isNotEmpty()) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { transactionsByDateExpanded = !transactionsByDateExpanded }
+                        .padding(top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Transactions by Date", style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold)
+                    Icon(
+                        if (transactionsByDateExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = if (transactionsByDateExpanded) "Collapse" else "Expand",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            if (transactionsByDateExpanded) {
+                report.transactionsByDate.entries
+                    .sortedByDescending { it.key }
+                    .forEach { (dateStr, txList) ->
+                        // Date header
+                        item(key = "date_$dateStr") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Filled.CalendarToday,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        dateStr,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                val dayTotal = txList.filter {
+                                    it.type == com.smartexpense.tracker.data.model.TransactionType.EXPENSE
+                                }.sumOf { it.amount }
+                                if (dayTotal > 0) {
+                                    Text(
+                                        CurrencyUtils.format(dayTotal, currencyCode),
+                                        fontSize = 12.sp,
+                                        color = RedExpense,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                        // Transactions for that date
+                        items(txList, key = { it.id }) { tx ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 4.dp),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // Type indicator dot
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (tx.type == com.smartexpense.tracker.data.model.TransactionType.EXPENSE)
+                                                    RedExpense else GreenIncome
+                                            )
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(tx.description, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                        Text(
+                                            "${tx.category} · ${tx.dateTime.take(16).replace("T", " ")}",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Text(
+                                        CurrencyUtils.format(tx.amount, currencyCode),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (tx.type == com.smartexpense.tracker.data.model.TransactionType.EXPENSE)
+                                            RedExpense else GreenIncome
+                                    )
+                                }
+                            }
+                        }
+                    }
+            }
         }
 
         // ─── Savings Rate ─────────────────────────────────────
@@ -737,54 +817,6 @@ fun ReportsScreen(
                     }
                 }
             }
-        }
-
-        // ─── AI Expense Reduction Tips ───────────────────────
-        if (expenseReductionTips.isNotEmpty()) {
-                item {
-                    Text("How to Reduce Expenses", style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
-                }
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = BluePrimary.copy(alpha = 0.06f)
-                        )
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.Lightbulb, null,
-                                    tint = BluePrimary, modifier = Modifier.size(22.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("AI Recommendations", fontWeight = FontWeight.SemiBold,
-                                    fontSize = 14.sp, color = BluePrimary)
-                            }
-                            Spacer(modifier = Modifier.height(10.dp))
-                            expenseReductionTips.forEachIndexed { index, tip ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                    verticalAlignment = Alignment.Top
-                                ) {
-                                    Text(
-                                        "${index + 1}.",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = BluePrimary,
-                                        modifier = Modifier.width(20.dp)
-                                    )
-                                    Text(
-                                        tip,
-                                        fontSize = 13.sp,
-                                        lineHeight = 18.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
         }
 
         // ─── Empty state ───────────────────────────────
