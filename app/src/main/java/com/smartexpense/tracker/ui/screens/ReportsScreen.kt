@@ -355,6 +355,75 @@ fun ReportsScreen(
             }
         }
 
+        // ─── Spending Breakdown (Donut) ────────────────────────────────────────
+        if (report.categoryBreakdown.size >= 2) {
+            item {
+                Text("Spending Breakdown",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 4.dp))
+            }
+            item {
+                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                    Column(modifier = Modifier.padding(16.dp),
+                           horizontalAlignment = Alignment.CenterHorizontally) {
+                        CategoryDonutChart(
+                            categoryBreakdown = report.categoryBreakdown,
+                            categoryColors = categoryColors)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        report.categoryBreakdown.entries.sortedByDescending { it.value }
+                            .take(5).forEachIndexed { idx, (cat, amt) ->
+                                val pct = if (report.totalExpenses > 0)
+                                    (amt / report.totalExpenses * 100).roundToInt() else 0
+                                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically) {
+                                    Box(modifier = Modifier.size(10.dp).clip(CircleShape)
+                                        .background(categoryColors[idx % categoryColors.size]))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(cat, modifier = Modifier.weight(1f), fontSize = 13.sp)
+                                    Text("$pct%", fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(CurrencyUtils.format(amt, currencyCode),
+                                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                    }
+                }
+            }
+        }
+
+        // ─── 6-Month Income vs Expense Trend ──────────────────────────────────
+        if (allTransactions.isNotEmpty()) {
+            item {
+                Text("6-Month Trend",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 4.dp))
+            }
+            item {
+                val monthlyData = remember(allTransactions) { buildMonthlyTrend(allTransactions) }
+                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(GreenIncome))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Income", fontSize = 12.sp)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(RedExpense))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Expenses", fontSize = 12.sp)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        MonthlyTrendChart(monthlyData = monthlyData, currencyCode = currencyCode)
+                    }
+                }
+            }
+        }
+
         // ─── Top Merchants ─────────────────────────────
         if (report.topMerchants.isNotEmpty()) {
             item {
@@ -545,44 +614,6 @@ fun ReportsScreen(
                 }
         }
 
-        // ─── Category Donut Chart ─────────────────────────────
-        if (report.categoryBreakdown.size >= 2) {
-            item {
-                Text("Spending Breakdown",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 4.dp))
-            }
-            item {
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                    Column(modifier = Modifier.padding(16.dp),
-                           horizontalAlignment = Alignment.CenterHorizontally) {
-                        CategoryDonutChart(
-                            categoryBreakdown = report.categoryBreakdown,
-                            categoryColors = categoryColors)
-                        Spacer(modifier = Modifier.height(12.dp))
-                        report.categoryBreakdown.entries.sortedByDescending { it.value }
-                            .take(5).forEachIndexed { idx, (cat, amt) ->
-                                val pct = if (report.totalExpenses > 0)
-                                    (amt / report.totalExpenses * 100).roundToInt() else 0
-                                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                    verticalAlignment = Alignment.CenterVertically) {
-                                    Box(modifier = Modifier.size(10.dp).clip(CircleShape)
-                                        .background(categoryColors[idx % categoryColors.size]))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(cat, modifier = Modifier.weight(1f), fontSize = 13.sp)
-                                    Text("$pct%", fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(CurrencyUtils.format(amt, currencyCode),
-                                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                }
-                            }
-                    }
-                }
-            }
-        }
-
         // ─── Savings Rate ─────────────────────────────────────
         if (report.totalIncome > 0) {
             item {
@@ -621,37 +652,6 @@ fun ReportsScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
-                }
-            }
-        }
-
-        // ─── 6-Month Income vs Expense Trend ─────────────────
-        if (allTransactions.isNotEmpty()) {
-            item {
-                Text("6-Month Trend",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 4.dp))
-            }
-            item {
-                val monthlyData = remember(allTransactions) { buildMonthlyTrend(allTransactions) }
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(GreenIncome))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Income", fontSize = 12.sp)
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(RedExpense))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Expenses", fontSize = 12.sp)
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        MonthlyTrendChart(monthlyData = monthlyData, currencyCode = currencyCode)
                     }
                 }
             }

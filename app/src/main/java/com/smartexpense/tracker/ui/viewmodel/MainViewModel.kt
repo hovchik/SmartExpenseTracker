@@ -30,9 +30,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** On-device Gemini Nano service – null responses mean "not available / not enabled". */
     private val localAiService = LocalAiService(application.applicationContext)
 
-    /** Human-readable status of Gemini Nano availability (null = not yet checked). */
+    /** Human-readable AI backend status shown in Settings (null = not yet checked). */
     private val _localAiStatus = MutableStateFlow<String?>(null)
     val localAiStatus: StateFlow<String?> = _localAiStatus.asStateFlow()
+
+    /** Suggestion for enabling a better AI engine; null when none is needed. */
+    private val _localAiSuggestion = MutableStateFlow<String?>(null)
+    val localAiSuggestion: StateFlow<String?> = _localAiSuggestion.asStateFlow()
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
@@ -139,23 +143,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun checkLocalAiAvailability() {
         viewModelScope.launch {
             _localAiStatus.value = "Checking availability…"
-            val available = withContext(Dispatchers.IO) { localAiService.checkAvailability() }
-            _localAiStatus.value = if (available)
-                "Gemini Nano available on this device"
-            else
-                "On-device AI not available on this device"
+            withContext(Dispatchers.IO) { localAiService.checkAvailability() }
+            _localAiStatus.value = localAiService.statusMessage()
+            _localAiSuggestion.value = localAiService.alternativeSuggestion()
         }
     }
 
-    /** Returns a category using Gemini Nano when enabled, otherwise falls back to rules. */
-    private suspend fun smartCategorize(description: String): String {
+    /** Returns a category using on-device AI when enabled, otherwise falls back to rules. */
+    private suspend fun smartCategorize(description: String, isExpense: Boolean = true): String {
         val settings = repository.appData.value.settings
         if (settings.localAiEnabled) {
             val categoryNames = repository.appData.value.categories.map { it.name }
             val aiCategory = localAiService.categorize(description, categoryNames)
             if (aiCategory != null) return aiCategory
         }
-        return aiEngine.categorize(description)
+        return aiEngine.categorize(description, isExpense)
     }
 
     fun addTransaction(

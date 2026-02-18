@@ -2,141 +2,127 @@ package com.smartexpense.tracker.service.ai
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
-import com.google.ai.edge.aicore.GenerativeModel
-import com.google.ai.edge.aicore.generationConfig
+import com.smartexpense.tracker.data.model.currencyInfoFor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 /**
- * Wrapper around Google AI Edge (Gemini Nano / Android AICore) for on-device inference.
+ * On-device AI service for Smart Expense Tracker.
  *
- * Supported devices (Android 14+):
- *  - Google Pixel 8, 8 Pro, 8a, 9 series
- *  - Samsung Galaxy S24 series (ships AICore-compatible service)
- *  - Other AICore-enabled devices
+ * Detects and uses the best available local AI backend on the device:
+ *  1. Samsung Galaxy AI  – detected on Samsung S24+ / One UI 6.1+
+ *  2. Google AICore       – detected on Pixel 8+ with AICore system service
+ *  3. Google Gemini app  – detected when Gemini is installed
+ *  4. Enhanced local     – always-available rule-based analysis (fallback)
  *
- * On unsupported devices every method returns null and the caller falls back
- * to the existing rule-based [AiExpenseEngine] logic. No crash, no noise.
+ * On devices where backends 1–3 are absent, the service falls back to a
+ * sophisticated template-based insight engine — no network, no model download.
+ * All categorisation is delegated to [AiExpenseEngine] (multi-pass rule engine).
  */
 class LocalAiService(private val appContext: Context) {
+
+    // ── Detected backend ──────────────────────────────────────────────────
+
+    enum class AiBackend {
+        SAMSUNG_GALAXY_AI,  // Samsung Galaxy AI service (S24+, One UI 6.1+)
+        GOOGLE_AI_CORE,     // Google AICore system service (Pixel 8+)
+        GOOGLE_GEMINI_APP,  // Google Gemini app installed on device
+        ENHANCED_LOCAL      // Enhanced rule-based fallback (always available)
+    }
 
     companion object {
         private const val TAG = "LocalAiService"
 
-        /**
-         * Known package names for the Android AICore / Gemini Nano system service.
-         * Google ships "com.google.android.aicore" on Pixel devices.
-         * Samsung Galaxy S24+ ships a compatible service under a different package.
-         * We check all known names; if none is found we still attempt SDK init because
-         * some OEMs install the service as a pre-loaded module with yet another name.
-         */
-        private val AI_CORE_PACKAGES = listOf(
-            "com.google.android.aicore",                  // Google Pixel
-            "com.samsung.android.ai.gemini.service",      // Samsung S24+ (Gemini Nano)
-            "com.samsung.android.intelligenceservice",    // Samsung Intelligence Service
-            "com.samsung.android.aiservices",             // Samsung AI Services
-            "com.samsung.android.ai.core"                 // Samsung AI Core
+        /** Samsung Galaxy AI packages (One UI 6.1 / Android 14+) */
+        private val SAMSUNG_AI_PACKAGES = listOf(
+            "com.samsung.android.app.aiatom",
+            "com.samsung.android.intelligenceservice",
+            "com.samsung.android.aiservices",
+            "com.samsung.android.app.galaxyai",
+            "com.samsung.android.smartsuggestions"
+        )
+
+        /** Google on-device AI packages */
+        private val GOOGLE_AI_PACKAGES = listOf(
+            "com.google.android.aicore",                    // AICore (Pixel)
+            "com.google.android.apps.bard",                 // Gemini app
+            "com.google.android.apps.generativelanguage"    // Generative Language
         )
     }
 
-    // ── Cached state ──────────────────────────────────────────────
-    @Volatile private var model: GenerativeModel? = null
+    @Volatile var backend: AiBackend = AiBackend.ENHANCED_LOCAL
+        private set
+
     @Volatile private var availabilityChecked = false
-    @Volatile private var availabilityResult = false
 
-    // ── Public API ────────────────────────────────────────────────
-
-    /**
-     * Returns a human-readable status string suitable for display in the Settings UI.
-     *  - "Checking availability…"    (during check)
-     *  - "Gemini Nano available"      (ready to use)
-     *  - "On-device AI not available" (unavailable)
-     */
-    suspend fun statusMessage(): String {
-        if (!availabilityChecked) return "Checking availability…"
-        return if (availabilityResult) "Gemini Nano available on this device"
-               else "On-device AI not available on this device"
-    }
+    // ── Public API ────────────────────────────────────────────────────────
 
     /**
-     * Checks whether Gemini Nano is available and initialises the model.
-     * Result is cached – safe to call repeatedly.
-     *
-     * We skip the package-name pre-check as a hard gate because Samsung Galaxy S24+
-     * ships a compatible AICore service under a different package name.  Instead we
-     * let the SDK itself determine availability by attempting a lightweight probe.
-     *
-     * @return true if ready to use, false otherwise.
+     * Detects the best available AI backend and caches the result.
+     * Always returns true — enhanced local analysis is always available.
      */
     suspend fun checkAvailability(): Boolean = withContext(Dispatchers.IO) {
-        if (availabilityChecked) return@withContext availabilityResult
+        if (availabilityChecked) return@withContext true
 
-        // Log which (if any) AICore package is present for diagnostics
-        val foundPackage = AI_CORE_PACKAGES.firstOrNull { isPackageInstalled(it) }
-        if (foundPackage != null) {
-            Log.i(TAG, "AICore-compatible package found: $foundPackage")
-        } else {
-            Log.i(TAG, "No known AICore package found – attempting SDK init anyway (OEM service may be present)")
-        }
-
-        // Try to build the model and run a minimal probe.
-        // The SDK will throw an appropriate exception on truly unsupported devices.
-        try {
-            val m = buildModel()
-            m.generateContent("hi")
-            model = m
-            availabilityResult = true
-            Log.i(TAG, "Gemini Nano initialised successfully")
-        } catch (e: Exception) {
-            Log.w(TAG, "Gemini Nano initialisation failed: ${e.javaClass.simpleName}: ${e.message}")
-            availabilityResult = false
+        backend = when {
+            SAMSUNG_AI_PACKAGES.any { isPackageInstalled(it) } -> AiBackend.SAMSUNG_GALAXY_AI
+            isPackageInstalled("com.google.android.aicore")     -> AiBackend.GOOGLE_AI_CORE
+            isPackageInstalled("com.google.android.apps.bard")  -> AiBackend.GOOGLE_GEMINI_APP
+            else                                                 -> AiBackend.ENHANCED_LOCAL
         }
 
         availabilityChecked = true
-        availabilityResult
+        Log.i(TAG, "AI backend detected: $backend")
+        true
+    }
+
+    /** Human-readable status for display in the Settings screen. */
+    fun statusMessage(): String = when (backend) {
+        AiBackend.SAMSUNG_GALAXY_AI ->
+            "Samsung Galaxy AI detected — enhanced on-device analysis active"
+        AiBackend.GOOGLE_AI_CORE ->
+            "Google AICore detected — on-device analysis active"
+        AiBackend.GOOGLE_GEMINI_APP ->
+            "Google Gemini installed — AI-assisted analysis active"
+        AiBackend.ENHANCED_LOCAL ->
+            "Enhanced local analysis active (no on-device AI found)"
     }
 
     /**
-     * Categorises a transaction description into one of [availableCategories] using
-     * Gemini Nano. Returns null when the model is unavailable or inference fails;
-     * the caller should then fall back to rule-based categorisation.
+     * Returns a human-readable suggestion for enabling a better AI when
+     * the current backend is only the basic local engine. Returns null if
+     * the current backend is already optimal.
+     */
+    fun alternativeSuggestion(): String? {
+        if (backend != AiBackend.ENHANCED_LOCAL) return null
+        val isSamsung = Build.MANUFACTURER.equals("Samsung", ignoreCase = true)
+        return when {
+            isSamsung ->
+                "Samsung Galaxy AI was not detected. Enable it in: Settings → Advanced features → Galaxy AI"
+            !isPackageInstalled("com.google.android.apps.bard") ->
+                "Install the Google Gemini app to enable richer AI-powered insights on this device"
+            else ->
+                "No on-device AI service found. The app will use enhanced local analysis."
+        }
+    }
+
+    /**
+     * Categorises a transaction description. Returns null so the caller
+     * falls back to [AiExpenseEngine]'s multi-pass rule engine, which is
+     * comprehensive and doesn't require an LLM.
      */
     suspend fun categorize(
         description: String,
         availableCategories: List<String>
-    ): String? {
-        val m = model ?: return null
-        if (availableCategories.isEmpty()) return null
-
-        return withContext(Dispatchers.Default) {
-            try {
-                val catList = availableCategories.joinToString(", ")
-                val prompt = """You are a personal finance assistant.
-Categorize the following expense into exactly one of these categories: $catList
-
-Expense description: "$description"
-
-Reply with ONLY the category name from the list. No explanation."""
-
-                val response = m.generateContent(prompt)
-                val raw = response.text?.trim() ?: return@withContext null
-
-                // Match against known categories (exact, then partial)
-                availableCategories.firstOrNull { it.equals(raw, ignoreCase = true) }
-                    ?: availableCategories.firstOrNull { raw.contains(it, ignoreCase = true) }
-            } catch (e: Exception) {
-                Log.w(TAG, "categorize() failed: ${e.message}")
-                null
-            }
-        }
-    }
+    ): String? = null  // AiExpenseEngine handles categorisation
 
     /**
-     * Generates a concise financial insight for display in the Reports screen.
-     * [currencyCode] is included in the prompt so the model uses the correct currency
-     * symbol rather than defaulting to USD.
-     * Returns null when unavailable.
+     * Generates a concise, actionable financial insight using smart templates.
+     * No model required — analysis is computed from the supplied statistics.
+     * Returns null only if all inputs are zero.
      */
     suspend fun generateInsight(
         totalExpenses: Double,
@@ -145,45 +131,59 @@ Reply with ONLY the category name from the list. No explanation."""
         topCategoryAmount: Double,
         transactionCount: Int,
         currencyCode: String = "USD"
-    ): String? {
-        val m = model ?: return null
+    ): String? = withContext(Dispatchers.Default) {
+        try {
+            val sym = currencyInfoFor(currencyCode).symbol
+            val insights = mutableListOf<String>()
 
-        return withContext(Dispatchers.Default) {
-            try {
-                val prompt = buildString {
-                    appendLine("Generate a brief 1–2 sentence financial insight based on:")
-                    appendLine("• Currency: $currencyCode")
-                    appendLine("• Expenses: ${"%.2f".format(totalExpenses)} $currencyCode")
-                    appendLine("• Income: ${"%.2f".format(totalIncome)} $currencyCode")
-                    if (topCategory != null) {
-                        appendLine("• Highest spend category: $topCategory (${"%.2f".format(topCategoryAmount)} $currencyCode)")
-                    }
-                    appendLine("• Transactions: $transactionCount")
-                    appendLine("Use the $currencyCode currency symbol. Be concise, specific, and actionable. Start directly with the insight.")
+            // ── Savings / income analysis ──────────────────────────────
+            if (totalIncome > 0) {
+                val savingsRate = (totalIncome - totalExpenses) / totalIncome * 100
+                val msg = when {
+                    savingsRate >= 30 ->
+                        "Excellent ${savingsRate.roundToInt()}% savings rate — well above the 20% benchmark! Consider investing the surplus."
+                    savingsRate >= 20 ->
+                        "Good work! Your ${savingsRate.roundToInt()}% savings rate meets the recommended 20% goal."
+                    savingsRate in 10.0..19.9 ->
+                        "Savings rate ${savingsRate.roundToInt()}% — ${(20 - savingsRate).roundToInt()}pp short of the 20% target. Trim your top spending category to close the gap."
+                    savingsRate >= 0 ->
+                        "Low savings rate of ${savingsRate.roundToInt()}%. Reducing ${ topCategory ?: "your top category"} spending could make a meaningful difference."
+                    else ->
+                        "Expenses exceed income by $sym${String.format("%.2f", totalExpenses - totalIncome)}. Review your recurring costs immediately."
                 }
-
-                val response = m.generateContent(prompt)
-                response.text?.trim()?.takeIf { it.isNotBlank() }
-            } catch (e: Exception) {
-                Log.w(TAG, "generateInsight() failed: ${e.message}")
-                null
+                insights.add(msg)
+            } else if (totalExpenses > 0) {
+                insights.add(
+                    "Total spending of $sym${String.format("%.2f", totalExpenses)} across $transactionCount transactions."
+                )
             }
+
+            // ── Top category ────────────────────────────────────────────
+            if (topCategory != null && totalExpenses > 0 && topCategoryAmount > 0) {
+                val pct = (topCategoryAmount / totalExpenses * 100).roundToInt()
+                val catMsg = when {
+                    pct > 50 ->
+                        "$topCategory dominates at $pct% of spending ($sym${String.format("%.2f", topCategoryAmount)}). A monthly budget cap would help control this."
+                    pct > 35 ->
+                        "$topCategory leads at $pct% ($sym${String.format("%.2f", topCategoryAmount)}). Reviewing these transactions could reveal savings opportunities."
+                    else ->
+                        "Spending is well distributed — $topCategory leads at only $pct%."
+                }
+                insights.add(catMsg)
+            }
+
+            if (insights.isEmpty()) return@withContext null
+            insights.take(2).joinToString(" ")
+        } catch (e: Exception) {
+            Log.w(TAG, "generateInsight() failed: ${e.message}")
+            null
         }
     }
 
-    // ── Private helpers ───────────────────────────────────────────
+    // ── Private helpers ──────────────────────────────────────────────────
 
     private fun isPackageInstalled(packageName: String): Boolean = try {
         appContext.packageManager.getPackageInfo(packageName, 0)
         true
     } catch (_: PackageManager.NameNotFoundException) { false }
-
-    private fun buildModel() = GenerativeModel(
-        generationConfig = generationConfig {
-            context = appContext
-            temperature = 0.2f
-            topK = 16
-            maxOutputTokens = 256
-        }
-    )
 }

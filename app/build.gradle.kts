@@ -89,11 +89,6 @@ dependencies {
     // Charts (Vico)
     implementation("com.patrykandpatrick.vico:compose-m3:1.13.1")
 
-    // Google AI Edge – Gemini Nano on-device inference (Android AICore)
-    // Available on Pixel 8+ and Samsung Galaxy S24+ with Android 14+.
-    // Falls back gracefully on unsupported devices.
-    implementation("com.google.ai.edge.aicore:aicore:0.0.1-exp01")
-
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 

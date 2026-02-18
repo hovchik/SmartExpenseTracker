@@ -47,6 +47,7 @@ fun MainApp(viewModel: MainViewModel) {
     val inAppNotifications by viewModel.inAppNotifications.collectAsState()
     val unreadCount by viewModel.unreadNotificationCount.collectAsState()
     val localAiStatus by viewModel.localAiStatus.collectAsState()
+    val localAiSuggestion by viewModel.localAiSuggestion.collectAsState()
     val scope = rememberCoroutineScope()
 
     // Shortcut to always-up-to-date currency code
@@ -198,6 +199,7 @@ fun MainApp(viewModel: MainViewModel) {
                         exchangeRates = exchangeRates,
                         onFetchRates = { viewModel.fetchExchangeRates() },
                         localAiStatus = localAiStatus,
+                        localAiSuggestion = localAiSuggestion,
                         onCheckLocalAi = { viewModel.checkLocalAiAvailability() }
                     )
                 }

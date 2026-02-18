@@ -78,12 +78,21 @@ class AiExpenseEngine {
         )
     )
 
-    fun categorize(description: String): String {
+    /**
+     * Categorise a transaction description.
+     * @param isExpense Pass false for income transactions — prevents income-only categories
+     *   (Salary, Freelance, Investment) from matching POS / expense descriptions that happen
+     *   to contain keywords like "pay" or "salary" (e.g. "payment at Paytm").
+     */
+    fun categorize(description: String, isExpense: Boolean = true): String {
         val lowerDesc = description.lowercase()
+        val incomeOnlyCategories = setOf("Salary", "Freelance", "Investment")
+
         // Pass 1 – exact substring match, scored by keyword length (longer = more specific)
         var bestMatch: String? = null
         var bestScore = 0
         for ((category, keywords) in categoryKeywords) {
+            if (isExpense && category in incomeOnlyCategories) continue
             var score = 0
             for (keyword in keywords) {
                 if (lowerDesc.contains(keyword)) score += keyword.length
@@ -97,7 +106,7 @@ class AiExpenseEngine {
         var fallbackMatch: String? = null
         var fallbackScore = 0
         for ((category, keywords) in categoryKeywords) {
-            // Skip pure income/investment categories for fallback (unlikely for POS merchants)
+            // Skip income-only categories for fallback (unlikely for POS merchants)
             if (category in listOf("Salary", "Freelance", "Investment")) continue
             var score = 0
             for (token in tokens) {
@@ -569,6 +578,22 @@ class AiExpenseEngine {
             }
 
             if (amount == null || amount <= 0) return null
+
+            // Infer ISO currency code from well-known symbols if not already captured
+            if (currency.isEmpty()) {
+                currency = when {
+                    message.contains("$")   -> "USD"
+                    message.contains("€")   -> "EUR"
+                    message.contains("£")   -> "GBP"
+                    message.contains("֏")   -> "AMD"
+                    message.contains("₹") || message.lowercase().contains("rs.") -> "INR"
+                    message.contains("₽")   -> "RUB"
+                    message.contains("₺")   -> "TRY"
+                    message.contains("₩")   -> "KRW"
+                    message.contains("¥")   -> "JPY"
+                    else -> ""
+                }
+            }
 
             // ── EXPENSE VS INCOME ───────────────────────
 

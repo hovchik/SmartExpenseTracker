@@ -2,13 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!--
-        Allow the aicore library's minSdk requirement (31) to be overridden.
-        The LocalAiService performs a runtime package-existence check and falls
-        back gracefully on API < 31 / unsupported devices, so this is safe.
-    -->
-    <uses-sdk tools:overrideLibrary="com.google.ai.edge.aicore" />
-
     <!-- Permissions -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_SMS" />

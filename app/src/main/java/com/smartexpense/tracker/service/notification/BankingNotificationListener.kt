@@ -176,7 +176,7 @@ class BankingNotificationListener : NotificationListenerService() {
                     val notes = listOf("Auto-detected from $appName", conversionNote)
                         .filter { it.isNotBlank() }.joinToString("\n")
 
-                    val category = aiEngine.categorize(parsed.description)
+                    val category = aiEngine.categorize(parsed.description, parsed.isExpense)
 
                     // Auto-create category if it doesn't exist yet
                     repo.ensureCategoryExists(category)

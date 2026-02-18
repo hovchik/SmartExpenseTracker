@@ -141,7 +141,7 @@ class SmsReceiver : BroadcastReceiver() {
                         val transaction = Transaction(
                             amount = finalAmount,
                             description = parsed.description.ifEmpty { fullMessage.take(80) },
-                            category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }),
+                            category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }, parsed.isExpense),
                             type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                             source = TransactionSource.SMS,
                             merchantName = parsed.merchantName,
@@ -185,7 +185,7 @@ class SmsReceiver : BroadcastReceiver() {
                         repo.addTransaction(Transaction(
                             amount = parsed.amount,
                             description = parsed.description.ifEmpty { fullMessage.take(80) },
-                            category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }),
+                            category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }, parsed.isExpense),
                             type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                             source = TransactionSource.SMS,
                             merchantName = parsed.merchantName,

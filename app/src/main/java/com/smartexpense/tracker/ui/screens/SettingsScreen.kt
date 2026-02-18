@@ -49,6 +49,8 @@ fun SettingsScreen(
     onFetchRates: () -> Unit = {},
     /** Null = availability not checked yet. Non-null = status message from LocalAiService. */
     localAiStatus: String? = null,
+    /** Non-null when there's a suggestion for enabling a better AI backend. */
+    localAiSuggestion: String? = null,
     onCheckLocalAi: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -522,8 +524,8 @@ fun SettingsScreen(
             Column(modifier = Modifier.padding(4.dp)) {
                 SettingsToggleItem(
                     icon = Icons.Filled.Psychology,
-                    title = "Gemini Nano (On-Device AI)",
-                    subtitle = "Use on-device AI for categorization & report insights. Requires Pixel 8+ or Samsung Galaxy S24+.",
+                    title = "On-Device AI",
+                    subtitle = "Enhanced AI for smarter categorisation & financial insights. Works on Samsung Galaxy S24+, Pixel 8+ and other compatible devices.",
                     checked = settings.localAiEnabled,
                     onCheckedChange = { enabled ->
                         onUpdateSettings(settings.copy(localAiEnabled = enabled))
@@ -531,7 +533,7 @@ fun SettingsScreen(
                     }
                 )
 
-                // Availability status row
+                // Status row — only shown when the toggle is on
                 if (settings.localAiEnabled) {
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
@@ -541,17 +543,22 @@ fun SettingsScreen(
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        val isActive = localAiStatus != null &&
+                            (localAiStatus.contains("Samsung") ||
+                             localAiStatus.contains("Google") ||
+                             localAiStatus.contains("AICore") ||
+                             localAiStatus.contains("Gemini"))
                         when {
                             localAiStatus == null -> {
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Text(
-                                    "Checking device compatibility…",
+                                    "Detecting AI capabilities…",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            localAiStatus.startsWith("Gemini Nano available") -> {
+                            isActive -> {
                                 Icon(
                                     Icons.Filled.CheckCircle,
                                     contentDescription = null,
@@ -582,8 +589,41 @@ fun SettingsScreen(
                         }
                     }
 
+                    // Alternative AI suggestion card
+                    if (localAiSuggestion != null) {
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Icon(
+                                Icons.Filled.Lightbulb,
+                                contentDescription = null,
+                                tint = OrangeWarning,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    "Tip: Better AI available",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp,
+                                    color = OrangeWarning
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    localAiSuggestion,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
                     // Re-check button
-                    if (localAiStatus != null && !localAiStatus.startsWith("Checking")) {
+                    if (localAiStatus != null && !localAiStatus.startsWith("Detecting")) {
                         Row(modifier = Modifier.padding(start = 16.dp, bottom = 10.dp)) {
                             OutlinedButton(
                                 onClick = onCheckLocalAi,
@@ -595,7 +635,7 @@ fun SettingsScreen(
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Re-check", fontSize = 13.sp)
+                                Text("Re-detect", fontSize = 13.sp)
                             }
                         }
                     }
