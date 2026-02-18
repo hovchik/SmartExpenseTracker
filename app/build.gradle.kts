@@ -84,6 +84,9 @@ dependencies {
     implementation("com.google.mlkit:text-recognition-japanese:16.0.1")     // Japanese
     implementation("com.google.mlkit:text-recognition-korean:16.0.1")       // Korean
 
+    // ML Kit Barcode scanning — for QR codes on receipts
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+
     // Gson for JSON storage
     implementation("com.google.code.gson:gson:2.10.1")
 

@@ -181,7 +181,7 @@ fun MainApp(viewModel: MainViewModel) {
                         onDeleteTransaction = { viewModel.deleteTransaction(it) }
                     )
                     "scan" -> ScanReceiptScreen(
-                        onOcrResult = { text -> viewModel.processOcrText(text) },
+                        onOcrResult = { text, qrData -> viewModel.processOcrText(text, qrData) },
                         onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) },
                         lastResult = uiState.lastOcrResult
                     )

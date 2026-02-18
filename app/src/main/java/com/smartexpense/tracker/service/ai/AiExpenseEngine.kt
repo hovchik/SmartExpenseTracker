@@ -1065,4 +1065,123 @@ class AiExpenseEngine {
             return ParsedReceipt(totalAmount = null, items = emptyList(), merchantName = "Unknown", date = null)
         }
     }
+
+    // ─── QR Code String Parsing ──────────────────────────────────────
+
+    /**
+     * Attempt to extract amount and merchant from a QR code string found on a receipt.
+     *
+     * QR codes on receipts may contain:
+     * - URLs with query parameters (e.g. `?s=1234.56&fn=...` or `?amount=50.00&merchant=...`)
+     * - JSON objects with amount/total/merchant fields
+     * - Fiscal data strings with key=value or key:value pairs
+     * - Plain-text lines with amounts
+     *
+     * Returns a [ParsedReceipt] with whatever could be extracted.
+     */
+    fun parseQrCodeString(qrString: String): ParsedReceipt {
+        try {
+            if (qrString.isBlank()) return ParsedReceipt(null, emptyList(), "Unknown", null)
+
+            var amount: Double? = null
+            var merchant = ""
+            var date: String? = null
+
+            // ── 1. Try URL query-parameter extraction ────────────────
+            if (qrString.contains("://") || qrString.contains("?")) {
+                val queryPart = qrString.substringAfter("?", "")
+                if (queryPart.isNotEmpty()) {
+                    val params = queryPart.split("&").associate { pair ->
+                        val parts = pair.split("=", limit = 2)
+                        (parts.getOrNull(0)?.lowercase() ?: "") to (parts.getOrNull(1) ?: "")
+                    }
+                    // Amount keys commonly used in fiscal QR codes
+                    val amountKeys = listOf("s", "sum", "amount", "total", "price", "value", "amt")
+                    for (key in amountKeys) {
+                        val raw = params[key] ?: continue
+                        val parsed = raw.replace(",", ".").replace("[^\\d.]".toRegex(), "").toDoubleOrNull()
+                        if (parsed != null && parsed > 0) { amount = parsed; break }
+                    }
+                    // Merchant keys
+                    val merchantKeys = listOf("merchant", "shop", "store", "name", "fn", "n", "org")
+                    for (key in merchantKeys) {
+                        val raw = params[key] ?: continue
+                        if (raw.isNotBlank()) {
+                            merchant = java.net.URLDecoder.decode(raw, "UTF-8")
+                                .replace("+", " ").trim()
+                            break
+                        }
+                    }
+                    // Date keys
+                    val dateKeys = listOf("t", "date", "dt", "time")
+                    for (key in dateKeys) {
+                        val raw = params[key] ?: continue
+                        if (raw.isNotBlank()) { date = raw; break }
+                    }
+                }
+            }
+
+            // ── 2. Try JSON-like extraction ──────────────────────────
+            if (amount == null && (qrString.trimStart().startsWith("{") || qrString.contains("\"amount\""))) {
+                val amountPatterns = listOf(
+                    Regex("""["']?(?:amount|total|sum|price|value)["']?\s*[:=]\s*["']?([\d,]+\.?\d*)["']?""", RegexOption.IGNORE_CASE)
+                )
+                for (p in amountPatterns) {
+                    val m = p.find(qrString)
+                    if (m != null) {
+                        val parsed = m.groupValues[1].replace(",", "").toDoubleOrNull()
+                        if (parsed != null && parsed > 0) { amount = parsed; break }
+                    }
+                }
+                val merchantJson = Regex("""["']?(?:merchant|shop|store|name|org)["']?\s*[:=]\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+                    .find(qrString)
+                if (merchantJson != null && merchant.isEmpty()) {
+                    merchant = merchantJson.groupValues[1].trim()
+                }
+            }
+
+            // ── 3. Try key:value / key=value pair extraction ─────────
+            if (amount == null) {
+                val kvPattern = Regex("""(?:amount|total|sum|price|s|amt)\s*[=:]\s*([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE)
+                val m = kvPattern.find(qrString)
+                if (m != null) {
+                    val parsed = m.groupValues[1].replace(",", "").toDoubleOrNull()
+                    if (parsed != null && parsed > 0) amount = parsed
+                }
+            }
+
+            // ── 4. Fallback: find the largest decimal number in the string ──
+            if (amount == null) {
+                val allNumbers = Regex("""(\d[\d,]*\.?\d+)""").findAll(qrString)
+                    .mapNotNull { it.groupValues[1].replace(",", "").toDoubleOrNull() }
+                    .filter { it > 0 }
+                    .toList()
+                if (allNumbers.isNotEmpty()) {
+                    amount = allNumbers.max()
+                }
+            }
+
+            // ── 5. Merchant fallback: use domain from URL or first text segment ──
+            if (merchant.isEmpty() && qrString.contains("://")) {
+                val host = Regex("""://([^/?#]+)""").find(qrString)?.groupValues?.get(1) ?: ""
+                if (host.isNotBlank()) {
+                    merchant = host.removePrefix("www.")
+                        .substringBeforeLast(".")
+                        .replace("-", " ").replace("_", " ")
+                        .replaceFirstChar { it.uppercase() }
+                }
+            }
+            if (merchant.isEmpty()) {
+                // Take the first alphanumeric segment that looks like a name
+                val firstWord = Regex("""[A-Za-z\u0400-\u04FF\u0530-\u058F]{3,}[\w\s]*""")
+                    .find(qrString)?.value?.trim()?.take(50) ?: ""
+                if (firstWord.isNotBlank()) merchant = firstWord
+            }
+            if (merchant.isEmpty()) merchant = "QR Receipt"
+
+            return ParsedReceipt(totalAmount = amount, items = emptyList(), merchantName = merchant, date = date)
+        } catch (_: Throwable) {
+            return ParsedReceipt(null, emptyList(), "QR Receipt", null)
+        }
+    }
 }

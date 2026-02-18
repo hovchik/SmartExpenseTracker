@@ -237,25 +237,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteTransaction(id: String) { viewModelScope.launch { repository.deleteTransaction(id) } }
 
-    fun processOcrText(ocrText: String) {
+    fun processOcrText(ocrText: String, qrData: String? = null) {
         viewModelScope.launch {
             try {
                 val settings = repository.appData.value.settings
                 val currencyCode = settings.currencyCode
-                val parsed = aiEngine.parseReceiptText(ocrText, currencyCode)
-                val amount = parsed.totalAmount ?: parsed.items.sumOf { it.second }
                 val currencySymbol = currencyInfoFor(currencyCode).symbol
 
+                // Try OCR text parsing first
+                val ocrParsed = if (ocrText.isNotBlank()) aiEngine.parseReceiptText(ocrText, currencyCode) else null
+                val ocrAmount = (ocrParsed?.totalAmount ?: ocrParsed?.items?.sumOf { it.second }) ?: 0.0
+
+                // If OCR fails, try QR code data as fallback
+                val (parsed, fromQr) = if (ocrAmount > 0 && ocrParsed != null) {
+                    ocrParsed to false
+                } else if (!qrData.isNullOrBlank()) {
+                    val qrParsed = aiEngine.parseQrCodeString(qrData)
+                    if ((qrParsed.totalAmount ?: 0.0) > 0) {
+                        qrParsed to true
+                    } else if (ocrParsed != null) {
+                        ocrParsed to false
+                    } else {
+                        qrParsed to true
+                    }
+                } else {
+                    (ocrParsed ?: AiExpenseEngine.ParsedReceipt(null, emptyList(), "Unknown", null)) to false
+                }
+
+                val amount = parsed.totalAmount ?: parsed.items.sumOf { it.second }
+
                 if (amount > 0) {
-                    // Use Gemini Nano for categorisation when local AI is enabled
                     val category = smartCategorize(
                         "${parsed.merchantName} ${parsed.items.joinToString(" ") { it.first }}"
                     )
 
-                    // Build notes: include items list and, if local AI is on, an AI summary
                     val itemsNote = if (parsed.items.isNotEmpty())
                         "Items: ${parsed.items.joinToString(", ") { "${it.first}: $currencySymbol${String.format("%.2f", it.second)}" }}"
                     else ""
+
+                    val sourceNote = if (fromQr) "Parsed from QR code" else ""
 
                     val aiNote: String = if (settings.localAiEnabled) {
                         val topCat = category
@@ -283,17 +303,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         merchantName = parsed.merchantName,
                         timestamp = now,
                         dateTime = dtFormatter.format(Date(now)),
-                        notes = listOf(itemsNote, aiNote).filter { it.isNotBlank() }.joinToString("\n")
+                        notes = listOf(itemsNote, sourceNote, aiNote).filter { it.isNotBlank() }.joinToString("\n")
                     ))
 
                     val resultMsg = buildString {
                         append("Found: ${parsed.merchantName} — $currencySymbol${String.format("%.2f", amount)}")
                         if (category.isNotEmpty()) append(" · $category")
+                        if (fromQr) append(" (from QR)")
                     }
                     _uiState.value = _uiState.value.copy(lastOcrResult = resultMsg)
                 } else {
                     _uiState.value = _uiState.value.copy(
-                        lastOcrResult = "Could not extract amount from receipt."
+                        lastOcrResult = "Could not extract amount from receipt" +
+                            if (qrData.isNullOrBlank()) "." else " or QR code."
                     )
                 }
             } catch (e: Exception) {
