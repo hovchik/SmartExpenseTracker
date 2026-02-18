@@ -125,16 +125,27 @@ fun SmsScanScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Save all button
+                    // Save all button with loading state
                     Button(
                         onClick = onConfirmAll,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(48.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary)
+                        colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                        enabled = !scanState.isSaving
                     ) {
-                        Icon(Icons.Filled.Check, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Save All ${scanState.pendingTransactions.size} Transactions", fontWeight = FontWeight.SemiBold)
+                        if (scanState.isSaving) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(22.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Saving transactions…", fontWeight = FontWeight.SemiBold)
+                        } else {
+                            Icon(Icons.Filled.Check, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Save All ${scanState.pendingTransactions.size} Transactions", fontWeight = FontWeight.SemiBold)
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))

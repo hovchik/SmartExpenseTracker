@@ -539,6 +539,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun confirmSmsScanResults() {
         viewModelScope.launch {
+            _smsScanState.value = _smsScanState.value.copy(isSaving = true)
             val pending = _smsScanState.value.pendingTransactions
             val settings = repository.appData.value.settings
             val appCurrency = settings.currencyCode
@@ -591,7 +592,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             _smsScanState.value = _smsScanState.value.copy(
-                pendingTransactions = emptyList(), savedCount = pending.size
+                isSaving = false, pendingTransactions = emptyList(), savedCount = pending.size
             )
             refreshSuggestions()
         }
@@ -763,6 +764,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
 data class SmsScanState(
     val isScanning: Boolean = false, val isComplete: Boolean = false,
+    val isSaving: Boolean = false,
     val totalScanned: Int = 0, val financialFound: Int = 0,
     val transactionsParsed: Int = 0,
     val pendingTransactions: List<Transaction> = emptyList(),
