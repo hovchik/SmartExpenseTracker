@@ -1615,13 +1615,29 @@ fun SettingsScreen(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
                 Text(
-                    "OCR Receipt Scanning · SMS & Notification Tracking · " +
-                            "AI Categorization · Gemini Nano On-Device AI · " +
-                            "Smart Optimization Suggestions · " +
-                            "Monthly Reports with Month Selector · Local JSON Storage · " +
-                            "Multi-Currency Support · Import & Export · Dark Mode",
+                    "Your personal finance companion that works entirely on your device. " +
+                            "No cloud accounts, no data sharing \u2014 just you and your money.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    lineHeight = 18.sp
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    "Smart Expense Tracker automatically detects transactions from banking " +
+                            "SMS messages and app notifications, scans paper receipts with your camera, " +
+                            "and categorizes everything using on-device AI powered by Gemini Nano. " +
+                            "It generates detailed reports with spending trends, savings insights, " +
+                            "and personalized tips to help you spend smarter.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 18.sp
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    "Supports 30+ currencies with live exchange rates, " +
+                            "works offline, and keeps all your data in a single exportable file.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 18.sp
@@ -1640,7 +1656,7 @@ fun SettingsScreen(
             icon = { Icon(Icons.Filled.Warning, contentDescription = null, tint = RedExpense) },
             title = { Text("Clear All Data?") },
             text = {
-                Text("This will permanently delete all transactions, categories, budgets, and settings. This action cannot be undone.")
+                Text("This will permanently delete all transactions, budgets, and notifications. Your settings, categories, and connected banking apps will be kept. This action cannot be undone.")
             },
             confirmButton = {
                 TextButton(
