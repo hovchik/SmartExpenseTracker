@@ -690,7 +690,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 pm.getInstalledApplications(0)
                     .filter { appInfo ->
                         // Keep only user-installed apps (exclude system apps)
-                        appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM == 0
+                        (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0
                     }
                     .map { appInfo ->
                         InstalledApp(
