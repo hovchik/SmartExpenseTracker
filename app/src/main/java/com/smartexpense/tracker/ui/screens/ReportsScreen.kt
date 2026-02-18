@@ -100,6 +100,11 @@ fun ReportsScreen(
     val context = LocalContext.current
     var showSharePicker by remember { mutableStateOf(false) }
 
+    val aiEngine = remember { com.smartexpense.tracker.service.ai.AiExpenseEngine() }
+    val expenseReductionTips = remember(report, currencyCode) {
+        if (report.totalExpenses > 0) aiEngine.generateExpenseReductionTips(report, currencyCode) else emptyList()
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -735,10 +740,7 @@ fun ReportsScreen(
         }
 
         // ─── AI Expense Reduction Tips ───────────────────────
-        if (report.totalExpenses > 0) {
-            val aiEngine = remember { com.smartexpense.tracker.service.ai.AiExpenseEngine() }
-            val tips = remember(report) { aiEngine.generateExpenseReductionTips(report, currencyCode) }
-            if (tips.isNotEmpty()) {
+        if (expenseReductionTips.isNotEmpty()) {
                 item {
                     Text("How to Reduce Expenses", style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
@@ -760,7 +762,7 @@ fun ReportsScreen(
                                     fontSize = 14.sp, color = BluePrimary)
                             }
                             Spacer(modifier = Modifier.height(10.dp))
-                            tips.forEachIndexed { index, tip ->
+                            expenseReductionTips.forEachIndexed { index, tip ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                     verticalAlignment = Alignment.Top
@@ -783,7 +785,6 @@ fun ReportsScreen(
                         }
                     }
                 }
-            }
         }
 
         // ─── Empty state ───────────────────────────────
