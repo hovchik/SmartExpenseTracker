@@ -59,6 +59,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _smsScanState = MutableStateFlow(SmsScanState())
     val smsScanState: StateFlow<SmsScanState> = _smsScanState.asStateFlow()
 
+    private val _totalSmsCount = MutableStateFlow(0)
+    val totalSmsCount: StateFlow<Int> = _totalSmsCount.asStateFlow()
+
     /** Live exchange rates fetched from open.er-api.com (base = USD). */
     private val _exchangeRates = MutableStateFlow<Map<String, Double>>(emptyMap())
     val exchangeRates: StateFlow<Map<String, Double>> = _exchangeRates.asStateFlow()
@@ -496,7 +499,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ─── SMS Inbox Scanning ────────────────────────────────────────
 
-    fun startSmsScan() {
+    fun loadTotalSmsCount() {
+        viewModelScope.launch {
+            val count = withContext(Dispatchers.IO) {
+                try {
+                    com.smartexpense.tracker.service.sms.SmsInboxScanner(getApplication())
+                        .getTotalSmsCount()
+                } catch (_: Throwable) { 0 }
+            }
+            _totalSmsCount.value = count
+        }
+    }
+
+    fun startSmsScan(maxMessages: Int = 500, startDate: Long? = null, endDate: Long? = null) {
         viewModelScope.launch {
             _smsScanState.value = SmsScanState(isScanning = true)
             try {
@@ -512,7 +527,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val result = withContext(Dispatchers.IO) {
                     try {
                         com.smartexpense.tracker.service.sms.SmsInboxScanner(getApplication())
-                            .scanInbox(maxMessages = 500, existingTransactionNotes = existingNotes, userCategoryNames = userCatNames)
+                            .scanInbox(
+                                maxMessages = maxMessages,
+                                existingTransactionNotes = existingNotes,
+                                userCategoryNames = userCatNames,
+                                startDate = startDate,
+                                endDate = endDate
+                            )
                     } catch (e: Throwable) {
                         com.smartexpense.tracker.service.sms.SmsInboxScanner.ScanResult(
                             0, 0, 0, emptyList(), 1, "Error: ${e.message}"

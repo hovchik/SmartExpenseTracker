@@ -43,6 +43,7 @@ fun MainApp(viewModel: MainViewModel) {
     val reportPeriod by viewModel.reportPeriod.collectAsState()
     val importExportMessage by viewModel.importExportMessage.collectAsState()
     val smsScanState by viewModel.smsScanState.collectAsState()
+    val totalSmsCount by viewModel.totalSmsCount.collectAsState()
     val exchangeRates by viewModel.exchangeRates.collectAsState()
     val inAppNotifications by viewModel.inAppNotifications.collectAsState()
     val unreadCount by viewModel.unreadNotificationCount.collectAsState()
@@ -186,7 +187,11 @@ fun MainApp(viewModel: MainViewModel) {
                     )
                     "sms_scan" -> SmsScanScreen(
                         scanState = smsScanState,
-                        onStartScan = { viewModel.startSmsScan() },
+                        totalSmsCount = totalSmsCount,
+                        onLoadSmsCount = { viewModel.loadTotalSmsCount() },
+                        onStartScan = { maxMessages, startDate, endDate ->
+                            viewModel.startSmsScan(maxMessages, startDate, endDate)
+                        },
                         onConfirmAll = { viewModel.confirmSmsScanResults() },
                         onDiscard = { id -> viewModel.discardSmsScanResult(id) },
                         onReset = { viewModel.resetSmsScanState() },

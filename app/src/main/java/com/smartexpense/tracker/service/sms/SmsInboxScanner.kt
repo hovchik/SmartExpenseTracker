@@ -24,6 +24,24 @@ class SmsInboxScanner(private val context: Context) {
         val errorMessage: String? = null
     )
 
+    /** Returns total number of SMS messages in the inbox. */
+    fun getTotalSmsCount(): Int {
+        val uris = listOf("content://sms/inbox", "content://sms")
+        for (uriString in uris) {
+            try {
+                val cursor = context.contentResolver.query(
+                    Uri.parse(uriString), arrayOf("_id"), null, null, null
+                )
+                if (cursor != null) {
+                    val count = cursor.count
+                    cursor.close()
+                    return count
+                }
+            } catch (_: Throwable) {}
+        }
+        return 0
+    }
+
     private val financialKeywords = listOf(
         "transaction", "debit", "credit", "payment", "charged", "spent",
         "transferred", "withdrawal", "deposit", "balance", "amt", "txn",
@@ -54,7 +72,9 @@ class SmsInboxScanner(private val context: Context) {
     fun scanInbox(
         maxMessages: Int = 500,
         existingTransactionNotes: Set<String> = emptySet(),
-        userCategoryNames: List<String> = emptyList()
+        userCategoryNames: List<String> = emptyList(),
+        startDate: Long? = null,
+        endDate: Long? = null
     ): ScanResult {
         val aiEngine: AiExpenseEngine
         try {
@@ -68,7 +88,7 @@ class SmsInboxScanner(private val context: Context) {
         val uris = listOf("content://sms/inbox", "content://sms")
         for (uriString in uris) {
             try {
-                val result = doScan(Uri.parse(uriString), aiEngine, maxMessages, existingTransactionNotes, uriString.contains("inbox"), userCategoryNames)
+                val result = doScan(Uri.parse(uriString), aiEngine, maxMessages, existingTransactionNotes, uriString.contains("inbox"), userCategoryNames, startDate, endDate)
                 if (result != null) return result
             } catch (e: Throwable) {
                 Log.w(TAG, "Failed with $uriString: ${e.message}")
@@ -103,15 +123,30 @@ class SmsInboxScanner(private val context: Context) {
     private fun doScan(
         uri: Uri, aiEngine: AiExpenseEngine, maxMessages: Int,
         existingNotes: Set<String>, isInboxUri: Boolean,
-        userCategoryNames: List<String> = emptyList()
+        userCategoryNames: List<String> = emptyList(),
+        startDate: Long? = null, endDate: Long? = null
     ): ScanResult? {
         val transactions = mutableListOf<Transaction>()
         val transactionCards = mutableListOf<String>()
         var totalScanned = 0; var financialFound = 0; var errors = 0
         var cursor: Cursor? = null
 
+        // Build date range selection clause
+        val selectionParts = mutableListOf<String>()
+        val selectionArgs = mutableListOf<String>()
+        if (startDate != null) {
+            selectionParts.add("date >= ?")
+            selectionArgs.add(startDate.toString())
+        }
+        if (endDate != null) {
+            selectionParts.add("date <= ?")
+            selectionArgs.add(endDate.toString())
+        }
+        val selection = if (selectionParts.isNotEmpty()) selectionParts.joinToString(" AND ") else null
+        val selArgs = if (selectionArgs.isNotEmpty()) selectionArgs.toTypedArray() else null
+
         try {
-            cursor = context.contentResolver.query(uri, null, null, null, "date DESC")
+            cursor = context.contentResolver.query(uri, null, selection, selArgs, "date DESC")
         } catch (e: Throwable) {
             Log.w(TAG, "query() threw for $uri: ${e.message}")
             return null
