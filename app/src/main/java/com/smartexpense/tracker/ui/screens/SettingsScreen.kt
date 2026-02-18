@@ -55,12 +55,31 @@ fun SettingsScreen(
     onCheckLocalAi: () -> Unit = {},
     categories: List<Category> = emptyList(),
     onAddCategory: (String) -> Unit = {},
-    onDeleteCategory: (String) -> Unit = {}
+    onDeleteCategory: (String) -> Unit = {},
+    onSetMonthlyLimit: (Double) -> Unit = {},
+    onConfigureSalary: (enabled: Boolean, amount: Double, dayOfMonth: Int, description: String) -> Unit = { _, _, _, _ -> }
 ) {
     val context = LocalContext.current
     var showClearDialog by remember { mutableStateOf(false) }
     var showImportConfirmDialog by remember { mutableStateOf(false) }
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
+
+    // Monthly expense limit state
+    var monthlyLimitText by remember(settings.monthlyExpenseLimit) {
+        mutableStateOf(if (settings.monthlyExpenseLimit > 0) settings.monthlyExpenseLimit.toLong().toString() else "")
+    }
+
+    // Salary scheduler state
+    var salaryEnabled by remember(settings.scheduledSalaryEnabled) { mutableStateOf(settings.scheduledSalaryEnabled) }
+    var salaryAmountText by remember(settings.scheduledSalaryAmount) {
+        mutableStateOf(if (settings.scheduledSalaryAmount > 0) settings.scheduledSalaryAmount.toLong().toString() else "")
+    }
+    var salaryDayText by remember(settings.scheduledSalaryDayOfMonth) {
+        mutableStateOf(settings.scheduledSalaryDayOfMonth.toString())
+    }
+    var salaryDescription by remember(settings.scheduledSalaryDescription) {
+        mutableStateOf(settings.scheduledSalaryDescription)
+    }
 
     // Category management state
     var newCategoryText by remember { mutableStateOf("") }
@@ -512,6 +531,233 @@ fun SettingsScreen(
             Icon(Icons.Filled.Sms, contentDescription = null, modifier = Modifier.size(22.dp))
             Spacer(modifier = Modifier.width(10.dp))
             Text("Scan SMS Inbox for Transactions", fontWeight = FontWeight.SemiBold)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ─── Monthly Expense Limit Section ────────────────────────
+        Text(
+            "BUDGET THRESHOLD",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.NotificationsActive,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Monthly Expense Limit", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Text(
+                            "Receive a phone notification when monthly expenses exceed this amount. Set 0 to disable.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = monthlyLimitText,
+                        onValueChange = { monthlyLimitText = it.filter { c -> c.isDigit() || c == '.' } },
+                        label = { Text("Limit amount (${settings.currencyCode})") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp),
+                        leadingIcon = {
+                            Text(
+                                com.smartexpense.tracker.data.model.currencyInfoFor(settings.currencyCode).symbol,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
+                        }
+                    )
+                    Button(
+                        onClick = {
+                            val limit = monthlyLimitText.toDoubleOrNull() ?: 0.0
+                            onSetMonthlyLimit(limit)
+                            Toast.makeText(
+                                context,
+                                if (limit > 0) "Limit set to ${settings.currencyCode} ${String.format("%.0f", limit)}"
+                                else "Monthly limit disabled",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Save")
+                    }
+                }
+                if (settings.monthlyExpenseLimit > 0) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        "Active: ${com.smartexpense.tracker.data.model.currencyInfoFor(settings.currencyCode).symbol}" +
+                            "${String.format("%.2f", settings.monthlyExpenseLimit)} / month",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = GreenPrimary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ─── Salary Scheduler Section ──────────────────────────────
+        Text(
+            "SALARY SCHEDULER",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Filled.Schedule,
+                        contentDescription = null,
+                        tint = GreenPrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Auto-add Monthly Salary", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Text(
+                            "Automatically record an income transaction on a fixed day each month.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = salaryEnabled,
+                        onCheckedChange = { salaryEnabled = it }
+                    )
+                }
+
+                if (salaryEnabled) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    OutlinedTextField(
+                        value = salaryDescription,
+                        onValueChange = { salaryDescription = it },
+                        label = { Text("Description") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = salaryAmountText,
+                            onValueChange = { salaryAmountText = it.filter { c -> c.isDigit() || c == '.' } },
+                            label = { Text("Amount (${settings.currencyCode})") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true,
+                            modifier = Modifier.weight(2f),
+                            shape = RoundedCornerShape(10.dp),
+                            leadingIcon = {
+                                Text(
+                                    com.smartexpense.tracker.data.model.currencyInfoFor(settings.currencyCode).symbol,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(start = 4.dp)
+                                )
+                            }
+                        )
+                        OutlinedTextField(
+                            value = salaryDayText,
+                            onValueChange = {
+                                val filtered = it.filter { c -> c.isDigit() }
+                                val num = filtered.toIntOrNull()
+                                if (num == null || num in 1..31) salaryDayText = filtered
+                            },
+                            label = { Text("Day (1–31)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = {
+                            val amount = salaryAmountText.toDoubleOrNull() ?: 0.0
+                            val day = salaryDayText.toIntOrNull()?.coerceIn(1, 31) ?: 1
+                            onConfigureSalary(salaryEnabled, amount, day, salaryDescription)
+                            Toast.makeText(
+                                context,
+                                if (salaryEnabled && amount > 0)
+                                    "Salary of ${settings.currencyCode} ${String.format("%.0f", amount)} scheduled on day $day"
+                                else "Salary scheduler disabled",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary)
+                    ) {
+                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Save Salary Schedule", fontWeight = FontWeight.SemiBold)
+                    }
+                } else if (settings.scheduledSalaryEnabled) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = { onConfigureSalary(false, 0.0, 1, "") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    ) {
+                        Text("Disable Salary Scheduler")
+                    }
+                }
+
+                if (settings.scheduledSalaryEnabled && settings.scheduledSalaryAmount > 0) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Active: ${settings.scheduledSalaryDescription} · " +
+                            "${com.smartexpense.tracker.data.model.currencyInfoFor(settings.currencyCode).symbol}" +
+                            "${String.format("%.2f", settings.scheduledSalaryAmount)} on day " +
+                            "${settings.scheduledSalaryDayOfMonth} of each month",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = GreenPrimary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))

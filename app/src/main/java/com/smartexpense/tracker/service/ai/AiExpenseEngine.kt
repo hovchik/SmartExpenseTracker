@@ -797,10 +797,12 @@ class AiExpenseEngine {
 
             // Merchant name — first non-numeric, non-date, substantive line.
             // Excludes POS terminal boilerplate lines (TID, MID, Tarihi, AUTH*, card numbers).
+            // Note: Armenian script characters may appear garbled after OCR (ML Kit has no Armenian
+            // model); we still keep any line that contains enough non-digit characters to be a name.
             val merchantName = lines.firstOrNull { line ->
                 line.length > 2 &&
                 !line.matches(Regex("""^[\d\s/\-:.]+$""")) &&
-                !line.matches(Regex("""(?i)^(receipt|invoice|bill|date|time|tel|phone|fax|www|tid|mid|tarihi|sale|вaчaрq|authcode|auth code|approved|visa|mastercard|\*+.*).*""")) &&
+                !line.matches(Regex("""(?i)^(receipt|invoice|bill|date|time|tel|phone|fax|www|tid|mid|tarihi|sale|authcode|auth code|approved|visa|mastercard|\*+.*).*""")) &&
                 !line.matches(Regex("""^\*[\d\*\s]+$"""))  // masked card numbers
             }?.take(50) ?: "Unknown Store"
 
@@ -914,6 +916,21 @@ class AiExpenseEngine {
                 val sum = items.sumOf { it.second }
                 val max = items.maxOf { it.second }
                 total = if (sum > max * 1.5) sum else max
+            }
+
+            // AMD-specific fallback: Armenian POS receipts often lose all script text through OCR
+            // (ML Kit has no Armenian model). If no total was found yet, scan every line for a
+            // bare decimal number that looks like an AMD amount (> 100 AMD is plausible minimum).
+            if (total == null && currencyCode.uppercase() == "AMD") {
+                val amountCandidates = lines.mapNotNull { line ->
+                    // Match "12 000.00", "12000.00", "12000", "12,000.00" — typical AMD receipt amounts
+                    val m = Regex("""([0-9][0-9\s,]*\.?[0-9]{0,2})""").findAll(line)
+                        .mapNotNull { it.groupValues[1].replace(Regex("""[\s,]"""), "").toDoubleOrNull() }
+                        .filter { it >= 100 }   // AMD amounts are almost always ≥ 100
+                        .maxOrNull()
+                    m
+                }
+                total = amountCandidates.maxOrNull()
             }
 
             // Date — also recognises "Tarihi: DD/MM/YY" found on Armenian/Turkish POS terminals

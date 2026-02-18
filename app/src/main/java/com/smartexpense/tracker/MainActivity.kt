@@ -205,7 +205,11 @@ fun MainApp(viewModel: MainViewModel) {
                         onCheckLocalAi = { viewModel.checkLocalAiAvailability() },
                         categories = uiState.categories,
                         onAddCategory = { name -> viewModel.addCategory(name) },
-                        onDeleteCategory = { id -> viewModel.deleteCategory(id) }
+                        onDeleteCategory = { id -> viewModel.deleteCategory(id) },
+                        onSetMonthlyLimit = { limit -> viewModel.setMonthlyExpenseLimit(limit) },
+                        onConfigureSalary = { enabled, amount, day, desc ->
+                            viewModel.configureSalaryScheduler(enabled, amount, day, desc)
+                        }
                     )
                 }
             }

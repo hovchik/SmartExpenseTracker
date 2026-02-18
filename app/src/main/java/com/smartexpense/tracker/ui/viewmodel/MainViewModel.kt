@@ -11,6 +11,8 @@ import com.smartexpense.tracker.data.repository.ExpenseRepository
 import com.smartexpense.tracker.service.ai.AiExpenseEngine
 import com.smartexpense.tracker.service.ai.LocalAiService
 import com.smartexpense.tracker.service.currency.CurrencyConverterService
+import com.smartexpense.tracker.service.notification.ExpenseNotificationHelper
+import com.smartexpense.tracker.service.scheduler.SalarySchedulerWorker
 import com.smartexpense.tracker.util.DateUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -130,6 +132,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             transactionCount = data.transactions.size, settings = data.settings,
             transactionsByDate = transactionsByDate
         )
+
+        // ── Monthly expense threshold check ───────────────────────
+        val limit = data.settings.monthlyExpenseLimit
+        if (limit > 0 && monthlyExpenses > limit) {
+            val currentMonth = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.US)
+                .format(java.util.Date(now))
+            if (data.settings.lastThresholdAlertMonth != currentMonth) {
+                val currencySymbol = data.settings.currency.ifEmpty { "$" }
+                ExpenseNotificationHelper.postBudgetExceededNotification(
+                    context = getApplication(),
+                    spent = monthlyExpenses,
+                    limit = limit,
+                    currencySymbol = currencySymbol
+                )
+                viewModelScope.launch {
+                    repository.updateSettings(
+                        data.settings.copy(lastThresholdAlertMonth = currentMonth)
+                    )
+                    repository.addInAppNotification(
+                        InAppNotification(
+                            title = "Monthly limit exceeded",
+                            message = "You've spent $currencySymbol${String.format("%.2f", monthlyExpenses)}" +
+                                " — over your $currencySymbol${String.format("%.2f", limit)} limit.",
+                            type = InAppNotificationType.BUDGET_ALERT
+                        )
+                    )
+                }
+            }
+        }
     }
 
     fun setSelectedTab(index: Int) { _selectedTab.value = index }
@@ -345,6 +376,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository.updateSettings(settings)
             // Invalidate cached rates when base currency changes
             CurrencyConverterService.invalidateCache()
+        }
+    }
+
+    fun setMonthlyExpenseLimit(limit: Double) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            // Reset last-alert month so the new limit can fire immediately if already exceeded
+            repository.updateSettings(settings.copy(monthlyExpenseLimit = limit, lastThresholdAlertMonth = ""))
+        }
+    }
+
+    // ─── Salary Scheduler ─────────────────────────────────────────
+
+    fun configureSalaryScheduler(
+        enabled: Boolean,
+        amount: Double,
+        dayOfMonth: Int,
+        description: String
+    ) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            repository.updateSettings(
+                settings.copy(
+                    scheduledSalaryEnabled = enabled,
+                    scheduledSalaryAmount = amount,
+                    scheduledSalaryDayOfMonth = dayOfMonth.coerceIn(1, 31),
+                    scheduledSalaryDescription = description.ifBlank { "Monthly Salary" }
+                )
+            )
+            val appContext = getApplication<android.app.Application>().applicationContext
+            if (enabled && amount > 0) {
+                SalarySchedulerWorker.schedule(appContext)
+            } else {
+                SalarySchedulerWorker.cancel(appContext)
+            }
         }
     }
 

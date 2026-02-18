@@ -222,7 +222,18 @@ data class AppSettings(
         "com.venmo",
         "com.squareup.cash",
         "com.zellepay.zelle"
-    )
+    ),
+    // ── Monthly expense threshold ───────────────────────────────────
+    /** 0 = disabled. When monthly expenses exceed this, a system notification is posted. */
+    val monthlyExpenseLimit: Double = 0.0,
+    /** Tracks which month (yyyy-MM) was last alerted so we don't spam per transaction. */
+    val lastThresholdAlertMonth: String = "",
+    // ── Salary scheduler ───────────────────────────────────────────
+    val scheduledSalaryEnabled: Boolean = false,
+    val scheduledSalaryAmount: Double = 0.0,
+    /** Day-of-month (1–31) to add the salary transaction automatically each month. */
+    val scheduledSalaryDayOfMonth: Int = 1,
+    val scheduledSalaryDescription: String = "Monthly Salary"
 )
 
 fun defaultCategories(): List<Category> = listOf(

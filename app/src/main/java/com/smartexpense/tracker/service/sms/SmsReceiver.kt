@@ -18,6 +18,7 @@ import com.smartexpense.tracker.service.currency.CurrencyConverterService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Receives incoming SMS messages and auto-logs banking transactions.
@@ -38,8 +39,10 @@ class SmsReceiver : BroadcastReceiver() {
         // Armenian/CIS banks
         "ameria", "ardshin", "inecobank", "converse", "acba", "armswiss",
         "vtb", "mellat", "araratbank", "evoca", "idbank", "unibank",
+        "armeconombank", "byblos", "fast", "armenbrok",
         // European
-        "revolut", "wise", "n26", "monzo", "ing", "hsbc", "barclays"
+        "revolut", "wise", "n26", "monzo", "ing", "hsbc", "barclays",
+        "bnp", "deutsche", "santander", "raiffeisen"
     )
 
     private val financialKeywords = listOf(
@@ -49,7 +52,10 @@ class SmsReceiver : BroadcastReceiver() {
         "a/c", "acct", "account", "balance",
         // International
         "approved", "authcode", "auth code", "atm cash", "mail order",
-        "credit account", "debit account", "completion"
+        "credit account", "debit account", "completion",
+        // Armenian/CIS banking terms (transliterated or common in region)
+        "amd", "֏", "դրամ", "списание", "зачисление", "баланс", "оплата",
+        "перевод", "покупка", "снятие", "пополнение"
     )
 
     /**
@@ -108,6 +114,9 @@ class SmsReceiver : BroadcastReceiver() {
 
             val dedupKey = "Auto SMS: $sender | ${System.currentTimeMillis() / 60000}"
 
+            // goAsync() extends the BroadcastReceiver's process lifetime beyond onReceive()
+            // so the coroutine is not killed before the transaction is persisted.
+            val pendingResult = goAsync()
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     val app = context.applicationContext as? SmartExpenseApp
@@ -194,6 +203,9 @@ class SmsReceiver : BroadcastReceiver() {
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to save SMS transaction", e)
+                } finally {
+                    // Must always call finish() to release the wakelock held by goAsync()
+                    pendingResult.finish()
                 }
             }
         } catch (e: Exception) {
