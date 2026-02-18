@@ -22,16 +22,10 @@
         android:fillColor="#A5D6A7"
         android:pathData="M62,50 Q62,44 68,44 L82,44 L82,60 L68,60 Q62,60 62,54 Z" />
 
-    <!-- Coin circle -->
+    <!-- Coin circle (center 72,52 radius 4) -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M72,52 A4,4,0,0,1 72,52 A4,4,0,0,0 72,52 Z" />
-    <ellipse
-        android:fillColor="#FFFFFF"
-        android:cx="72"
-        android:cy="52"
-        android:rx="4"
-        android:ry="4" />
+        android:pathData="M68,52 A4,4,0,1,0 76,52 A4,4,0,1,0 68,52 Z" />
 
     <!-- Currency symbol in coin -->
     <path
