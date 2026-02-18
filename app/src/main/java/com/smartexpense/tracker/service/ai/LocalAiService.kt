@@ -13,7 +13,7 @@ import kotlinx.coroutines.withContext
  *
  * Supported devices (Android 14+):
  *  - Google Pixel 8, 8 Pro, 8a, 9 series
- *  - Samsung Galaxy S24 series
+ *  - Samsung Galaxy S24 series (ships AICore-compatible service)
  *  - Other AICore-enabled devices
  *
  * On unsupported devices every method returns null and the caller falls back
@@ -24,8 +24,20 @@ class LocalAiService(private val appContext: Context) {
     companion object {
         private const val TAG = "LocalAiService"
 
-        /** Package name of the Android AICore system service (ships with Pixel / Samsung). */
-        private const val AI_CORE_PACKAGE = "com.google.android.aicore"
+        /**
+         * Known package names for the Android AICore / Gemini Nano system service.
+         * Google ships "com.google.android.aicore" on Pixel devices.
+         * Samsung Galaxy S24+ ships a compatible service under a different package.
+         * We check all known names; if none is found we still attempt SDK init because
+         * some OEMs install the service as a pre-loaded module with yet another name.
+         */
+        private val AI_CORE_PACKAGES = listOf(
+            "com.google.android.aicore",                  // Google Pixel
+            "com.samsung.android.ai.gemini.service",      // Samsung S24+ (Gemini Nano)
+            "com.samsung.android.intelligenceservice",    // Samsung Intelligence Service
+            "com.samsung.android.aiservices",             // Samsung AI Services
+            "com.samsung.android.ai.core"                 // Samsung AI Core
+        )
     }
 
     // ── Cached state ──────────────────────────────────────────────
@@ -37,37 +49,41 @@ class LocalAiService(private val appContext: Context) {
 
     /**
      * Returns a human-readable status string suitable for display in the Settings UI.
-     *  - "Checking availability…"  (during check)
-     *  - "Gemini Nano available"    (ready to use)
-     *  - "Not supported on this device"  (unavailable)
+     *  - "Checking availability…"    (during check)
+     *  - "Gemini Nano available"      (ready to use)
+     *  - "On-device AI not available" (unavailable)
      */
     suspend fun statusMessage(): String {
         if (!availabilityChecked) return "Checking availability…"
         return if (availabilityResult) "Gemini Nano available on this device"
-               else "Not supported on this device (requires Pixel 8+ / Galaxy S24+)"
+               else "On-device AI not available on this device"
     }
 
     /**
      * Checks whether Gemini Nano is available and initialises the model.
      * Result is cached – safe to call repeatedly.
      *
+     * We skip the package-name pre-check as a hard gate because Samsung Galaxy S24+
+     * ships a compatible AICore service under a different package name.  Instead we
+     * let the SDK itself determine availability by attempting a lightweight probe.
+     *
      * @return true if ready to use, false otherwise.
      */
     suspend fun checkAvailability(): Boolean = withContext(Dispatchers.IO) {
         if (availabilityChecked) return@withContext availabilityResult
 
-        // Fast pre-check: is the AICore system package installed?
-        if (!isAiCoreInstalled()) {
-            Log.i(TAG, "AICore package not found – Gemini Nano unavailable")
-            availabilityChecked = true
-            availabilityResult = false
-            return@withContext false
+        // Log which (if any) AICore package is present for diagnostics
+        val foundPackage = AI_CORE_PACKAGES.firstOrNull { isPackageInstalled(it) }
+        if (foundPackage != null) {
+            Log.i(TAG, "AICore-compatible package found: $foundPackage")
+        } else {
+            Log.i(TAG, "No known AICore package found – attempting SDK init anyway (OEM service may be present)")
         }
 
-        // Try to build the model and run a minimal probe
+        // Try to build the model and run a minimal probe.
+        // The SDK will throw an appropriate exception on truly unsupported devices.
         try {
             val m = buildModel()
-            // Lightweight probe to confirm the model actually responds
             m.generateContent("hi")
             model = m
             availabilityResult = true
@@ -118,6 +134,8 @@ Reply with ONLY the category name from the list. No explanation."""
 
     /**
      * Generates a concise financial insight for display in the Reports screen.
+     * [currencyCode] is included in the prompt so the model uses the correct currency
+     * symbol rather than defaulting to USD.
      * Returns null when unavailable.
      */
     suspend fun generateInsight(
@@ -125,7 +143,8 @@ Reply with ONLY the category name from the list. No explanation."""
         totalIncome: Double,
         topCategory: String?,
         topCategoryAmount: Double,
-        transactionCount: Int
+        transactionCount: Int,
+        currencyCode: String = "USD"
     ): String? {
         val m = model ?: return null
 
@@ -133,13 +152,14 @@ Reply with ONLY the category name from the list. No explanation."""
             try {
                 val prompt = buildString {
                     appendLine("Generate a brief 1–2 sentence financial insight based on:")
-                    appendLine("• Expenses: ${"%.2f".format(totalExpenses)}")
-                    appendLine("• Income: ${"%.2f".format(totalIncome)}")
+                    appendLine("• Currency: $currencyCode")
+                    appendLine("• Expenses: ${"%.2f".format(totalExpenses)} $currencyCode")
+                    appendLine("• Income: ${"%.2f".format(totalIncome)} $currencyCode")
                     if (topCategory != null) {
-                        appendLine("• Highest spend category: $topCategory (${"%.2f".format(topCategoryAmount)})")
+                        appendLine("• Highest spend category: $topCategory (${"%.2f".format(topCategoryAmount)} $currencyCode)")
                     }
                     appendLine("• Transactions: $transactionCount")
-                    appendLine("Be concise, specific, and actionable. Start directly with the insight.")
+                    appendLine("Use the $currencyCode currency symbol. Be concise, specific, and actionable. Start directly with the insight.")
                 }
 
                 val response = m.generateContent(prompt)
@@ -153,8 +173,8 @@ Reply with ONLY the category name from the list. No explanation."""
 
     // ── Private helpers ───────────────────────────────────────────
 
-    private fun isAiCoreInstalled(): Boolean = try {
-        appContext.packageManager.getPackageInfo(AI_CORE_PACKAGE, 0)
+    private fun isPackageInstalled(packageName: String): Boolean = try {
+        appContext.packageManager.getPackageInfo(packageName, 0)
         true
     } catch (_: PackageManager.NameNotFoundException) { false }
 

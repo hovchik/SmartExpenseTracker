@@ -319,7 +319,8 @@ class AiExpenseEngine {
         transactions: List<Transaction>,
         period: ReportPeriod,
         startDate: Long,
-        endDate: Long
+        endDate: Long,
+        currencyCode: String = "USD"
     ): ExpenseReport {
         val periodTransactions = transactions.filter { it.timestamp in startDate..endDate }
         val expenses = periodTransactions.filter { it.type == TransactionType.EXPENSE }
@@ -370,7 +371,7 @@ class AiExpenseEngine {
             .mapValues { it.value.size }
 
         // Spending trend (insight text)
-        val insight = buildInsight(totalExpenses, totalIncome, comparison, categoryBreakdown, topMerchants)
+        val insight = buildInsight(totalExpenses, totalIncome, comparison, categoryBreakdown, topMerchants, currencyCode)
 
         // Group period transactions by date string ("yyyy-MM-dd") for date-based browsing
         val dateFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
@@ -400,8 +401,10 @@ class AiExpenseEngine {
 
     private fun buildInsight(
         expenses: Double, income: Double, comparison: Double,
-        categories: Map<String, Double>, merchants: Map<String, Double>
+        categories: Map<String, Double>, merchants: Map<String, Double>,
+        currencyCode: String = "USD"
     ): String {
+        val sym = currencyInfoFor(currencyCode).symbol
         val parts = mutableListOf<String>()
 
         // Spending direction
@@ -426,7 +429,7 @@ class AiExpenseEngine {
         // Top merchant
         val topMerch = merchants.entries.maxByOrNull { it.value }
         if (topMerch != null) {
-            parts.add("Most spent at: ${topMerch.key} (\$${String.format("%.2f", topMerch.value)}).")
+            parts.add("Most spent at: ${topMerch.key} ($sym${String.format("%.2f", topMerch.value)}).")
         }
 
         return parts.joinToString(" ")

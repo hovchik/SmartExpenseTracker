@@ -12,7 +12,9 @@ import com.smartexpense.tracker.data.model.InAppNotificationType
 import com.smartexpense.tracker.data.model.Transaction
 import com.smartexpense.tracker.data.model.TransactionSource
 import com.smartexpense.tracker.data.model.TransactionType
+import com.smartexpense.tracker.data.model.currencyInfoFor
 import com.smartexpense.tracker.service.ai.AiExpenseEngine
+import com.smartexpense.tracker.service.currency.CurrencyConverterService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -106,55 +108,89 @@ class SmsReceiver : BroadcastReceiver() {
 
             val dedupKey = "Auto SMS: $sender | ${System.currentTimeMillis() / 60000}"
 
-            val transaction = Transaction(
-                amount = parsed.amount,
-                description = parsed.description.ifEmpty { fullMessage.take(80) },
-                category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }),
-                type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
-                source = TransactionSource.SMS,
-                merchantName = parsed.merchantName,
-                notes = dedupKey
-            )
-
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     val app = context.applicationContext as? SmartExpenseApp
                     if (app != null) {
+                        val repo = app.repository
+                        val settings = repo.appData.value.settings
+                        val appCurrency = settings.currencyCode
+
+                        // ── Currency conversion ──────────────────────────────────
+                        // If the SMS reports a different currency than the app's currency, convert.
+                        val (finalAmount, conversionNote) = if (
+                            parsed.currency.isNotEmpty() && parsed.currency != appCurrency
+                        ) {
+                            val converted = CurrencyConverterService.convert(
+                                parsed.amount, parsed.currency, appCurrency
+                            )
+                            if (converted != null) {
+                                val rate = converted / parsed.amount
+                                val fromSym = currencyInfoFor(parsed.currency).symbol
+                                converted to "Original: $fromSym${String.format("%.2f", parsed.amount)} ${parsed.currency} · 1 ${parsed.currency} = ${String.format("%.4f", rate)} $appCurrency"
+                            } else {
+                                parsed.amount to ""
+                            }
+                        } else {
+                            parsed.amount to ""
+                        }
+
+                        val notes = listOf(dedupKey, conversionNote)
+                            .filter { it.isNotBlank() }.joinToString("\n")
+
+                        val transaction = Transaction(
+                            amount = finalAmount,
+                            description = parsed.description.ifEmpty { fullMessage.take(80) },
+                            category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }),
+                            type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
+                            source = TransactionSource.SMS,
+                            merchantName = parsed.merchantName,
+                            notes = notes
+                        )
+
                         // Dedup: skip if similar transaction (same amount, same source) within 2 min
-                        val existing = app.repository.appData.value.transactions
+                        val existing = repo.appData.value.transactions
                         val now = System.currentTimeMillis()
                         val isDuplicate = existing.any { t ->
                             t.source == TransactionSource.SMS &&
-                            t.amount == parsed.amount &&
+                            t.amount == finalAmount &&
                             kotlin.math.abs(t.timestamp - now) < 120_000
                         }
                         if (!isDuplicate) {
-                            val repo = app.repository
                             // Auto-create category if not present
                             repo.ensureCategoryExists(transaction.category)
                             repo.addTransaction(transaction)
                             // Post in-app notification
-                            val sym = repo.appData.value.settings.currency.ifEmpty { "$" }
+                            val sym = currencyInfoFor(appCurrency).symbol
                             val typeLabel = if (parsed.isExpense) "Expense" else "Income"
                             repo.addInAppNotification(
                                 InAppNotification(
                                     title = "$typeLabel detected via SMS",
-                                    message = "${transaction.description}: $sym${String.format("%.2f", parsed.amount)}" +
-                                        if (parsed.merchantName.isNotEmpty()) " at ${parsed.merchantName}" else "",
+                                    message = "${transaction.description}: $sym${String.format("%.2f", finalAmount)}" +
+                                        (if (parsed.merchantName.isNotEmpty()) " at ${parsed.merchantName}" else "") +
+                                        (if (conversionNote.isNotEmpty()) " (${ parsed.amount} ${parsed.currency})" else ""),
                                     type = InAppNotificationType.TRANSACTION_DETECTED,
                                     relatedTransactionId = transaction.id
                                 )
                             )
-                            Log.d(TAG, "Saved SMS transaction: \$${parsed.amount} from $sender")
+                            Log.d(TAG, "Saved SMS transaction: $finalAmount $appCurrency from $sender")
                         } else {
-                            Log.d(TAG, "Skipped duplicate: \$${parsed.amount}")
+                            Log.d(TAG, "Skipped duplicate: $finalAmount")
                         }
                     } else {
-                        // Fallback: own storage instance
+                        // Fallback: own storage instance (no conversion possible without settings)
                         val storage = com.smartexpense.tracker.data.json.JsonStorageManager(context)
                         val repo = com.smartexpense.tracker.data.repository.ExpenseRepository(storage)
                         repo.initialize()
-                        repo.addTransaction(transaction)
+                        repo.addTransaction(Transaction(
+                            amount = parsed.amount,
+                            description = parsed.description.ifEmpty { fullMessage.take(80) },
+                            category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }),
+                            type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
+                            source = TransactionSource.SMS,
+                            merchantName = parsed.merchantName,
+                            notes = dedupKey
+                        ))
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to save SMS transaction", e)

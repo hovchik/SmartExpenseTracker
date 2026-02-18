@@ -11,7 +11,9 @@ import com.smartexpense.tracker.data.model.InAppNotificationType
 import com.smartexpense.tracker.data.model.Transaction
 import com.smartexpense.tracker.data.model.TransactionSource
 import com.smartexpense.tracker.data.model.TransactionType
+import com.smartexpense.tracker.data.model.currencyInfoFor
 import com.smartexpense.tracker.service.ai.AiExpenseEngine
+import com.smartexpense.tracker.service.currency.CurrencyConverterService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -149,36 +151,62 @@ class BankingNotificationListener : NotificationListenerService() {
                         return@launch
                     }
 
+                    val settings = repo.appData.value.settings
+                    val appCurrency = settings.currencyCode
+
+                    // ── Currency conversion ──────────────────────────────────
+                    // If the notification reports a different currency, convert to app's currency.
+                    val (finalAmount, conversionNote) = if (
+                        parsed.currency.isNotEmpty() && parsed.currency != appCurrency
+                    ) {
+                        val converted = CurrencyConverterService.convert(
+                            parsed.amount, parsed.currency, appCurrency
+                        )
+                        if (converted != null) {
+                            val rate = converted / parsed.amount
+                            val fromSym = currencyInfoFor(parsed.currency).symbol
+                            converted to "Original: $fromSym${String.format("%.2f", parsed.amount)} ${parsed.currency} · 1 ${parsed.currency} = ${String.format("%.4f", rate)} $appCurrency"
+                        } else {
+                            parsed.amount to ""
+                        }
+                    } else {
+                        parsed.amount to ""
+                    }
+
+                    val notes = listOf("Auto-detected from $appName", conversionNote)
+                        .filter { it.isNotBlank() }.joinToString("\n")
+
                     val category = aiEngine.categorize(parsed.description)
 
                     // Auto-create category if it doesn't exist yet
                     repo.ensureCategoryExists(category)
 
                     val transaction = Transaction(
-                        amount = parsed.amount,
+                        amount = finalAmount,
                         description = parsed.description,
                         category = category,
                         type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                         source = TransactionSource.NOTIFICATION,
                         merchantName = parsed.merchantName,
-                        notes = "Auto-detected from $appName"
+                        notes = notes
                     )
                     repo.addTransaction(transaction)
 
                     // Post an in-app notification
-                    val sym = repo.appData.value.settings.currency.ifEmpty { "$" }
+                    val sym = currencyInfoFor(appCurrency).symbol
                     val typeLabel = if (parsed.isExpense) "Expense" else "Income"
                     repo.addInAppNotification(
                         InAppNotification(
                             title = "$typeLabel detected – $appName",
-                            message = "${parsed.description}: $sym${String.format("%.2f", parsed.amount)}" +
-                                if (parsed.merchantName.isNotEmpty()) " at ${parsed.merchantName}" else "",
+                            message = "${parsed.description}: $sym${String.format("%.2f", finalAmount)}" +
+                                (if (parsed.merchantName.isNotEmpty()) " at ${parsed.merchantName}" else "") +
+                                (if (conversionNote.isNotEmpty()) " (${parsed.amount} ${parsed.currency})" else ""),
                             type = InAppNotificationType.TRANSACTION_DETECTED,
                             relatedTransactionId = transaction.id
                         )
                     )
 
-                    Log.d(TAG, "Saved notification transaction: ${parsed.amount}")
+                    Log.d(TAG, "Saved notification transaction: $finalAmount $appCurrency")
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to save notification transaction", e)
                 }

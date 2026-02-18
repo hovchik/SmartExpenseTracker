@@ -143,7 +143,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _localAiStatus.value = if (available)
                 "Gemini Nano available on this device"
             else
-                "Not supported on this device (requires Pixel 8+ / Galaxy S24+)"
+                "On-device AI not available on this device"
         }
     }
 
@@ -217,7 +217,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 totalIncome = 0.0,
                                 topCategory = topCat,
                                 topCategoryAmount = amount,
-                                transactionCount = 1
+                                transactionCount = 1,
+                                currencyCode = currencyCode
                             )
                         }
                         if (insight != null) "\nAI: $insight" else ""
@@ -270,7 +271,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ReportPeriod.WEEKLY -> DateUtils.getStartOfWeek(now) to DateUtils.getEndOfWeek(now)
             ReportPeriod.MONTHLY -> DateUtils.getStartOfMonth(now) to DateUtils.getEndOfMonth(now)
         }
-        return aiEngine.generateReport(repository.appData.value.transactions, period, start, end)
+        val currencyCode = repository.appData.value.settings.currencyCode
+        return aiEngine.generateReport(repository.appData.value.transactions, period, start, end, currencyCode)
     }
 
     /**
@@ -296,11 +298,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             set(Calendar.SECOND, 59)
             set(Calendar.MILLISECOND, 999)
         }
+        val currencyCode = repository.appData.value.settings.currencyCode
         return aiEngine.generateReport(
             repository.appData.value.transactions,
             ReportPeriod.MONTHLY,
             startCal.timeInMillis,
-            endCal.timeInMillis
+            endCal.timeInMillis,
+            currencyCode
         )
     }
 
