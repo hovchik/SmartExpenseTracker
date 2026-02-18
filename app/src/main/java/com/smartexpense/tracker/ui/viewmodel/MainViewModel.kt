@@ -680,24 +680,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Retrieves all user-installed (non-system) applications on the device,
-     * sorted alphabetically by display name.
+     * Retrieves all user-visible applications on the device (apps that have a launcher
+     * intent, i.e. appear in the app drawer), sorted alphabetically by display name.
      */
     fun loadAllInstalledApps() {
         viewModelScope.launch {
             val pm = getApplication<android.app.Application>().packageManager
             val apps = withContext(Dispatchers.IO) {
-                pm.getInstalledApplications(0)
-                    .filter { appInfo ->
-                        // Keep only user-installed apps (exclude system apps)
-                        (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0
-                    }
-                    .map { appInfo ->
+                val launchIntent = android.content.Intent(android.content.Intent.ACTION_MAIN, null)
+                launchIntent.addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+                pm.queryIntentActivities(launchIntent, 0)
+                    .map { resolveInfo ->
+                        val appInfo = resolveInfo.activityInfo.applicationInfo
                         InstalledApp(
                             packageName = appInfo.packageName,
                             appName = pm.getApplicationLabel(appInfo).toString()
                         )
                     }
+                    .distinctBy { it.packageName }
                     .sortedBy { it.appName.lowercase() }
             }
             _allInstalledApps.value = apps
