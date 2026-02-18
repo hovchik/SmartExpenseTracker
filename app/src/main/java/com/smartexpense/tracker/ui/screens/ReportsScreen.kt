@@ -2,7 +2,10 @@ package com.smartexpense.tracker.ui.screens
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -51,19 +54,43 @@ import kotlin.math.roundToInt
 fun ReportsScreen(
     generateReport: (ReportPeriod) -> ExpenseReport,
     generateMonthlyReport: (year: Int, month: Int) -> ExpenseReport = { _, _ -> generateReport(ReportPeriod.MONTHLY) },
+    generateCustomReport: (startMillis: Long, endMillis: Long) -> ExpenseReport = { s, e ->
+        generateReport(ReportPeriod.MONTHLY) // fallback
+    },
     currentPeriod: ReportPeriod,
     onPeriodChange: (ReportPeriod) -> Unit,
     allTransactions: List<Transaction> = emptyList(),
-    currencyCode: String = "USD"
+    currencyCode: String = "AMD"
 ) {
     // Month selector state – defaults to current month
     val nowCal = remember { Calendar.getInstance() }
     var selectedYear  by remember { mutableIntStateOf(nowCal.get(Calendar.YEAR)) }
     var selectedMonth by remember { mutableIntStateOf(nowCal.get(Calendar.MONTH)) }
 
-    val report = remember(currentPeriod, selectedYear, selectedMonth) {
-        if (currentPeriod == ReportPeriod.MONTHLY) generateMonthlyReport(selectedYear, selectedMonth)
-        else generateReport(currentPeriod)
+    // Custom date range state
+    var customStartMillis by remember { mutableLongStateOf(
+        Calendar.getInstance().apply { add(Calendar.MONTH, -1) }.timeInMillis
+    ) }
+    var customEndMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var showStartPicker by remember { mutableStateOf(false) }
+    var showEndPicker by remember { mutableStateOf(false) }
+
+    // Category drill-down state
+    var selectedCategory by remember { mutableStateOf<String?>(null) }
+
+    // Collapse state for Top Expenses and Transactions by Date
+    var topExpensesExpanded by remember { mutableStateOf(false) }
+    var transactionsByDateExpanded by remember { mutableStateOf(false) }
+
+    val report = remember(currentPeriod, selectedYear, selectedMonth, customStartMillis, customEndMillis) {
+        when (currentPeriod) {
+            ReportPeriod.MONTHLY -> generateMonthlyReport(selectedYear, selectedMonth)
+            ReportPeriod.CUSTOM -> generateCustomReport(
+                DateUtils.getStartOfDay(customStartMillis),
+                DateUtils.getEndOfDay(customEndMillis)
+            )
+            else -> generateReport(currentPeriod)
+        }
     }
 
     val monthYearFormatter = remember { SimpleDateFormat("MMMM yyyy", Locale.getDefault()) }
@@ -76,6 +103,11 @@ fun ReportsScreen(
 
     val context = LocalContext.current
     var showSharePicker by remember { mutableStateOf(false) }
+
+    val aiEngine = remember { com.smartexpense.tracker.service.ai.AiExpenseEngine() }
+    val expenseReductionTips = remember(report, currencyCode) {
+        if (report.totalExpenses > 0) aiEngine.generateExpenseReductionTips(report, currencyCode) else emptyList()
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -99,7 +131,7 @@ fun ReportsScreen(
 
         // Period selector
         item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 ReportPeriod.entries.forEach { period ->
                     FilterChip(
                         selected = currentPeriod == period,
@@ -107,12 +139,59 @@ fun ReportsScreen(
                         label = {
                             Text(when (period) {
                                 ReportPeriod.DAILY -> "Today"
-                                ReportPeriod.WEEKLY -> "This Week"
+                                ReportPeriod.WEEKLY -> "Week"
                                 ReportPeriod.MONTHLY -> "Monthly"
-                            })
+                                ReportPeriod.CUSTOM -> "Custom"
+                            }, fontSize = 13.sp)
                         },
                         modifier = Modifier.weight(1f)
                     )
+                }
+            }
+        }
+
+        // ─── Custom date range picker (visible only when CUSTOM period is active) ──
+        if (currentPeriod == ReportPeriod.CUSTOM) {
+            item {
+                val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text("Date Range", fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedButton(
+                                onClick = { showStartPicker = true },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Filled.CalendarToday, null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(dateFormatter.format(java.util.Date(customStartMillis)), fontSize = 13.sp)
+                            }
+                            Text("to", fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer)
+                            OutlinedButton(
+                                onClick = { showEndPicker = true },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Filled.CalendarToday, null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(dateFormatter.format(java.util.Date(customEndMillis)), fontSize = 13.sp)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -292,13 +371,15 @@ fun ReportsScreen(
                                 val pct = if (report.totalExpenses > 0) amount / report.totalExpenses else 0.0
                                 val color = categoryColors[index % categoryColors.size]
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
+                                        .clickable { selectedCategory = category },
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(color))
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(category, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                        Text(category, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.primary)
                                         Spacer(modifier = Modifier.height(3.dp))
                                         LinearProgressIndicator(
                                             progress = { pct.toFloat().coerceIn(0f, 1f) },
@@ -312,6 +393,10 @@ fun ReportsScreen(
                                         Text("${(pct * 100).roundToInt()}%", fontSize = 11.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(Icons.Filled.ChevronRight, null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp))
                                 }
                             }
                     }
@@ -496,123 +581,199 @@ fun ReportsScreen(
             }
         }
 
-        // ─── Top Expenses ──────────────────────────────
-        if (report.topExpenses.isNotEmpty()) {
+        // ─── AI Expense Reduction Tips ───────────────────────
+        if (expenseReductionTips.isNotEmpty()) {
             item {
-                Text("Top Expenses", style = MaterialTheme.typography.titleMedium,
+                Text("How to Reduce Expenses", style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
             }
-            items(report.topExpenses) { transaction ->
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(transaction.description, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                            Text("${transaction.category} · ${DateUtils.formatShortDate(transaction.timestamp)}",
-                                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = BluePrimary.copy(alpha = 0.06f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.Lightbulb, null,
+                                tint = BluePrimary, modifier = Modifier.size(22.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("AI Recommendations", fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp, color = BluePrimary)
                         }
-                        Text(CurrencyUtils.format(transaction.amount, currencyCode), fontWeight = FontWeight.Bold, color = RedExpense)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        expenseReductionTips.forEachIndexed { index, tip ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Text(
+                                    "${index + 1}.",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = BluePrimary,
+                                    modifier = Modifier.width(20.dp)
+                                )
+                                Text(
+                                    tip,
+                                    fontSize = 13.sp,
+                                    lineHeight = 18.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
 
-        // ─── Transactions by Date ──────────────────────
-        if (report.transactionsByDate.isNotEmpty()) {
+        // ─── Top Expenses (collapsible) ─────────────────
+        if (report.topExpenses.isNotEmpty()) {
             item {
-                Text(
-                    "Transactions by Date",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { topExpensesExpanded = !topExpensesExpanded }
+                        .padding(top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Top Expenses", style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold)
+                    Icon(
+                        if (topExpensesExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = if (topExpensesExpanded) "Collapse" else "Expand",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
-            report.transactionsByDate.entries
-                .sortedByDescending { it.key }
-                .forEach { (dateStr, txList) ->
-                    // Date header
-                    item(key = "date_$dateStr") {
+            if (topExpensesExpanded) {
+                items(report.topExpenses) { transaction ->
+                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Filled.CalendarToday,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    dateStr,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(transaction.description, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                                Text("${transaction.category} · ${DateUtils.formatShortDate(transaction.timestamp)}",
+                                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            val dayTotal = txList.filter {
-                                it.type == com.smartexpense.tracker.data.model.TransactionType.EXPENSE
-                            }.sumOf { it.amount }
-                            if (dayTotal > 0) {
-                                Text(
-                                    CurrencyUtils.format(dayTotal, currencyCode),
-                                    fontSize = 12.sp,
-                                    color = RedExpense,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
-                    }
-                    // Transactions for that date
-                    items(txList, key = { it.id }) { tx ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 4.dp),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Type indicator dot
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            if (tx.type == com.smartexpense.tracker.data.model.TransactionType.EXPENSE)
-                                                RedExpense else GreenIncome
-                                        )
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(tx.description, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                    Text(
-                                        "${tx.category} · ${tx.dateTime.take(16).replace("T", " ")}",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Text(
-                                    CurrencyUtils.format(tx.amount, currencyCode),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (tx.type == com.smartexpense.tracker.data.model.TransactionType.EXPENSE)
-                                        RedExpense else GreenIncome
-                                )
-                            }
+                            Text(CurrencyUtils.format(transaction.amount, currencyCode), fontWeight = FontWeight.Bold, color = RedExpense)
                         }
                     }
                 }
+            }
+        }
+
+        // ─── Transactions by Date (collapsible) ─────────
+        if (report.transactionsByDate.isNotEmpty()) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { transactionsByDateExpanded = !transactionsByDateExpanded }
+                        .padding(top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Transactions by Date", style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold)
+                    Icon(
+                        if (transactionsByDateExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = if (transactionsByDateExpanded) "Collapse" else "Expand",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            if (transactionsByDateExpanded) {
+                report.transactionsByDate.entries
+                    .sortedByDescending { it.key }
+                    .forEach { (dateStr, txList) ->
+                        // Date header
+                        item(key = "date_$dateStr") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Filled.CalendarToday,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        dateStr,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                val dayTotal = txList.filter {
+                                    it.type == com.smartexpense.tracker.data.model.TransactionType.EXPENSE
+                                }.sumOf { it.amount }
+                                if (dayTotal > 0) {
+                                    Text(
+                                        CurrencyUtils.format(dayTotal, currencyCode),
+                                        fontSize = 12.sp,
+                                        color = RedExpense,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                        // Transactions for that date
+                        items(txList, key = { it.id }) { tx ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 4.dp),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // Type indicator dot
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (tx.type == com.smartexpense.tracker.data.model.TransactionType.EXPENSE)
+                                                    RedExpense else GreenIncome
+                                            )
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(tx.description, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                        Text(
+                                            "${tx.category} · ${tx.dateTime.take(16).replace("T", " ")}",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Text(
+                                        CurrencyUtils.format(tx.amount, currencyCode),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (tx.type == com.smartexpense.tracker.data.model.TransactionType.EXPENSE)
+                                            RedExpense else GreenIncome
+                                    )
+                                }
+                            }
+                        }
+                    }
+            }
         }
 
         // ─── Savings Rate ─────────────────────────────────────
@@ -679,6 +840,7 @@ fun ReportsScreen(
 
     // ─── Share format picker dialog ─────────────────────────────────
     if (showSharePicker) {
+        val customDateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
         val periodLabel = when (currentPeriod) {
             ReportPeriod.DAILY -> "Today"
             ReportPeriod.WEEKLY -> "This Week"
@@ -689,6 +851,9 @@ fun ReportsScreen(
                     set(Calendar.DAY_OF_MONTH, 1)
                 }
                 monthYearFormatter.format(cal.time)
+            }
+            ReportPeriod.CUSTOM -> {
+                "${customDateFormatter.format(java.util.Date(customStartMillis))} – ${customDateFormatter.format(java.util.Date(customEndMillis))}"
             }
         }
         AlertDialog(
@@ -703,7 +868,7 @@ fun ReportsScreen(
                         onClick = {
                             showSharePicker = false
                             val text = buildShareText(report, currencyCode, currentPeriod,
-                                selectedYear, selectedMonth, monthYearFormatter)
+                                selectedYear, selectedMonth, monthYearFormatter, periodLabel)
                             val intent = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
                                 putExtra(Intent.EXTRA_SUBJECT, "Smart Expense Report")
@@ -781,6 +946,105 @@ fun ReportsScreen(
             }
         )
     }
+
+    // ─── Custom date range: Start date picker ───────────────────────
+    if (showStartPicker) {
+        val startPickerState = rememberDatePickerState(initialSelectedDateMillis = customStartMillis)
+        DatePickerDialog(
+            onDismissRequest = { showStartPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    startPickerState.selectedDateMillis?.let { customStartMillis = it }
+                    showStartPicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStartPicker = false }) { Text("Cancel") }
+            }
+        ) {
+            DatePicker(state = startPickerState)
+        }
+    }
+
+    // ─── Custom date range: End date picker ─────────────────────────
+    if (showEndPicker) {
+        val endPickerState = rememberDatePickerState(initialSelectedDateMillis = customEndMillis)
+        DatePickerDialog(
+            onDismissRequest = { showEndPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    endPickerState.selectedDateMillis?.let { customEndMillis = it }
+                    showEndPicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEndPicker = false }) { Text("Cancel") }
+            }
+        ) {
+            DatePicker(state = endPickerState)
+        }
+    }
+
+    // ─── Category drill-down dialog ─────────────────────────────────
+    if (selectedCategory != null) {
+        val categoryTransactions = remember(selectedCategory, report) {
+            report.transactionsByDate.values.flatten()
+                .filter { it.category == selectedCategory && it.type == TransactionType.EXPENSE }
+                .sortedByDescending { it.timestamp }
+        }
+        AlertDialog(
+            onDismissRequest = { selectedCategory = null },
+            title = {
+                Column {
+                    Text(selectedCategory ?: "", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    val total = categoryTransactions.sumOf { it.amount }
+                    Text(
+                        "${categoryTransactions.size} transactions · ${CurrencyUtils.format(total, currencyCode)}",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            text = {
+                if (categoryTransactions.isEmpty()) {
+                    Text("No transactions found in this category for the selected period.")
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        categoryTransactions.forEach { tx ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(tx.description, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                    Text(
+                                        "${DateUtils.formatShortDate(tx.timestamp)}${if (tx.merchantName.isNotEmpty()) " · ${tx.merchantName}" else ""}",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Text(
+                                    CurrencyUtils.format(tx.amount, currencyCode),
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 14.sp,
+                                    color = RedExpense
+                                )
+                            }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedCategory = null }) { Text("Close") }
+            }
+        )
+    }
 }
 
 @Composable
@@ -803,7 +1067,8 @@ private fun buildShareText(
     period: ReportPeriod,
     selectedYear: Int,
     selectedMonth: Int,
-    monthFmt: SimpleDateFormat
+    monthFmt: SimpleDateFormat,
+    customPeriodLabel: String = ""
 ): String {
     val periodLabel = when (period) {
         ReportPeriod.DAILY   -> "Today"
@@ -816,6 +1081,7 @@ private fun buildShareText(
             }
             monthFmt.format(cal.time)
         }
+        ReportPeriod.CUSTOM -> customPeriodLabel.ifEmpty { "Custom Range" }
     }
 
     val sb = StringBuilder()
@@ -854,6 +1120,19 @@ private fun buildShareText(
     if (report.aiInsight.isNotEmpty()) {
         sb.appendLine()
         sb.appendLine("🤖 AI Insight: ${report.aiInsight}")
+    }
+
+    // AI expense reduction tips
+    if (report.totalExpenses > 0) {
+        val aiEngine = com.smartexpense.tracker.service.ai.AiExpenseEngine()
+        val tips = aiEngine.generateExpenseReductionTips(report, currencyCode)
+        if (tips.isNotEmpty()) {
+            sb.appendLine()
+            sb.appendLine("💡 How to Reduce Expenses:")
+            tips.forEachIndexed { index, tip ->
+                sb.appendLine("  ${index + 1}. $tip")
+            }
+        }
     }
 
     sb.appendLine()
@@ -995,76 +1274,157 @@ private fun MonthlyTrendChart(
 
 // ─── Image / PDF report sharing ──────────────────────────────────────
 
-/** Builds a multi-line report text for rendering on a canvas (image/PDF). */
+/**
+ * Represents a line in the rendered report.
+ * [text] is the content, [isBold] whether to render bold,
+ * [barFraction] if > 0 draws a category bar chart element with the given fraction (0..1),
+ * [barColor] is the color for the bar.
+ */
+private data class ReportLine(
+    val text: String,
+    val isBold: Boolean = false,
+    val barFraction: Float = 0f,
+    val barColor: Int = 0
+)
+
+private val chartBarColors = intArrayOf(
+    0xFFE91E63.toInt(), 0xFF2196F3.toInt(), 0xFF9C27B0.toInt(),
+    0xFFFF9800.toInt(), 0xFF4CAF50.toInt(), 0xFF607D8B.toInt(),
+    0xFFF44336.toInt(), 0xFF3F51B5.toInt(), 0xFF00BCD4.toInt()
+)
+
+/** Builds a multi-line report for rendering on a canvas (image/PDF). */
 private fun buildReportLines(
     report: ExpenseReport,
     currencyCode: String,
     periodLabel: String
 ): List<Pair<String, Boolean>> {
-    // Pair<text, isBold>
-    val lines = mutableListOf<Pair<String, Boolean>>()
-    lines += "Smart Expense Report" to true
-    lines += periodLabel to false
-    lines += "" to false
-    lines += "Expenses:   ${CurrencyUtils.format(report.totalExpenses, currencyCode)}" to false
-    lines += "Income:     ${CurrencyUtils.format(report.totalIncome, currencyCode)}" to false
-    lines += "Net Balance: ${CurrencyUtils.format(report.netBalance, currencyCode)}" to false
-    lines += "Avg Daily:   ${CurrencyUtils.format(report.averageDailySpend, currencyCode)}" to false
-    lines += "Transactions: ${report.transactionCount}" to false
+    return buildEnhancedReportLines(report, currencyCode, periodLabel).map { it.text to it.isBold }
+}
+
+/** Enhanced report lines with category bar chart data for image/PDF rendering. */
+private fun buildEnhancedReportLines(
+    report: ExpenseReport,
+    currencyCode: String,
+    periodLabel: String,
+    includeTransactions: Boolean = false
+): List<ReportLine> {
+    val lines = mutableListOf<ReportLine>()
+    lines += ReportLine("Smart Expense Report", isBold = true)
+    lines += ReportLine(periodLabel)
+    lines += ReportLine("")
+    lines += ReportLine("Expenses:   ${CurrencyUtils.format(report.totalExpenses, currencyCode)}")
+    lines += ReportLine("Income:     ${CurrencyUtils.format(report.totalIncome, currencyCode)}")
+    lines += ReportLine("Net Balance: ${CurrencyUtils.format(report.netBalance, currencyCode)}")
+    lines += ReportLine("Avg Daily:   ${CurrencyUtils.format(report.averageDailySpend, currencyCode)}")
+    lines += ReportLine("Transactions: ${report.transactionCount}")
 
     if (report.comparisonWithPrevious != 0.0) {
         val sign = if (report.comparisonWithPrevious > 0) "+" else ""
-        lines += "vs Previous: $sign${String.format("%.1f", report.comparisonWithPrevious)}%" to false
+        lines += ReportLine("vs Previous: $sign${String.format("%.1f", report.comparisonWithPrevious)}%")
     }
 
     if (report.categoryBreakdown.isNotEmpty()) {
-        lines += "" to false
-        lines += "Top Categories" to true
-        report.categoryBreakdown.entries.sortedByDescending { it.value }.take(5)
-            .forEach { (cat, amt) ->
+        lines += ReportLine("")
+        lines += ReportLine("Spending by Category", isBold = true)
+        report.categoryBreakdown.entries.sortedByDescending { it.value }
+            .forEachIndexed { index, (cat, amt) ->
                 val pct = if (report.totalExpenses > 0) (amt / report.totalExpenses * 100).roundToInt() else 0
-                lines += "  $cat: ${CurrencyUtils.format(amt, currencyCode)} ($pct%)" to false
+                val frac = if (report.totalExpenses > 0) (amt / report.totalExpenses).toFloat().coerceIn(0f, 1f) else 0f
+                lines += ReportLine(
+                    "  $cat: ${CurrencyUtils.format(amt, currencyCode)} ($pct%)",
+                    barFraction = frac,
+                    barColor = chartBarColors[index % chartBarColors.size]
+                )
             }
     }
 
+    if (report.dayOfWeekSpending.isNotEmpty() && report.dayOfWeekSpending.values.any { it > 0 }) {
+        lines += ReportLine("")
+        lines += ReportLine("Spending by Day", isBold = true)
+        val maxSpend = report.dayOfWeekSpending.values.maxOrNull() ?: 1.0
+        val dayOrder = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+        dayOrder.forEach { day ->
+            val amount = report.dayOfWeekSpending[day] ?: 0.0
+            val frac = if (maxSpend > 0) (amount / maxSpend).toFloat().coerceIn(0f, 1f) else 0f
+            lines += ReportLine(
+                "  $day: ${CurrencyUtils.format(amount, currencyCode)}",
+                barFraction = frac,
+                barColor = if (day == "Sat" || day == "Sun") 0xFFFF9800.toInt() else 0xFF2196F3.toInt()
+            )
+        }
+    }
+
     if (report.topMerchants.isNotEmpty()) {
-        lines += "" to false
-        lines += "Top Merchants" to true
+        lines += ReportLine("")
+        lines += ReportLine("Top Merchants", isBold = true)
         report.topMerchants.entries.take(5).forEach { (merchant, amt) ->
-            lines += "  $merchant: ${CurrencyUtils.format(amt, currencyCode)}" to false
+            lines += ReportLine("  $merchant: ${CurrencyUtils.format(amt, currencyCode)}")
         }
     }
 
     if (report.totalIncome > 0) {
         val savingsRate = ((report.totalIncome - report.totalExpenses) / report.totalIncome * 100)
             .coerceIn(0.0, 100.0).roundToInt()
-        lines += "" to false
-        lines += "Savings Rate: $savingsRate%" to false
+        lines += ReportLine("")
+        lines += ReportLine("Savings Rate: $savingsRate%")
     }
 
     if (report.aiInsight.isNotEmpty()) {
-        lines += "" to false
-        lines += "AI Insight" to true
-        lines += report.aiInsight to false
+        lines += ReportLine("")
+        lines += ReportLine("AI Insight", isBold = true)
+        lines += ReportLine(report.aiInsight)
     }
 
-    lines += "" to false
-    lines += "Shared from Smart Expense Tracker" to false
+    // Include transactions (for PDF)
+    if (includeTransactions && report.transactionsByDate.isNotEmpty()) {
+        lines += ReportLine("")
+        lines += ReportLine("Transactions by Date", isBold = true)
+        report.transactionsByDate.entries.sortedByDescending { it.key }.forEach { (dateStr, txList) ->
+            val dayTotal = txList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+            lines += ReportLine("")
+            lines += ReportLine("$dateStr  (${CurrencyUtils.format(dayTotal, currencyCode)})", isBold = true)
+            txList.forEach { tx ->
+                val typePrefix = if (tx.type == TransactionType.EXPENSE) "-" else "+"
+                lines += ReportLine("  $typePrefix ${CurrencyUtils.format(tx.amount, currencyCode)}  ${tx.description}  [${tx.category}]")
+            }
+        }
+    }
+
+    // AI expense reduction tips
+    if (report.totalExpenses > 0) {
+        val aiEngine = com.smartexpense.tracker.service.ai.AiExpenseEngine()
+        val tips = aiEngine.generateExpenseReductionTips(report, currencyCode)
+        if (tips.isNotEmpty()) {
+            lines += ReportLine("")
+            lines += ReportLine("How to Reduce Expenses", isBold = true)
+            tips.forEachIndexed { index, tip ->
+                lines += ReportLine("  ${index + 1}. $tip")
+            }
+        }
+    }
+
+    lines += ReportLine("")
+    lines += ReportLine("Shared from Smart Expense Tracker")
     return lines
 }
 
-/** Renders report lines onto a Bitmap canvas. */
+/** Renders enhanced report lines onto a Bitmap canvas with bar charts. */
 private fun renderReportBitmap(
     report: ExpenseReport,
     currencyCode: String,
     periodLabel: String
 ): Bitmap {
-    val lines = buildReportLines(report, currencyCode, periodLabel)
+    val lines = buildEnhancedReportLines(report, currencyCode, periodLabel, includeTransactions = false)
     val width = 1080
     val lineHeight = 48
+    val barHeight = 14
     val topMargin = 60
     val leftMargin = 50
-    val height = topMargin + lines.size * lineHeight + 60
+    val barMaxWidth = 500
+    // Extra height for bar chart rows
+    val totalLineHeight = lines.sumOf { if (it.barFraction > 0) lineHeight + barHeight + 8 else lineHeight }
+    val height = topMargin + totalLineHeight + 60
 
     val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
     val canvas = AndroidCanvas(bitmap)
@@ -1081,11 +1441,37 @@ private fun renderReportBitmap(
         isFakeBoldText = true
         isAntiAlias = true
     }
+    val paintBar = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.FILL
+    }
+    val paintBarBg = Paint().apply {
+        color = android.graphics.Color.parseColor("#E0E0E0")
+        isAntiAlias = true
+        style = Paint.Style.FILL
+    }
 
     var y = topMargin.toFloat()
-    for ((text, isBold) in lines) {
+    for (line in lines) {
         y += lineHeight
-        canvas.drawText(text, leftMargin.toFloat(), y, if (isBold) paintBold else paintNormal)
+        canvas.drawText(line.text, leftMargin.toFloat(), y, if (line.isBold) paintBold else paintNormal)
+        if (line.barFraction > 0) {
+            y += 6
+            val barY = y
+            // Draw background bar
+            canvas.drawRoundRect(
+                leftMargin.toFloat() + 20f, barY, leftMargin.toFloat() + 20f + barMaxWidth, barY + barHeight,
+                7f, 7f, paintBarBg
+            )
+            // Draw filled bar
+            paintBar.color = line.barColor
+            val filledWidth = (barMaxWidth * line.barFraction).coerceAtLeast(4f)
+            canvas.drawRoundRect(
+                leftMargin.toFloat() + 20f, barY, leftMargin.toFloat() + 20f + filledWidth, barY + barHeight,
+                7f, 7f, paintBar
+            )
+            y += barHeight + 2
+        }
     }
     return bitmap
 }
@@ -1113,7 +1499,7 @@ private fun shareReportAsImage(
     }
 }
 
-/** Shares the report as a PDF document via the system share sheet. */
+/** Shares the report as a PDF document with charts and transactions via the system share sheet. */
 private fun shareReportAsPdf(
     context: Context,
     report: ExpenseReport,
@@ -1121,11 +1507,13 @@ private fun shareReportAsPdf(
     periodLabel: String
 ) {
     try {
-        val lines = buildReportLines(report, currencyCode, periodLabel)
+        val lines = buildEnhancedReportLines(report, currencyCode, periodLabel, includeTransactions = true)
         val pageWidth = 595  // A4 in pts at 72 dpi
         val pageHeight = 842
         val leftMargin = 40f
         val lineHeight = 22f
+        val barHeight = 8f
+        val barMaxWidth = 300f
         val topMargin = 50f
 
         val document = PdfDocument()
@@ -1145,19 +1533,49 @@ private fun shareReportAsPdf(
             isFakeBoldText = true
             isAntiAlias = true
         }
+        val paintBar = Paint().apply {
+            isAntiAlias = true
+            style = Paint.Style.FILL
+        }
+        val paintBarBg = Paint().apply {
+            color = android.graphics.Color.parseColor("#E0E0E0")
+            isAntiAlias = true
+            style = Paint.Style.FILL
+        }
 
-        for ((text, isBold) in lines) {
-            y += lineHeight
-            if (y > pageHeight - 40) {
+        fun ensureSpace(needed: Float) {
+            if (y + needed > pageHeight - 40) {
                 document.finishPage(page)
                 pageNumber++
                 page = document.startPage(
                     PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create()
                 )
                 canvas = page.canvas
-                y = topMargin + lineHeight
+                y = topMargin
             }
-            canvas.drawText(text, leftMargin, y, if (isBold) paintBold else paintNormal)
+        }
+
+        for (line in lines) {
+            val extraHeight = if (line.barFraction > 0) barHeight + 6f else 0f
+            ensureSpace(lineHeight + extraHeight)
+            y += lineHeight
+            canvas.drawText(line.text, leftMargin, y, if (line.isBold) paintBold else paintNormal)
+            if (line.barFraction > 0) {
+                y += 4f
+                // Background bar
+                canvas.drawRoundRect(
+                    leftMargin + 10f, y, leftMargin + 10f + barMaxWidth, y + barHeight,
+                    4f, 4f, paintBarBg
+                )
+                // Filled bar
+                paintBar.color = line.barColor
+                val filledWidth = (barMaxWidth * line.barFraction).coerceAtLeast(2f)
+                canvas.drawRoundRect(
+                    leftMargin + 10f, y, leftMargin + 10f + filledWidth, y + barHeight,
+                    4f, 4f, paintBar
+                )
+                y += barHeight + 2f
+            }
         }
         document.finishPage(page)
 

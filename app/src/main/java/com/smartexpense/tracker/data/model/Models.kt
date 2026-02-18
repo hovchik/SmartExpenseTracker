@@ -143,7 +143,7 @@ data class ExpenseReport(
 )
 
 enum class ReportPeriod {
-    DAILY, WEEKLY, MONTHLY
+    DAILY, WEEKLY, MONTHLY, CUSTOM
 }
 
 /**
@@ -197,9 +197,9 @@ enum class ThemeMode {
 
 data class AppSettings(
     /** Legacy single-char symbol kept for backward-compat. Use currencyCode instead. */
-    val currency: String = "$",
+    val currency: String = "֏",
     /** ISO-4217 currency code (e.g. "USD", "AMD"). Drives all formatting and OCR parsing. */
-    val currencyCode: String = "USD",
+    val currencyCode: String = "AMD",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val notificationListenerEnabled: Boolean = false,
     val smsParsingEnabled: Boolean = false,
@@ -210,6 +210,8 @@ data class AppSettings(
      * devices that do not support it (requires Pixel 8+ or Samsung Galaxy S24+ with Android 14+).
      */
     val localAiEnabled: Boolean = false,
+    /** Keywords used when scanning for banking/payment apps on the device. */
+    val scanKeywords: List<String> = listOf("bank", "payment", "wallet"),
     val bankingAppPackages: List<String> = listOf(
         "com.chase.sig.android",
         "com.wf.wellsfargomobile",

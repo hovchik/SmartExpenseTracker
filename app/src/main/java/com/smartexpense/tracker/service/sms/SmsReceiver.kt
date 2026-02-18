@@ -124,6 +124,8 @@ class SmsReceiver : BroadcastReceiver() {
                         val repo = app.repository
                         val settings = repo.appData.value.settings
                         val appCurrency = settings.currencyCode
+                        val userCatNames = repo.appData.value.categories
+                            .filter { !it.isDefault }.map { it.name }
 
                         // ── Currency conversion ──────────────────────────────────
                         // If the SMS reports a different currency than the app's currency, convert.
@@ -144,26 +146,38 @@ class SmsReceiver : BroadcastReceiver() {
                             parsed.amount to ""
                         }
 
-                        val notes = listOf(dedupKey, conversionNote)
+                        val cardNote = if (parsed.cardLastFour.isNotEmpty()) "card:${parsed.cardLastFour}" else ""
+                        val notes = listOf(dedupKey, cardNote, conversionNote)
                             .filter { it.isNotBlank() }.joinToString("\n")
 
                         val transaction = Transaction(
                             amount = finalAmount,
                             description = parsed.description.ifEmpty { fullMessage.take(80) },
-                            category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }, parsed.isExpense),
+                            category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }, parsed.isExpense, userCatNames),
                             type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                             source = TransactionSource.SMS,
                             merchantName = parsed.merchantName,
                             notes = notes
                         )
 
-                        // Dedup: skip if similar transaction (same amount, same source) within 2 min
+                        // Dedup: skip if a transaction with the same amount already exists
+                        // within a time window. Checks across ALL sources (SMS + Notification)
+                        // to catch banks that send multiple messages for the same transaction.
+                        // Uses a wider 10-minute window when card last-4 digits also match.
                         val existing = repo.appData.value.transactions
                         val now = System.currentTimeMillis()
                         val isDuplicate = existing.any { t ->
-                            t.source == TransactionSource.SMS &&
-                            t.amount == finalAmount &&
-                            kotlin.math.abs(t.timestamp - now) < 120_000
+                            t.amount == finalAmount && when {
+                                // Same card digits → strong match, 10 min window
+                                parsed.cardLastFour.isNotEmpty() &&
+                                    t.notes.contains(parsed.cardLastFour) ->
+                                    kotlin.math.abs(t.timestamp - now) < 600_000
+                                // Same source, amount only → 2 min window (original)
+                                t.source == TransactionSource.SMS ||
+                                    t.source == TransactionSource.NOTIFICATION ->
+                                    kotlin.math.abs(t.timestamp - now) < 120_000
+                                else -> false
+                            }
                         }
                         if (!isDuplicate) {
                             // Auto-create category if not present
@@ -189,12 +203,14 @@ class SmsReceiver : BroadcastReceiver() {
                     } else {
                         // Fallback: own storage instance (no conversion possible without settings)
                         val storage = com.smartexpense.tracker.data.json.JsonStorageManager(context)
-                        val repo = com.smartexpense.tracker.data.repository.ExpenseRepository(storage)
-                        repo.initialize()
-                        repo.addTransaction(Transaction(
+                        val fallbackRepo = com.smartexpense.tracker.data.repository.ExpenseRepository(storage)
+                        fallbackRepo.initialize()
+                        val fallbackCatNames = fallbackRepo.appData.value.categories
+                            .filter { !it.isDefault }.map { it.name }
+                        fallbackRepo.addTransaction(Transaction(
                             amount = parsed.amount,
                             description = parsed.description.ifEmpty { fullMessage.take(80) },
-                            category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }, parsed.isExpense),
+                            category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }, parsed.isExpense, fallbackCatNames),
                             type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                             source = TransactionSource.SMS,
                             merchantName = parsed.merchantName,

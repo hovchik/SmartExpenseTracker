@@ -167,8 +167,15 @@ class AiExpenseEngine {
      * @param isExpense Pass false for income transactions — prevents income-only categories
      *   (Salary, Freelance, Investment) from matching POS / expense descriptions that happen
      *   to contain keywords like "pay" or "salary" (e.g. "payment at Paytm").
+     * @param userCategoryNames Names of user-created categories. When a category name appears
+     *   as a substring in the description it takes priority over hardcoded keyword scoring,
+     *   so that custom categories like "ATM" match SMS text such as "ATM cash at ATM AEB …".
      */
-    fun categorize(description: String, isExpense: Boolean = true): String {
+    fun categorize(
+        description: String,
+        isExpense: Boolean = true,
+        userCategoryNames: List<String> = emptyList()
+    ): String {
         val lowerDesc = description.lowercase()
         val incomeOnlyCategories = setOf("Salary", "Freelance", "Investment")
 
@@ -177,6 +184,21 @@ class AiExpenseEngine {
             if (isExpense && category in incomeOnlyCategories) continue
             if (lowerDesc.contains(merchant)) return category
         }
+
+        // Pass 0.5 – user-created category name matching (before hardcoded keywords)
+        // Longest matching name wins (more specific). Minimum 2 chars to avoid noise.
+        var bestUserMatch: String? = null
+        var bestUserScore = 0
+        for (name in userCategoryNames) {
+            val lowerName = name.lowercase()
+            if (lowerName.length >= 2 && lowerDesc.contains(lowerName)) {
+                if (lowerName.length > bestUserScore) {
+                    bestUserScore = lowerName.length
+                    bestUserMatch = name
+                }
+            }
+        }
+        if (bestUserMatch != null) return bestUserMatch
 
         // Pass 1 – exact substring match, scored by keyword length (longer = more specific)
         var bestMatch: String? = null
@@ -534,6 +556,88 @@ class AiExpenseEngine {
         return parts.joinToString(" ")
     }
 
+    // ─── Expense Reduction Tips ──────────────────────────────────
+
+    /**
+     * Generates actionable tips to reduce expenses based on the report data.
+     * Analyzes category breakdown, spending patterns, and comparison with previous period.
+     */
+    fun generateExpenseReductionTips(report: ExpenseReport, currencyCode: String = "AMD"): List<String> {
+        val sym = currencyInfoFor(currencyCode).symbol
+        val tips = mutableListOf<String>()
+
+        // 1. Identify top spending category and suggest reduction
+        val sortedCategories = report.categoryBreakdown.entries.sortedByDescending { it.value }
+        val topCat = sortedCategories.firstOrNull()
+        if (topCat != null && report.totalExpenses > 0) {
+            val pct = (topCat.value / report.totalExpenses * 100).roundToInt()
+            if (pct > 30) {
+                val tenPct = topCat.value * 0.1
+                tips.add("Your biggest expense is ${topCat.key} ($pct% of total). Try reducing it by 10% to save ~$sym${String.format("%.0f", tenPct)} per period.")
+            }
+        }
+
+        // 2. Dining/food spending tip
+        val foodCategories = listOf("Food & Dining", "Groceries", "Restaurant", "Cafe")
+        val foodSpend = report.categoryBreakdown.filter { it.key in foodCategories }.values.sum()
+        if (foodSpend > 0 && report.totalExpenses > 0) {
+            val foodPct = (foodSpend / report.totalExpenses * 100).roundToInt()
+            if (foodPct > 25) {
+                tips.add("Food expenses account for $foodPct% of your spending. Meal planning and cooking at home can reduce food costs by 30-40%.")
+            }
+        }
+
+        // 3. Spending increase warning
+        if (report.comparisonWithPrevious > 10) {
+            tips.add("Your spending increased ${report.comparisonWithPrevious.roundToInt()}% vs the previous period. Review recent transactions to identify unexpected expenses.")
+        }
+
+        // 4. Weekend vs weekday spending
+        val weekendDays = listOf("Sat", "Sun")
+        val weekendSpend = report.dayOfWeekSpending.filter { it.key in weekendDays }.values.sum()
+        val weekdaySpend = report.dayOfWeekSpending.filter { it.key !in weekendDays }.values.sum()
+        if (weekendSpend > 0 && weekdaySpend > 0) {
+            val avgWeekend = weekendSpend / 2
+            val avgWeekday = weekdaySpend / 5
+            if (avgWeekend > avgWeekday * 1.5) {
+                tips.add("Weekend spending is ${String.format("%.0f", avgWeekend / avgWeekday)}x higher than weekdays. Setting a weekend budget can help control impulse purchases.")
+            }
+        }
+
+        // 5. Multiple merchants in same category
+        if (report.topMerchants.size > 3) {
+            val topMerchant = report.topMerchants.entries.maxByOrNull { it.value }
+            if (topMerchant != null) {
+                tips.add("You frequently spend at ${topMerchant.key}. Check if loyalty programs or alternatives could save you money.")
+            }
+        }
+
+        // 6. Savings rate advice
+        if (report.totalIncome > 0) {
+            val savingsRate = ((report.totalIncome - report.totalExpenses) / report.totalIncome * 100)
+            if (savingsRate < 20) {
+                val targetSaving = report.totalIncome * 0.2 - (report.totalIncome - report.totalExpenses)
+                if (targetSaving > 0) {
+                    tips.add("To reach the recommended 20% savings rate, try to cut ~$sym${String.format("%.0f", targetSaving)} from non-essential categories like Entertainment or Shopping.")
+                }
+            }
+        }
+
+        // 7. Subscription audit tip (if recurring patterns exist)
+        val hasSubscriptions = report.categoryBreakdown.containsKey("Bills & Utilities") ||
+            report.categoryBreakdown.containsKey("Entertainment")
+        if (hasSubscriptions) {
+            tips.add("Review your subscriptions and recurring bills. Canceling unused services is one of the easiest ways to cut expenses.")
+        }
+
+        // 8. General best practice
+        if (tips.size < 2) {
+            tips.add("Track every expense and set category budgets. People who actively track spending save 15-20% more on average.")
+        }
+
+        return tips.take(4) // Return at most 4 tips to avoid overwhelming
+    }
+
     // ─── SMS / Notification Parsing ────────────────────────────────
 
     data class ParsedTransaction(
@@ -541,7 +645,9 @@ class AiExpenseEngine {
         val description: String,
         val isExpense: Boolean,
         val merchantName: String,
-        val currency: String = ""
+        val currency: String = "",
+        /** Last 4 digits of the card involved, if detected (e.g. "2968"). */
+        val cardLastFour: String = ""
     )
 
     /**
@@ -574,6 +680,11 @@ class AiExpenseEngine {
 
             val oneLine = message.replace(Regex("""\s*\n\s*"""), " ").trim()
 
+            // ── CARD LAST-4 EXTRACTION ─────────────────────
+            // Detect masked card patterns like "************2968", "457890******2968", "4083***1982"
+            val cardLast4 = Regex("""\d{0,6}\*{2,12}(\d{4})\b""")
+                .find(oneLine)?.groupValues?.get(1) ?: ""
+
             // ── TRY SPECIFIC BANK FORMATS FIRST ─────────────
 
             // 1) Armenian/CIS bank: "Purchase approved 17063.12 AMD, 457890******2968 ..."
@@ -588,7 +699,7 @@ class AiExpenseEngine {
                 val cur = m.groupValues[3]
                 val merchant = m.groupValues[4].trim()
                 val isExpense = !txType.equals("credit", ignoreCase = true)
-                return ParsedTransaction(amt, "${txType.trim()} at $merchant", isExpense, merchant, cur)
+                return ParsedTransaction(amt, "${txType.trim()} at $merchant", isExpense, merchant, cur, cardLast4)
             }
 
             // 2) Armenian: "Purchase completion approved CARD DATE TIME AMOUNT AMD MERCHANT authcode"
@@ -601,7 +712,7 @@ class AiExpenseEngine {
                 val amt = m.groupValues[2].replace(",", "").toDoubleOrNull() ?: return@let
                 val cur = m.groupValues[3]
                 val merchant = m.groupValues[4].trim()
-                return ParsedTransaction(amt, "${txType.trim()} at $merchant", true, merchant, cur)
+                return ParsedTransaction(amt, "${txType.trim()} at $merchant", true, merchant, cur, cardLast4)
             }
 
             // 3) Armenian multi-line CREDIT/DEBIT ACCOUNT format:
@@ -617,7 +728,7 @@ class AiExpenseEngine {
                 val merchant = m.groupValues[4].trim().trimEnd(',').trim()
                 val isExpense = txType.equals("DEBIT", ignoreCase = true)
                 val label = if (isExpense) "Debit" else "Credit"
-                return ParsedTransaction(amt, "$label from $merchant", isExpense, merchant, cur)
+                return ParsedTransaction(amt, "$label from $merchant", isExpense, merchant, cur, cardLast4)
             }
 
             // ── GENERIC INTERNATIONAL AMOUNT EXTRACTION ─────
@@ -761,7 +872,7 @@ class AiExpenseEngine {
 
             return ParsedTransaction(
                 amount = amount, description = desc, isExpense = isExpense,
-                merchantName = merchant, currency = currency
+                merchantName = merchant, currency = currency, cardLastFour = cardLast4
             )
         } catch (e: Exception) {
             return null
@@ -952,6 +1063,125 @@ class AiExpenseEngine {
             return ParsedReceipt(totalAmount = total, items = items, merchantName = merchantName, date = date)
         } catch (e: Exception) {
             return ParsedReceipt(totalAmount = null, items = emptyList(), merchantName = "Unknown", date = null)
+        }
+    }
+
+    // ─── QR Code String Parsing ──────────────────────────────────────
+
+    /**
+     * Attempt to extract amount and merchant from a QR code string found on a receipt.
+     *
+     * QR codes on receipts may contain:
+     * - URLs with query parameters (e.g. `?s=1234.56&fn=...` or `?amount=50.00&merchant=...`)
+     * - JSON objects with amount/total/merchant fields
+     * - Fiscal data strings with key=value or key:value pairs
+     * - Plain-text lines with amounts
+     *
+     * Returns a [ParsedReceipt] with whatever could be extracted.
+     */
+    fun parseQrCodeString(qrString: String): ParsedReceipt {
+        try {
+            if (qrString.isBlank()) return ParsedReceipt(null, emptyList(), "Unknown", null)
+
+            var amount: Double? = null
+            var merchant = ""
+            var date: String? = null
+
+            // ── 1. Try URL query-parameter extraction ────────────────
+            if (qrString.contains("://") || qrString.contains("?")) {
+                val queryPart = qrString.substringAfter("?", "")
+                if (queryPart.isNotEmpty()) {
+                    val params = queryPart.split("&").associate { pair ->
+                        val parts = pair.split("=", limit = 2)
+                        (parts.getOrNull(0)?.lowercase() ?: "") to (parts.getOrNull(1) ?: "")
+                    }
+                    // Amount keys commonly used in fiscal QR codes
+                    val amountKeys = listOf("s", "sum", "amount", "total", "price", "value", "amt")
+                    for (key in amountKeys) {
+                        val raw = params[key] ?: continue
+                        val parsed = raw.replace(",", ".").replace("[^\\d.]".toRegex(), "").toDoubleOrNull()
+                        if (parsed != null && parsed > 0) { amount = parsed; break }
+                    }
+                    // Merchant keys
+                    val merchantKeys = listOf("merchant", "shop", "store", "name", "fn", "n", "org")
+                    for (key in merchantKeys) {
+                        val raw = params[key] ?: continue
+                        if (raw.isNotBlank()) {
+                            merchant = java.net.URLDecoder.decode(raw, "UTF-8")
+                                .replace("+", " ").trim()
+                            break
+                        }
+                    }
+                    // Date keys
+                    val dateKeys = listOf("t", "date", "dt", "time")
+                    for (key in dateKeys) {
+                        val raw = params[key] ?: continue
+                        if (raw.isNotBlank()) { date = raw; break }
+                    }
+                }
+            }
+
+            // ── 2. Try JSON-like extraction ──────────────────────────
+            if (amount == null && (qrString.trimStart().startsWith("{") || qrString.contains("\"amount\""))) {
+                val amountPatterns = listOf(
+                    Regex("""["']?(?:amount|total|sum|price|value)["']?\s*[:=]\s*["']?([\d,]+\.?\d*)["']?""", RegexOption.IGNORE_CASE)
+                )
+                for (p in amountPatterns) {
+                    val m = p.find(qrString)
+                    if (m != null) {
+                        val parsed = m.groupValues[1].replace(",", "").toDoubleOrNull()
+                        if (parsed != null && parsed > 0) { amount = parsed; break }
+                    }
+                }
+                val merchantJson = Regex("""["']?(?:merchant|shop|store|name|org)["']?\s*[:=]\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+                    .find(qrString)
+                if (merchantJson != null && merchant.isEmpty()) {
+                    merchant = merchantJson.groupValues[1].trim()
+                }
+            }
+
+            // ── 3. Try key:value / key=value pair extraction ─────────
+            if (amount == null) {
+                val kvPattern = Regex("""(?:amount|total|sum|price|s|amt)\s*[=:]\s*([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE)
+                val m = kvPattern.find(qrString)
+                if (m != null) {
+                    val parsed = m.groupValues[1].replace(",", "").toDoubleOrNull()
+                    if (parsed != null && parsed > 0) amount = parsed
+                }
+            }
+
+            // ── 4. Fallback: find the largest decimal number in the string ──
+            if (amount == null) {
+                val allNumbers = Regex("""(\d[\d,]*\.?\d+)""").findAll(qrString)
+                    .mapNotNull { it.groupValues[1].replace(",", "").toDoubleOrNull() }
+                    .filter { it > 0 }
+                    .toList()
+                if (allNumbers.isNotEmpty()) {
+                    amount = allNumbers.max()
+                }
+            }
+
+            // ── 5. Merchant fallback: use domain from URL or first text segment ──
+            if (merchant.isEmpty() && qrString.contains("://")) {
+                val host = Regex("""://([^/?#]+)""").find(qrString)?.groupValues?.get(1) ?: ""
+                if (host.isNotBlank()) {
+                    merchant = host.removePrefix("www.")
+                        .substringBeforeLast(".")
+                        .replace("-", " ").replace("_", " ")
+                        .replaceFirstChar { it.uppercase() }
+                }
+            }
+            if (merchant.isEmpty()) {
+                // Take the first alphanumeric segment that looks like a name
+                val firstWord = Regex("""[A-Za-z\u0400-\u04FF\u0530-\u058F]{3,}[\w\s]*""")
+                    .find(qrString)?.value?.trim()?.take(50) ?: ""
+                if (firstWord.isNotBlank()) merchant = firstWord
+            }
+            if (merchant.isEmpty()) merchant = "QR Receipt"
+
+            return ParsedReceipt(totalAmount = amount, items = emptyList(), merchantName = merchant, date = date)
+        } catch (_: Throwable) {
+            return ParsedReceipt(null, emptyList(), "QR Receipt", null)
         }
     }
 }

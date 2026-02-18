@@ -59,6 +59,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _smsScanState = MutableStateFlow(SmsScanState())
     val smsScanState: StateFlow<SmsScanState> = _smsScanState.asStateFlow()
 
+    private val _totalSmsCount = MutableStateFlow(0)
+    val totalSmsCount: StateFlow<Int> = _totalSmsCount.asStateFlow()
+
     /** Live exchange rates fetched from open.er-api.com (base = USD). */
     private val _exchangeRates = MutableStateFlow<Map<String, Double>>(emptyMap())
     val exchangeRates: StateFlow<Map<String, Double>> = _exchangeRates.asStateFlow()
@@ -187,15 +190,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     private suspend fun smartCategorize(description: String, isExpense: Boolean = true): String {
         val settings = repository.appData.value.settings
+        val userCatNames = repository.appData.value.categories
+            .filter { !it.isDefault }.map { it.name }
         if (settings.localAiEnabled) {
             val categoryNames = repository.appData.value.categories.map { it.name }
-            val aiCategory = localAiService.categorize(description, categoryNames, isExpense)
+            val aiCategory = localAiService.categorize(description, categoryNames, isExpense, userCatNames)
             if (aiCategory != null) {
                 repository.ensureCategoryExists(aiCategory)
                 return aiCategory
             }
         }
-        val category = aiEngine.categorize(description, isExpense)
+        val category = aiEngine.categorize(description, isExpense, userCatNames)
         repository.ensureCategoryExists(category)
         return category
     }
@@ -232,25 +237,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteTransaction(id: String) { viewModelScope.launch { repository.deleteTransaction(id) } }
 
-    fun processOcrText(ocrText: String) {
+    fun processOcrText(ocrText: String, qrData: String? = null) {
         viewModelScope.launch {
             try {
                 val settings = repository.appData.value.settings
                 val currencyCode = settings.currencyCode
-                val parsed = aiEngine.parseReceiptText(ocrText, currencyCode)
-                val amount = parsed.totalAmount ?: parsed.items.sumOf { it.second }
                 val currencySymbol = currencyInfoFor(currencyCode).symbol
 
+                // Try OCR text parsing first
+                val ocrParsed = if (ocrText.isNotBlank()) aiEngine.parseReceiptText(ocrText, currencyCode) else null
+                val ocrAmount = (ocrParsed?.totalAmount ?: ocrParsed?.items?.sumOf { it.second }) ?: 0.0
+
+                // If OCR fails, try QR code data as fallback
+                val (parsed, fromQr) = if (ocrAmount > 0 && ocrParsed != null) {
+                    ocrParsed to false
+                } else if (!qrData.isNullOrBlank()) {
+                    val qrParsed = aiEngine.parseQrCodeString(qrData)
+                    if ((qrParsed.totalAmount ?: 0.0) > 0) {
+                        qrParsed to true
+                    } else if (ocrParsed != null) {
+                        ocrParsed to false
+                    } else {
+                        qrParsed to true
+                    }
+                } else {
+                    (ocrParsed ?: AiExpenseEngine.ParsedReceipt(null, emptyList(), "Unknown", null)) to false
+                }
+
+                val amount = parsed.totalAmount ?: parsed.items.sumOf { it.second }
+
                 if (amount > 0) {
-                    // Use Gemini Nano for categorisation when local AI is enabled
                     val category = smartCategorize(
                         "${parsed.merchantName} ${parsed.items.joinToString(" ") { it.first }}"
                     )
 
-                    // Build notes: include items list and, if local AI is on, an AI summary
                     val itemsNote = if (parsed.items.isNotEmpty())
                         "Items: ${parsed.items.joinToString(", ") { "${it.first}: $currencySymbol${String.format("%.2f", it.second)}" }}"
                     else ""
+
+                    val sourceNote = if (fromQr) "Parsed from QR code" else ""
 
                     val aiNote: String = if (settings.localAiEnabled) {
                         val topCat = category
@@ -278,17 +303,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         merchantName = parsed.merchantName,
                         timestamp = now,
                         dateTime = dtFormatter.format(Date(now)),
-                        notes = listOf(itemsNote, aiNote).filter { it.isNotBlank() }.joinToString("\n")
+                        notes = listOf(itemsNote, sourceNote, aiNote).filter { it.isNotBlank() }.joinToString("\n")
                     ))
 
                     val resultMsg = buildString {
                         append("Found: ${parsed.merchantName} — $currencySymbol${String.format("%.2f", amount)}")
                         if (category.isNotEmpty()) append(" · $category")
+                        if (fromQr) append(" (from QR)")
                     }
                     _uiState.value = _uiState.value.copy(lastOcrResult = resultMsg)
                 } else {
                     _uiState.value = _uiState.value.copy(
-                        lastOcrResult = "Could not extract amount from receipt."
+                        lastOcrResult = "Could not extract amount from receipt" +
+                            if (qrData.isNullOrBlank()) "." else " or QR code."
                     )
                 }
             } catch (e: Exception) {
@@ -313,6 +340,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ReportPeriod.DAILY -> DateUtils.getStartOfDay(now) to DateUtils.getEndOfDay(now)
             ReportPeriod.WEEKLY -> DateUtils.getStartOfWeek(now) to DateUtils.getEndOfWeek(now)
             ReportPeriod.MONTHLY -> DateUtils.getStartOfMonth(now) to DateUtils.getEndOfMonth(now)
+            ReportPeriod.CUSTOM -> DateUtils.getStartOfMonth(now) to DateUtils.getEndOfMonth(now) // fallback; use generateReportForRange for custom
         }
         val currencyCode = repository.appData.value.settings.currencyCode
         return aiEngine.generateReport(repository.appData.value.transactions, period, start, end, currencyCode)
@@ -347,6 +375,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ReportPeriod.MONTHLY,
             startCal.timeInMillis,
             endCal.timeInMillis,
+            currencyCode
+        )
+    }
+
+    /**
+     * Generates a report for an arbitrary date range (Custom period).
+     */
+    fun generateReportForRange(startMillis: Long, endMillis: Long): ExpenseReport {
+        val currencyCode = repository.appData.value.settings.currencyCode
+        return aiEngine.generateReport(
+            repository.appData.value.transactions,
+            ReportPeriod.CUSTOM,
+            startMillis,
+            endMillis,
             currencyCode
         )
     }
@@ -479,7 +521,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ─── SMS Inbox Scanning ────────────────────────────────────────
 
-    fun startSmsScan() {
+    fun loadTotalSmsCount() {
+        viewModelScope.launch {
+            val count = withContext(Dispatchers.IO) {
+                try {
+                    com.smartexpense.tracker.service.sms.SmsInboxScanner(getApplication())
+                        .getTotalSmsCount()
+                } catch (_: Throwable) { 0 }
+            }
+            _totalSmsCount.value = count
+        }
+    }
+
+    fun startSmsScan(maxMessages: Int = 500, startDate: Long? = null, endDate: Long? = null) {
         viewModelScope.launch {
             _smsScanState.value = SmsScanState(isScanning = true)
             try {
@@ -490,10 +544,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         .toSet()
                 } catch (_: Throwable) { emptySet() }
 
+                val userCatNames = repository.appData.value.categories
+                    .filter { !it.isDefault }.map { it.name }
                 val result = withContext(Dispatchers.IO) {
                     try {
                         com.smartexpense.tracker.service.sms.SmsInboxScanner(getApplication())
-                            .scanInbox(maxMessages = 500, existingTransactionNotes = existingNotes)
+                            .scanInbox(
+                                maxMessages = maxMessages,
+                                existingTransactionNotes = existingNotes,
+                                userCategoryNames = userCatNames,
+                                startDate = startDate,
+                                endDate = endDate
+                            )
                     } catch (e: Throwable) {
                         com.smartexpense.tracker.service.sms.SmsInboxScanner.ScanResult(
                             0, 0, 0, emptyList(), 1, "Error: ${e.message}"
@@ -520,6 +582,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun confirmSmsScanResults() {
         viewModelScope.launch {
+            _smsScanState.value = _smsScanState.value.copy(isSaving = true)
             val pending = _smsScanState.value.pendingTransactions
             val settings = repository.appData.value.settings
             val appCurrency = settings.currencyCode
@@ -572,7 +635,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             _smsScanState.value = _smsScanState.value.copy(
-                pendingTransactions = emptyList(), savedCount = pending.size
+                isSaving = false, pendingTransactions = emptyList(), savedCount = pending.size
             )
             refreshSuggestions()
         }
@@ -587,6 +650,145 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun resetSmsScanState() { _smsScanState.value = SmsScanState() }
+
+    // ─── Banking App Scanner ──────────────────────────────────────
+
+    data class DiscoveredApp(
+        val packageName: String,
+        val appName: String,
+        val isAlreadyMonitored: Boolean
+    )
+
+    private val _discoveredBankingApps = MutableStateFlow<List<DiscoveredApp>>(emptyList())
+    val discoveredBankingApps: StateFlow<List<DiscoveredApp>> = _discoveredBankingApps.asStateFlow()
+
+    /** All user-installed (non-system) applications on the device. */
+    data class InstalledApp(
+        val packageName: String,
+        val appName: String
+    )
+
+    private val _allInstalledApps = MutableStateFlow<List<InstalledApp>>(emptyList())
+    val allInstalledApps: StateFlow<List<InstalledApp>> = _allInstalledApps.asStateFlow()
+
+    /**
+     * Scans all installed applications in two passes using the user-configured
+     * [AppSettings.scanKeywords]:
+     * 1. Apps whose **name** (label) contains any keyword
+     * 2. Apps whose **package name** contains any keyword
+     * Results are merged, duplicates suppressed, and stored in [discoveredBankingApps].
+     */
+    fun scanForBankingApps() {
+        viewModelScope.launch {
+            val pm = getApplication<android.app.Application>().packageManager
+            val settings = repository.appData.value.settings
+            val currentPackages = settings.bankingAppPackages.toSet()
+            val keywords = settings.scanKeywords.map { it.lowercase() }
+
+            val installed = withContext(Dispatchers.IO) {
+                val seenPackages = mutableSetOf<String>()
+                val results = mutableListOf<DiscoveredApp>()
+                val allApps = pm.getInstalledApplications(0)
+
+                // Pass 1: match by app name (label)
+                for (appInfo in allApps) {
+                    val label = pm.getApplicationLabel(appInfo).toString()
+                    val labelLower = label.lowercase()
+                    if (keywords.any { kw -> labelLower.contains(kw) } &&
+                        seenPackages.add(appInfo.packageName)) {
+                        results += DiscoveredApp(
+                            packageName = appInfo.packageName,
+                            appName = label,
+                            isAlreadyMonitored = appInfo.packageName in currentPackages
+                        )
+                    }
+                }
+
+                // Pass 2: match by package name
+                for (appInfo in allApps) {
+                    val pkgLower = appInfo.packageName.lowercase()
+                    if (keywords.any { kw -> pkgLower.contains(kw) } &&
+                        seenPackages.add(appInfo.packageName)) {
+                        results += DiscoveredApp(
+                            packageName = appInfo.packageName,
+                            appName = pm.getApplicationLabel(appInfo).toString(),
+                            isAlreadyMonitored = appInfo.packageName in currentPackages
+                        )
+                    }
+                }
+
+                results.sortedWith(compareBy({ it.isAlreadyMonitored }, { it.appName.lowercase() }))
+            }
+            _discoveredBankingApps.value = installed
+        }
+    }
+
+    /**
+     * Retrieves all user-visible applications on the device (apps that have a launcher
+     * intent, i.e. appear in the app drawer), sorted alphabetically by display name.
+     */
+    fun loadAllInstalledApps() {
+        viewModelScope.launch {
+            val pm = getApplication<android.app.Application>().packageManager
+            val apps = withContext(Dispatchers.IO) {
+                val launchIntent = android.content.Intent(android.content.Intent.ACTION_MAIN, null)
+                launchIntent.addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+                pm.queryIntentActivities(launchIntent, 0)
+                    .map { resolveInfo ->
+                        val appInfo = resolveInfo.activityInfo.applicationInfo
+                        InstalledApp(
+                            packageName = appInfo.packageName,
+                            appName = pm.getApplicationLabel(appInfo).toString()
+                        )
+                    }
+                    .distinctBy { it.packageName }
+                    .sortedBy { it.appName.lowercase() }
+            }
+            _allInstalledApps.value = apps
+        }
+    }
+
+    /**
+     * Updates the scan keywords used to discover banking apps.
+     */
+    fun updateScanKeywords(keywords: List<String>) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            val updated = settings.copy(scanKeywords = keywords)
+            repository.updateSettings(updated)
+        }
+    }
+
+    /**
+     * Adds a banking app package to the monitored list in settings.
+     */
+    fun addBankingApp(packageName: String) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            if (packageName !in settings.bankingAppPackages) {
+                val updated = settings.copy(
+                    bankingAppPackages = settings.bankingAppPackages + packageName
+                )
+                repository.updateSettings(updated)
+                // Refresh discovered list to update isAlreadyMonitored flags
+                scanForBankingApps()
+            }
+        }
+    }
+
+    /**
+     * Removes a banking app package from the monitored list.
+     */
+    fun removeBankingApp(packageName: String) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            val updated = settings.copy(
+                bankingAppPackages = settings.bankingAppPackages.filter { it != packageName }
+            )
+            repository.updateSettings(updated)
+            scanForBankingApps()
+        }
+    }
 
     // ─── In-App Notification Management ───────────────────────────
 
@@ -605,6 +807,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
 data class SmsScanState(
     val isScanning: Boolean = false, val isComplete: Boolean = false,
+    val isSaving: Boolean = false,
     val totalScanned: Int = 0, val financialFound: Int = 0,
     val transactionsParsed: Int = 0,
     val pendingTransactions: List<Transaction> = emptyList(),

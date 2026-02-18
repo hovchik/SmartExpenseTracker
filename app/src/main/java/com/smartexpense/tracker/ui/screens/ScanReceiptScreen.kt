@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
@@ -38,13 +40,14 @@ import java.util.concurrent.atomic.AtomicInteger
 
 @Composable
 fun ScanReceiptScreen(
-    onOcrResult: (String) -> Unit,
+    onOcrResult: (ocrText: String, qrData: String?) -> Unit,
     onNavigateBack: () -> Unit,
     lastResult: String?
 ) {
     val context = LocalContext.current
     var isProcessing by remember { mutableStateOf(false) }
     var ocrText by remember { mutableStateOf("") }
+    var qrText by remember { mutableStateOf<String?>(null) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
     val tempFile = remember {
@@ -59,12 +62,14 @@ fun ScanReceiptScreen(
     }
 
     /**
-     * Runs OCR using ALL available ML Kit recognizers in parallel.
-     * Returns the longest result (best coverage for any script).
+     * Runs OCR using ALL available ML Kit recognizers in parallel,
+     * plus barcode/QR scanning. QR data is passed alongside OCR text
+     * so the ViewModel can use it as a fallback if OCR parsing fails.
      */
     fun processImageMultiLang(uri: Uri) {
         isProcessing = true
         errorMsg = null
+        qrText = null
 
         val image: InputImage
         try {
@@ -85,20 +90,16 @@ fun ScanReceiptScreen(
         )
 
         val results = mutableMapOf<String, String>()
-        val remaining = AtomicInteger(recognizers.size)
+        // +1 for barcode scanner
+        val remaining = AtomicInteger(recognizers.size + 1)
+        var qrResult: String? = null
 
         fun onAllDone() {
             if (remaining.get() > 0) return
 
-            // Armenian script (U+0530–U+058F) is not supported by any ML Kit model.
-            // Instead of picking only the longest result, merge all non-empty results so that:
-            //   - Numeric amounts captured by the Latin recognizer are always included.
-            //   - Any partial text from other recognizers supplements it.
-            // Deduplication: only add a recognizer's block if it contributes lines not
-            // already present in the merged output (simple line-set check).
             val nonEmpty = results.entries
                 .filter { it.value.isNotBlank() }
-                .sortedByDescending { it.value.length }   // Latin first (usually longest)
+                .sortedByDescending { it.value.length }
 
             val mergedLines = mutableListOf<String>()
             val seenLines = mutableSetOf<String>()
@@ -116,17 +117,42 @@ fun ScanReceiptScreen(
             val merged = mergedLines.joinToString("\n")
 
             isProcessing = false
+            qrText = qrResult
 
-            if (merged.isNotEmpty()) {
-                ocrText = merged
-                onOcrResult(merged)
-            } else {
-                errorMsg = "No text detected. Try a clearer photo with good lighting."
+            if (qrResult != null) {
+                Log.d("OCR", "QR code detected: ${qrResult!!.take(200)}")
             }
 
-            // Close all recognizers
+            if (merged.isNotEmpty() || qrResult != null) {
+                ocrText = merged
+                onOcrResult(merged, qrResult)
+            } else {
+                errorMsg = "No text or QR code detected. Try a clearer photo with good lighting."
+            }
+
             recognizers.forEach { (_, r) -> try { r.close() } catch (_: Exception) {} }
         }
+
+        // Run barcode/QR scanner in parallel with OCR
+        val barcodeScanner = BarcodeScanning.getClient()
+        barcodeScanner.process(image)
+            .addOnSuccessListener { barcodes ->
+                // Collect all QR / barcode raw values, prefer QR_CODE type
+                val qrCodes = barcodes.filter { it.format == Barcode.FORMAT_QR_CODE }
+                val allCodes = qrCodes.ifEmpty { barcodes }
+                val rawValues = allCodes.mapNotNull { it.rawValue }.filter { it.isNotBlank() }
+                if (rawValues.isNotEmpty()) {
+                    // Join multiple QR codes with newline (rare, but possible)
+                    qrResult = rawValues.joinToString("\n")
+                }
+                try { barcodeScanner.close() } catch (_: Exception) {}
+                if (remaining.decrementAndGet() == 0) onAllDone()
+            }
+            .addOnFailureListener { e ->
+                Log.w("OCR", "Barcode scanner failed: ${e.message}")
+                try { barcodeScanner.close() } catch (_: Exception) {}
+                if (remaining.decrementAndGet() == 0) onAllDone()
+            }
 
         for ((name, recognizer) in recognizers) {
             recognizer.process(image)
@@ -280,6 +306,27 @@ fun ScanReceiptScreen(
             }
         }
 
+        // QR code data
+        if (qrText != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = BluePrimary.copy(alpha = 0.06f))
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.QrCodeScanner, null, tint = BluePrimary, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("QR Code Detected", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = BluePrimary)
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(qrText!!.take(200) + if (qrText!!.length > 200) "..." else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
 
         // Tips
@@ -294,6 +341,7 @@ fun ScanReceiptScreen(
                     "Ensure good lighting on the receipt",
                     "Keep the receipt flat and aligned",
                     "Make sure the total amount is visible",
+                    "QR codes on receipts are scanned automatically",
                     "Works with any language or script"
                 ).forEach { tip ->
                     Row(modifier = Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {

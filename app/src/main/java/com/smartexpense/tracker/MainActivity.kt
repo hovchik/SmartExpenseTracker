@@ -43,11 +43,14 @@ fun MainApp(viewModel: MainViewModel) {
     val reportPeriod by viewModel.reportPeriod.collectAsState()
     val importExportMessage by viewModel.importExportMessage.collectAsState()
     val smsScanState by viewModel.smsScanState.collectAsState()
+    val totalSmsCount by viewModel.totalSmsCount.collectAsState()
     val exchangeRates by viewModel.exchangeRates.collectAsState()
     val inAppNotifications by viewModel.inAppNotifications.collectAsState()
     val unreadCount by viewModel.unreadNotificationCount.collectAsState()
     val localAiStatus by viewModel.localAiStatus.collectAsState()
     val localAiSuggestion by viewModel.localAiSuggestion.collectAsState()
+    val discoveredBankingApps by viewModel.discoveredBankingApps.collectAsState()
+    val allInstalledApps by viewModel.allInstalledApps.collectAsState()
     val scope = rememberCoroutineScope()
 
     // Shortcut to always-up-to-date currency code
@@ -153,6 +156,9 @@ fun MainApp(viewModel: MainViewModel) {
                         generateMonthlyReport = { year, month ->
                             viewModel.generateReportForMonth(year, month)
                         },
+                        generateCustomReport = { startMillis, endMillis ->
+                            viewModel.generateReportForRange(startMillis, endMillis)
+                        },
                         currentPeriod = reportPeriod,
                         onPeriodChange = { viewModel.setReportPeriod(it) },
                         allTransactions = uiState.allTransactions,
@@ -175,13 +181,17 @@ fun MainApp(viewModel: MainViewModel) {
                         onDeleteTransaction = { viewModel.deleteTransaction(it) }
                     )
                     "scan" -> ScanReceiptScreen(
-                        onOcrResult = { text -> viewModel.processOcrText(text) },
+                        onOcrResult = { text, qrData -> viewModel.processOcrText(text, qrData) },
                         onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) },
                         lastResult = uiState.lastOcrResult
                     )
                     "sms_scan" -> SmsScanScreen(
                         scanState = smsScanState,
-                        onStartScan = { viewModel.startSmsScan() },
+                        totalSmsCount = totalSmsCount,
+                        onLoadSmsCount = { viewModel.loadTotalSmsCount() },
+                        onStartScan = { maxMessages, startDate, endDate ->
+                            viewModel.startSmsScan(maxMessages, startDate, endDate)
+                        },
                         onConfirmAll = { viewModel.confirmSmsScanResults() },
                         onDiscard = { id -> viewModel.discardSmsScanResult(id) },
                         onReset = { viewModel.resetSmsScanState() },
@@ -209,7 +219,14 @@ fun MainApp(viewModel: MainViewModel) {
                         onSetMonthlyLimit = { limit -> viewModel.setMonthlyExpenseLimit(limit) },
                         onConfigureSalary = { enabled, amount, day, desc ->
                             viewModel.configureSalaryScheduler(enabled, amount, day, desc)
-                        }
+                        },
+                        discoveredBankingApps = discoveredBankingApps,
+                        onScanBankingApps = { viewModel.scanForBankingApps() },
+                        onAddBankingApp = { pkg -> viewModel.addBankingApp(pkg) },
+                        onRemoveBankingApp = { pkg -> viewModel.removeBankingApp(pkg) },
+                        allInstalledApps = allInstalledApps,
+                        onLoadAllInstalledApps = { viewModel.loadAllInstalledApps() },
+                        onUpdateScanKeywords = { keywords -> viewModel.updateScanKeywords(keywords) }
                     )
                 }
             }

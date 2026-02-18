@@ -213,7 +213,15 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
     }
 
     suspend fun clearAllData() {
+        val current = _appData.value
+        // Preserve user-configured settings (banking apps, scan keywords, currency,
+        // theme, etc.) and custom categories across data clears.
+        val preserved = AppData(
+            settings = current.settings,
+            categories = current.categories
+        )
         storage.clearData()
-        _appData.value = AppData()
+        _appData.value = preserved
+        storage.saveData(preserved)
     }
 }
