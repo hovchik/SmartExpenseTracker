@@ -151,11 +151,19 @@ class BankingNotificationListener : NotificationListenerService() {
                     val repo = app.repository
                     val now = System.currentTimeMillis()
 
-                    // Dedup: skip if same amount from notification within 2 minutes
+                    // Dedup: skip if a transaction with the same amount already exists
+                    // across ALL sources (SMS + Notification) within a time window.
+                    // Uses wider 10-min window when card last-4 digits also match.
                     val isDuplicate = repo.appData.value.transactions.any { t ->
-                        t.source == TransactionSource.NOTIFICATION &&
-                        t.amount == parsed.amount &&
-                        kotlin.math.abs(t.timestamp - now) < 120_000
+                        t.amount == parsed.amount && when {
+                            parsed.cardLastFour.isNotEmpty() &&
+                                t.notes.contains(parsed.cardLastFour) ->
+                                kotlin.math.abs(t.timestamp - now) < 600_000
+                            t.source == TransactionSource.NOTIFICATION ||
+                                t.source == TransactionSource.SMS ->
+                                kotlin.math.abs(t.timestamp - now) < 120_000
+                            else -> false
+                        }
                     }
                     if (isDuplicate) {
                         Log.d(TAG, "Skipped duplicate: ${parsed.amount}")
@@ -184,7 +192,8 @@ class BankingNotificationListener : NotificationListenerService() {
                         parsed.amount to ""
                     }
 
-                    val notes = listOf("Auto-detected from $appName", conversionNote)
+                    val cardNote = if (parsed.cardLastFour.isNotEmpty()) "card:${parsed.cardLastFour}" else ""
+                    val notes = listOf("Auto-detected from $appName", cardNote, conversionNote)
                         .filter { it.isNotBlank() }.joinToString("\n")
 
                     val userCatNames = repo.appData.value.categories

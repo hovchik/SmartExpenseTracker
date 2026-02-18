@@ -645,7 +645,9 @@ class AiExpenseEngine {
         val description: String,
         val isExpense: Boolean,
         val merchantName: String,
-        val currency: String = ""
+        val currency: String = "",
+        /** Last 4 digits of the card involved, if detected (e.g. "2968"). */
+        val cardLastFour: String = ""
     )
 
     /**
@@ -678,6 +680,11 @@ class AiExpenseEngine {
 
             val oneLine = message.replace(Regex("""\s*\n\s*"""), " ").trim()
 
+            // ── CARD LAST-4 EXTRACTION ─────────────────────
+            // Detect masked card patterns like "************2968", "457890******2968", "4083***1982"
+            val cardLast4 = Regex("""\d{0,6}\*{2,12}(\d{4})\b""")
+                .find(oneLine)?.groupValues?.get(1) ?: ""
+
             // ── TRY SPECIFIC BANK FORMATS FIRST ─────────────
 
             // 1) Armenian/CIS bank: "Purchase approved 17063.12 AMD, 457890******2968 ..."
@@ -692,7 +699,7 @@ class AiExpenseEngine {
                 val cur = m.groupValues[3]
                 val merchant = m.groupValues[4].trim()
                 val isExpense = !txType.equals("credit", ignoreCase = true)
-                return ParsedTransaction(amt, "${txType.trim()} at $merchant", isExpense, merchant, cur)
+                return ParsedTransaction(amt, "${txType.trim()} at $merchant", isExpense, merchant, cur, cardLast4)
             }
 
             // 2) Armenian: "Purchase completion approved CARD DATE TIME AMOUNT AMD MERCHANT authcode"
@@ -705,7 +712,7 @@ class AiExpenseEngine {
                 val amt = m.groupValues[2].replace(",", "").toDoubleOrNull() ?: return@let
                 val cur = m.groupValues[3]
                 val merchant = m.groupValues[4].trim()
-                return ParsedTransaction(amt, "${txType.trim()} at $merchant", true, merchant, cur)
+                return ParsedTransaction(amt, "${txType.trim()} at $merchant", true, merchant, cur, cardLast4)
             }
 
             // 3) Armenian multi-line CREDIT/DEBIT ACCOUNT format:
@@ -721,7 +728,7 @@ class AiExpenseEngine {
                 val merchant = m.groupValues[4].trim().trimEnd(',').trim()
                 val isExpense = txType.equals("DEBIT", ignoreCase = true)
                 val label = if (isExpense) "Debit" else "Credit"
-                return ParsedTransaction(amt, "$label from $merchant", isExpense, merchant, cur)
+                return ParsedTransaction(amt, "$label from $merchant", isExpense, merchant, cur, cardLast4)
             }
 
             // ── GENERIC INTERNATIONAL AMOUNT EXTRACTION ─────
@@ -865,7 +872,7 @@ class AiExpenseEngine {
 
             return ParsedTransaction(
                 amount = amount, description = desc, isExpense = isExpense,
-                merchantName = merchant, currency = currency
+                merchantName = merchant, currency = currency, cardLastFour = cardLast4
             )
         } catch (e: Exception) {
             return null

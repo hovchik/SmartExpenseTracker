@@ -77,12 +77,36 @@ class SmsInboxScanner(private val context: Context) {
         return ScanResult(0, 0, 0, emptyList(), 1, "Could not access SMS inbox on this device.")
     }
 
+    /**
+     * Helper to detect whether a newly parsed transaction duplicates an already-
+     * collected one (same amount + same card last-4 within 10 min, or same amount
+     * within 2 min regardless of card).
+     */
+    private fun isDuplicateInBatch(
+        candidate: Transaction,
+        candidateCard: String,
+        batch: List<Transaction>,
+        batchCards: List<String>
+    ): Boolean {
+        for (i in batch.indices) {
+            val t = batch[i]
+            if (t.amount != candidate.amount) continue
+            val timeDiff = kotlin.math.abs(t.timestamp - candidate.timestamp)
+            // Strong match: same card last-4 + amount within 10 min
+            if (candidateCard.isNotEmpty() && batchCards[i] == candidateCard && timeDiff < 600_000) return true
+            // Weak match: same amount within 2 min
+            if (timeDiff < 120_000) return true
+        }
+        return false
+    }
+
     private fun doScan(
         uri: Uri, aiEngine: AiExpenseEngine, maxMessages: Int,
         existingNotes: Set<String>, isInboxUri: Boolean,
         userCategoryNames: List<String> = emptyList()
     ): ScanResult? {
         val transactions = mutableListOf<Transaction>()
+        val transactionCards = mutableListOf<String>()
         var totalScanned = 0; var financialFound = 0; var errors = 0
         var cursor: Cursor? = null
 
@@ -132,14 +156,22 @@ class SmsInboxScanner(private val context: Context) {
 
                     // Store original parsed currency so the review screen can show it
                     // and confirmSmsScanResults() can convert if needed
+                    val cardNote = if (parsed.cardLastFour.isNotEmpty()) "\ncard:${parsed.cardLastFour}" else ""
                     val currencyNote = if (parsed.currency.isNotEmpty()) "\nparsedCurrency:${parsed.currency}" else ""
 
-                    transactions.add(Transaction(
+                    val candidate = Transaction(
                         amount = parsed.amount, description = desc, category = cat,
                         type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                         source = TransactionSource.SMS, timestamp = date,
-                        merchantName = parsed.merchantName, notes = noteKey + currencyNote
-                    ))
+                        merchantName = parsed.merchantName, notes = noteKey + cardNote + currencyNote
+                    )
+
+                    // Cross-SMS dedup: skip if another SMS in this batch already parsed
+                    // to the same amount + card within a time window
+                    if (isDuplicateInBatch(candidate, parsed.cardLastFour, transactions, transactionCards)) continue
+
+                    transactions.add(candidate)
+                    transactionCards.add(parsed.cardLastFour)
                 } catch (e: Throwable) { errors++ }
             }
         } catch (e: Throwable) { errors++ }
