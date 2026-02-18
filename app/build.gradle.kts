@@ -46,6 +46,9 @@ android {
 
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+        jniLibs {
+            useLegacyPackaging = false
+        }
     }
 }
 
@@ -74,11 +77,12 @@ dependencies {
     implementation("androidx.camera:camera-view:1.3.1")
 
     // ML Kit for OCR — all script recognizers for multi-language support
-    implementation("com.google.mlkit:text-recognition:16.0.0")              // Latin
-    implementation("com.google.mlkit:text-recognition-chinese:16.0.0")      // Chinese
-    implementation("com.google.mlkit:text-recognition-devanagari:16.0.0")   // Devanagari (Hindi etc)
-    implementation("com.google.mlkit:text-recognition-japanese:16.0.0")     // Japanese
-    implementation("com.google.mlkit:text-recognition-korean:16.0.0")       // Korean
+    // Updated to 16.0.1 for 16 KB page-size alignment (Android 15+ requirement)
+    implementation("com.google.mlkit:text-recognition:16.0.1")              // Latin
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")      // Chinese
+    implementation("com.google.mlkit:text-recognition-devanagari:16.0.1")   // Devanagari (Hindi etc)
+    implementation("com.google.mlkit:text-recognition-japanese:16.0.1")     // Japanese
+    implementation("com.google.mlkit:text-recognition-korean:16.0.1")       // Korean
 
     // Gson for JSON storage
     implementation("com.google.code.gson:gson:2.10.1")
