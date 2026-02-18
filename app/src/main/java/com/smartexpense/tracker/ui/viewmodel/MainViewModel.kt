@@ -8,6 +8,7 @@ import com.smartexpense.tracker.SmartExpenseApp
 import com.smartexpense.tracker.data.model.*
 import com.smartexpense.tracker.data.repository.ExpenseRepository
 import com.smartexpense.tracker.service.ai.AiExpenseEngine
+import com.smartexpense.tracker.service.ai.LocalAiService
 import com.smartexpense.tracker.service.currency.CurrencyConverterService
 import com.smartexpense.tracker.util.DateUtils
 import kotlinx.coroutines.Dispatchers
@@ -17,6 +18,7 @@ import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -24,6 +26,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val repository: ExpenseRepository = (application as SmartExpenseApp).repository
     val aiEngine = AiExpenseEngine()
+
+    /** On-device Gemini Nano service – null responses mean "not available / not enabled". */
+    private val localAiService = LocalAiService(application.applicationContext)
+
+    /** Human-readable status of Gemini Nano availability (null = not yet checked). */
+    private val _localAiStatus = MutableStateFlow<String?>(null)
+    val localAiStatus: StateFlow<String?> = _localAiStatus.asStateFlow()
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
@@ -121,6 +130,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setSelectedTab(index: Int) { _selectedTab.value = index }
     fun setReportPeriod(period: ReportPeriod) { _reportPeriod.value = period }
 
+    // ─── Local AI (Gemini Nano) ────────────────────────────────────
+
+    /**
+     * Checks Gemini Nano availability on a background thread and updates [localAiStatus].
+     * Safe to call multiple times; result is cached after the first check.
+     */
+    fun checkLocalAiAvailability() {
+        viewModelScope.launch {
+            _localAiStatus.value = "Checking availability…"
+            val available = withContext(Dispatchers.IO) { localAiService.checkAvailability() }
+            _localAiStatus.value = if (available)
+                "Gemini Nano available on this device"
+            else
+                "Not supported on this device (requires Pixel 8+ / Galaxy S24+)"
+        }
+    }
+
+    /** Returns a category using Gemini Nano when enabled, otherwise falls back to rules. */
+    private suspend fun smartCategorize(description: String): String {
+        val settings = repository.appData.value.settings
+        if (settings.localAiEnabled) {
+            val categoryNames = repository.appData.value.categories.map { it.name }
+            val aiCategory = localAiService.categorize(description, categoryNames)
+            if (aiCategory != null) return aiCategory
+        }
+        return aiEngine.categorize(description)
+    }
+
     fun addTransaction(
         amount: Double, description: String, category: String? = null,
         type: TransactionType = TransactionType.EXPENSE,
@@ -128,7 +165,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         merchantName: String = "", notes: String = ""
     ) {
         viewModelScope.launch {
-            val finalCategory = category ?: aiEngine.categorize(description)
+            val finalCategory = category ?: smartCategorize(description)
             val now = System.currentTimeMillis()
             val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
             repository.addTransaction(Transaction(
@@ -196,6 +233,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ReportPeriod.MONTHLY -> DateUtils.getStartOfMonth(now) to DateUtils.getEndOfMonth(now)
         }
         return aiEngine.generateReport(repository.appData.value.transactions, period, start, end)
+    }
+
+    /**
+     * Generates a report for any arbitrary month/year (0-based month, matching [Calendar.MONTH]).
+     * Called by the month selector in ReportsScreen.
+     */
+    fun generateReportForMonth(year: Int, month: Int): ExpenseReport {
+        val startCal = Calendar.getInstance().apply {
+            set(Calendar.YEAR, year)
+            set(Calendar.MONTH, month)
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val endCal = Calendar.getInstance().apply {
+            set(Calendar.YEAR, year)
+            set(Calendar.MONTH, month)
+            set(Calendar.DAY_OF_MONTH, startCal.getActualMaximum(Calendar.DAY_OF_MONTH))
+            set(Calendar.HOUR_OF_DAY, 23)
+            set(Calendar.MINUTE, 59)
+            set(Calendar.SECOND, 59)
+            set(Calendar.MILLISECOND, 999)
+        }
+        return aiEngine.generateReport(
+            repository.appData.value.transactions,
+            ReportPeriod.MONTHLY,
+            startCal.timeInMillis,
+            endCal.timeInMillis
+        )
     }
 
     fun getWeeklyChartData(): List<Pair<String, Double>> {

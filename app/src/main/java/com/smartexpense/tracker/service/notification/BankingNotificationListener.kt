@@ -78,7 +78,11 @@ class BankingNotificationListener : NotificationListenerService() {
         "am.unibank.mobile",
         "am.vtb.mobile",
         "am.arcapay",
-        "am.arca"
+        "am.arca",
+        // Additional Armenian apps
+        "com.sflpro.inecomobile",
+        "com.banqr.ameriabank",
+        "am.imwallet.android"
     )
 
     // Financial keywords to filter non-transaction notifications

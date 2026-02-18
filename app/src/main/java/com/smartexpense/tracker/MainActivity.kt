@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -45,12 +46,23 @@ fun MainApp(viewModel: MainViewModel) {
     val exchangeRates by viewModel.exchangeRates.collectAsState()
     val inAppNotifications by viewModel.inAppNotifications.collectAsState()
     val unreadCount by viewModel.unreadNotificationCount.collectAsState()
+    val localAiStatus by viewModel.localAiStatus.collectAsState()
     val scope = rememberCoroutineScope()
 
     // Shortcut to always-up-to-date currency code
     val currencyCode = uiState.settings.currencyCode
 
     var currentScreen by remember { mutableStateOf("dashboard") }
+
+    // Intercept system back button: always go to Dashboard instead of closing the app.
+    // Sub-screens that go back to a non-dashboard destination (sms_scan → settings)
+    // are handled explicitly in the when-branch below.
+    BackHandler(enabled = currentScreen != "dashboard") {
+        when (currentScreen) {
+            "sms_scan" -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
+            else       -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+        }
+    }
 
     // Hide the top bar on full-screen sub-screens
     val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan")
@@ -137,6 +149,9 @@ fun MainApp(viewModel: MainViewModel) {
                     )
                     "reports" -> ReportsScreen(
                         generateReport = { viewModel.generateReport(it) },
+                        generateMonthlyReport = { year, month ->
+                            viewModel.generateReportForMonth(year, month)
+                        },
                         currentPeriod = reportPeriod,
                         onPeriodChange = { viewModel.setReportPeriod(it) },
                         currencyCode = currencyCode
@@ -180,7 +195,9 @@ fun MainApp(viewModel: MainViewModel) {
                         onClearMessage = { viewModel.clearImportExportMessage() },
                         onScanSms = { currentScreen = "sms_scan" },
                         exchangeRates = exchangeRates,
-                        onFetchRates = { viewModel.fetchExchangeRates() }
+                        onFetchRates = { viewModel.fetchExchangeRates() },
+                        localAiStatus = localAiStatus,
+                        onCheckLocalAi = { viewModel.checkLocalAiAvailability() }
                     )
                 }
             }

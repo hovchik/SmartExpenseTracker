@@ -204,6 +204,12 @@ data class AppSettings(
     val notificationListenerEnabled: Boolean = false,
     val smsParsingEnabled: Boolean = false,
     val autoCategorizationEnabled: Boolean = true,
+    /**
+     * When true, the app will attempt to use Gemini Nano (on-device AI via Android AICore)
+     * for categorization and report insights. Falls back silently to rule-based logic on
+     * devices that do not support it (requires Pixel 8+ or Samsung Galaxy S24+ with Android 14+).
+     */
+    val localAiEnabled: Boolean = false,
     val bankingAppPackages: List<String> = listOf(
         "com.chase.sig.android",
         "com.wf.wellsfargomobile",

@@ -22,6 +22,9 @@ import com.smartexpense.tracker.data.model.ReportPeriod
 import com.smartexpense.tracker.ui.theme.*
 import com.smartexpense.tracker.util.CurrencyUtils
 import com.smartexpense.tracker.util.DateUtils
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -29,11 +32,22 @@ import kotlin.math.roundToInt
 @Composable
 fun ReportsScreen(
     generateReport: (ReportPeriod) -> ExpenseReport,
+    generateMonthlyReport: (year: Int, month: Int) -> ExpenseReport = { _, _ -> generateReport(ReportPeriod.MONTHLY) },
     currentPeriod: ReportPeriod,
     onPeriodChange: (ReportPeriod) -> Unit,
     currencyCode: String = "USD"
 ) {
-    val report = remember(currentPeriod) { generateReport(currentPeriod) }
+    // Month selector state – defaults to current month
+    val nowCal = remember { Calendar.getInstance() }
+    var selectedYear  by remember { mutableIntStateOf(nowCal.get(Calendar.YEAR)) }
+    var selectedMonth by remember { mutableIntStateOf(nowCal.get(Calendar.MONTH)) }
+
+    val report = remember(currentPeriod, selectedYear, selectedMonth) {
+        if (currentPeriod == ReportPeriod.MONTHLY) generateMonthlyReport(selectedYear, selectedMonth)
+        else generateReport(currentPeriod)
+    }
+
+    val monthYearFormatter = remember { SimpleDateFormat("MMMM yyyy", Locale.getDefault()) }
 
     val categoryColors = listOf(
         Color(0xFFE91E63), Color(0xFF2196F3), Color(0xFF9C27B0),
@@ -62,11 +76,101 @@ fun ReportsScreen(
                             Text(when (period) {
                                 ReportPeriod.DAILY -> "Today"
                                 ReportPeriod.WEEKLY -> "This Week"
-                                ReportPeriod.MONTHLY -> "This Month"
+                                ReportPeriod.MONTHLY -> "Monthly"
                             })
                         },
                         modifier = Modifier.weight(1f)
                     )
+                }
+            }
+        }
+
+        // ─── Month selector (visible only when MONTHLY period is active) ──
+        if (currentPeriod == ReportPeriod.MONTHLY) {
+            item {
+                val isCurrentMonth = run {
+                    val now = Calendar.getInstance()
+                    selectedYear == now.get(Calendar.YEAR) && selectedMonth == now.get(Calendar.MONTH)
+                }
+                val displayCal = remember(selectedYear, selectedMonth) {
+                    Calendar.getInstance().apply {
+                        set(Calendar.YEAR, selectedYear)
+                        set(Calendar.MONTH, selectedMonth)
+                        set(Calendar.DAY_OF_MONTH, 1)
+                    }
+                }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        // Previous month
+                        IconButton(onClick = {
+                            val cal = Calendar.getInstance().apply {
+                                set(Calendar.YEAR, selectedYear)
+                                set(Calendar.MONTH, selectedMonth)
+                                add(Calendar.MONTH, -1)
+                            }
+                            selectedYear  = cal.get(Calendar.YEAR)
+                            selectedMonth = cal.get(Calendar.MONTH)
+                        }) {
+                            Icon(
+                                Icons.Filled.ChevronLeft,
+                                contentDescription = "Previous month",
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+
+                        // Month + year label
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                monthYearFormatter.format(displayCal.time),
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 15.sp,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            if (isCurrentMonth) {
+                                Text(
+                                    "Current month",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
+
+                        // Next month (disabled when on current month)
+                        IconButton(
+                            onClick = {
+                                val cal = Calendar.getInstance().apply {
+                                    set(Calendar.YEAR, selectedYear)
+                                    set(Calendar.MONTH, selectedMonth)
+                                    add(Calendar.MONTH, 1)
+                                }
+                                selectedYear  = cal.get(Calendar.YEAR)
+                                selectedMonth = cal.get(Calendar.MONTH)
+                            },
+                            enabled = !isCurrentMonth
+                        ) {
+                            Icon(
+                                Icons.Filled.ChevronRight,
+                                contentDescription = "Next month",
+                                tint = if (isCurrentMonth)
+                                    MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.3f)
+                                else
+                                    MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
                 }
             }
         }

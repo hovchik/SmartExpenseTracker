@@ -46,7 +46,10 @@ fun SettingsScreen(
     onScanSms: () -> Unit,
     /** Null = not yet fetched; empty map = fetch failed. */
     exchangeRates: Map<String, Double> = emptyMap(),
-    onFetchRates: () -> Unit = {}
+    onFetchRates: () -> Unit = {},
+    /** Null = availability not checked yet. Non-null = status message from LocalAiService. */
+    localAiStatus: String? = null,
+    onCheckLocalAi: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var showClearDialog by remember { mutableStateOf(false) }
@@ -442,6 +445,136 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // ─── Local AI Section ──────────────────────────────────────
+        Text(
+            "LOCAL AI",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(4.dp)) {
+                SettingsToggleItem(
+                    icon = Icons.Filled.Psychology,
+                    title = "Gemini Nano (On-Device AI)",
+                    subtitle = "Use on-device AI for categorization & report insights. Requires Pixel 8+ or Samsung Galaxy S24+.",
+                    checked = settings.localAiEnabled,
+                    onCheckedChange = { enabled ->
+                        onUpdateSettings(settings.copy(localAiEnabled = enabled))
+                        if (enabled) onCheckLocalAi()
+                    }
+                )
+
+                // Availability status row
+                if (settings.localAiEnabled) {
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        when {
+                            localAiStatus == null -> {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    "Checking device compatibility…",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            localAiStatus.startsWith("Gemini Nano available") -> {
+                                Icon(
+                                    Icons.Filled.CheckCircle,
+                                    contentDescription = null,
+                                    tint = GreenPrimary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    localAiStatus,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = GreenPrimary
+                                )
+                            }
+                            else -> {
+                                Icon(
+                                    Icons.Filled.Info,
+                                    contentDescription = null,
+                                    tint = OrangeWarning,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    localAiStatus,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    // Re-check button
+                    if (localAiStatus != null && !localAiStatus.startsWith("Checking")) {
+                        Row(modifier = Modifier.padding(start = 16.dp, bottom = 10.dp)) {
+                            OutlinedButton(
+                                onClick = onCheckLocalAi,
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.Refresh,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Re-check", fontSize = 13.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Info card about what local AI does
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = PurpleAccent.copy(alpha = 0.07f)
+            )
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Icon(
+                    Icons.Filled.AutoAwesome,
+                    contentDescription = null,
+                    tint = PurpleAccent,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    "When enabled, Gemini Nano runs entirely on-device — no data " +
+                        "is sent to the cloud. The app falls back to rule-based AI " +
+                        "automatically when the model is not available.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    lineHeight = 17.sp
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
         // ─── Import & Export Section ───────────────────────────────
         Text(
             "IMPORT & EXPORT",
@@ -541,8 +674,9 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     "OCR Receipt Scanning · SMS & Notification Tracking · " +
-                            "AI Categorization · Smart Optimization Suggestions · " +
-                            "Daily / Weekly / Monthly Reports · Local JSON Storage · " +
+                            "AI Categorization · Gemini Nano On-Device AI · " +
+                            "Smart Optimization Suggestions · " +
+                            "Monthly Reports with Month Selector · Local JSON Storage · " +
                             "Multi-Currency Support · Import & Export · Dark Mode",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
