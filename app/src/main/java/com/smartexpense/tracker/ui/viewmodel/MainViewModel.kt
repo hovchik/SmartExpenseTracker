@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.smartexpense.tracker.SmartExpenseApp
 import com.smartexpense.tracker.data.model.*
+import com.smartexpense.tracker.data.model.currencyInfoFor
 import com.smartexpense.tracker.data.repository.ExpenseRepository
 import com.smartexpense.tracker.service.ai.AiExpenseEngine
 import com.smartexpense.tracker.service.ai.LocalAiService
@@ -172,7 +173,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         amount: Double, description: String, category: String? = null,
         type: TransactionType = TransactionType.EXPENSE,
         source: TransactionSource = TransactionSource.MANUAL,
-        merchantName: String = "", notes: String = ""
+        merchantName: String = "", notes: String = "",
+        timestamp: Long = System.currentTimeMillis()
     ) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
@@ -191,7 +193,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository.addTransaction(Transaction(
                 amount = amount, description = description, category = finalCategory,
                 type = type, source = source, merchantName = merchantName, notes = notes,
-                timestamp = now, dateTime = dtFormatter.format(Date(now))
+                timestamp = timestamp, dateTime = dtFormatter.format(Date(timestamp))
             ))
             refreshSuggestions()
         }
@@ -330,6 +332,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun addCategory(name: String) { viewModelScope.launch { repository.addCategory(Category(name = name)) } }
+    fun deleteCategory(id: String) { viewModelScope.launch { repository.deleteCategory(id) } }
 
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch {
@@ -452,19 +455,53 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun confirmSmsScanResults() {
         viewModelScope.launch {
             val pending = _smsScanState.value.pendingTransactions
-            val currencySymbol = repository.appData.value.settings.currency.ifEmpty { "$" }
+            val settings = repository.appData.value.settings
+            val appCurrency = settings.currencyCode
+            val currencySymbol = settings.currency.ifEmpty { "$" }
+
             for (tx in pending) {
+                // Currency conversion: if parsed currency ≠ app currency, convert amount
+                val parsedCurrency = tx.notes.lines()
+                    .find { it.startsWith("parsedCurrency:") }?.removePrefix("parsedCurrency:") ?: ""
+
+                val (finalAmount, conversionNote) = if (
+                    parsedCurrency.isNotEmpty() && parsedCurrency != appCurrency
+                ) {
+                    val converted = withContext(Dispatchers.IO) {
+                        com.smartexpense.tracker.service.currency.CurrencyConverterService.convert(
+                            tx.amount, parsedCurrency, appCurrency
+                        )
+                    }
+                    if (converted != null) {
+                        val rate = converted / tx.amount
+                        val fromSym = currencyInfoFor(parsedCurrency).symbol
+                        converted to "Original: $fromSym${String.format("%.2f", tx.amount)} $parsedCurrency · 1 $parsedCurrency = ${String.format("%.4f", rate)} $appCurrency"
+                    } else {
+                        tx.amount to ""
+                    }
+                } else {
+                    tx.amount to ""
+                }
+
+                // Remove parsedCurrency marker, append conversion note if present
+                val cleanNotes = tx.notes.lines()
+                    .filter { !it.startsWith("parsedCurrency:") }
+                    .joinToString("\n")
+                    .let { base -> if (conversionNote.isNotEmpty()) "$base\n$conversionNote".trim() else base.trim() }
+
+                val finalTx = tx.copy(amount = finalAmount, notes = cleanNotes)
+
                 // Auto-create category if not in the existing list
-                repository.ensureCategoryExists(tx.category)
-                repository.addTransaction(tx)
+                repository.ensureCategoryExists(finalTx.category)
+                repository.addTransaction(finalTx)
                 // In-app notification for each confirmed SMS transaction
                 repository.addInAppNotification(
                     InAppNotification(
                         title = "SMS transaction added",
-                        message = "${tx.description}: $currencySymbol${String.format("%.2f", tx.amount)}" +
-                            if (tx.merchantName.isNotEmpty()) " at ${tx.merchantName}" else "",
+                        message = "${finalTx.description}: $currencySymbol${String.format("%.2f", finalAmount)}" +
+                            if (finalTx.merchantName.isNotEmpty()) " at ${finalTx.merchantName}" else "",
                         type = InAppNotificationType.SMS_PARSED,
-                        relatedTransactionId = tx.id
+                        relatedTransactionId = finalTx.id
                     )
                 )
             }

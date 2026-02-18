@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer wallet body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M26,34 Q26,28 32,28 L76,28 Q82,28 82,34 L82,74 Q82,80 76,80 L32,80 Q26,80 26,74 Z" />
+
+    <!-- Wallet flap/fold line -->
+    <path
+        android:strokeColor="#E8F5E9"
+        android:strokeWidth="2"
+        android:pathData="M26,42 L82,42"
+        android:fillColor="@android:color/transparent" />
+
+    <!-- Coin pocket (right side) -->
+    <path
+        android:fillColor="#A5D6A7"
+        android:pathData="M62,50 Q62,44 68,44 L82,44 L82,60 L68,60 Q62,60 62,54 Z" />
+
+    <!-- Coin circle -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M72,52 A4,4,0,0,1 72,52 A4,4,0,0,0 72,52 Z" />
+    <ellipse
+        android:fillColor="#FFFFFF"
+        android:cx="72"
+        android:cy="52"
+        android:rx="4"
+        android:ry="4" />
+
+    <!-- Currency symbol in coin -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M71,50 L71,54 M70,51 Q72,50 73,51.5 Q72,53 70,53 Q73,53 73,54.5 Q72,56 71,55 M71,55 L71,56" />
+
+    <!-- Upward trend arrow (income indicator) -->
+    <path
+        android:fillColor="#4CAF50"
+        android:strokeColor="#4CAF50"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M34,65 L42,55 L50,61 L58,50"
+        android:fillAlpha="0" />
+    <!-- Arrow head -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M55,47 L61,47 L61,53 Z" />
+
+</vector>

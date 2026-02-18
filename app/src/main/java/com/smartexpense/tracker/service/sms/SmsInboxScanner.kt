@@ -128,11 +128,15 @@ class SmsInboxScanner(private val context: Context) {
                     val desc = try { parsed.description.ifEmpty { body.take(80) } } catch (_: Throwable) { body.take(80) }
                     val cat = try { aiEngine.categorize(desc) } catch (_: Throwable) { "Other" }
 
+                    // Store original parsed currency so the review screen can show it
+                    // and confirmSmsScanResults() can convert if needed
+                    val currencyNote = if (parsed.currency.isNotEmpty()) "\nparsedCurrency:${parsed.currency}" else ""
+
                     transactions.add(Transaction(
                         amount = parsed.amount, description = desc, category = cat,
                         type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                         source = TransactionSource.SMS, timestamp = date,
-                        merchantName = parsed.merchantName, notes = noteKey
+                        merchantName = parsed.merchantName, notes = noteKey + currencyNote
                     ))
                 } catch (e: Throwable) { errors++ }
             }

@@ -38,7 +38,8 @@ fun SmsScanScreen(
     onConfirmAll: () -> Unit,
     onDiscard: (String) -> Unit,
     onReset: () -> Unit,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    currencyCode: String = "USD"
 ) {
     val context = LocalContext.current
 
@@ -145,6 +146,16 @@ fun SmsScanScreen(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(items = scanState.pendingTransactions, key = { it.id }) { tx ->
+                            // Show original parsed currency (before app-currency conversion)
+                            val parsedCurrency = tx.notes.lines()
+                                .find { it.startsWith("parsedCurrency:") }?.removePrefix("parsedCurrency:") ?: ""
+                            val displayAmount = if (parsedCurrency.isNotEmpty()) {
+                                val sym = CurrencyUtils.symbolFor(parsedCurrency)
+                                "$sym${String.format("%.2f", tx.amount)} $parsedCurrency"
+                            } else {
+                                CurrencyUtils.format(tx.amount, currencyCode)
+                            }
+
                             Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -175,7 +186,7 @@ fun SmsScanScreen(
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        CurrencyUtils.format(tx.amount), fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                                        displayAmount, fontWeight = FontWeight.Bold, fontSize = 14.sp,
                                         color = if (tx.type == TransactionType.EXPENSE) RedExpense else GreenIncome
                                     )
                                     IconButton(onClick = { onDiscard(tx.id) }, modifier = Modifier.size(32.dp)) {

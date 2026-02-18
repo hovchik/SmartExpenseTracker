@@ -160,9 +160,10 @@ fun MainApp(viewModel: MainViewModel) {
                     )
                     "add" -> AddTransactionScreen(
                         categories = uiState.categories,
-                        onAdd = { amount, desc, category, type, source, merchant ->
+                        onAdd = { amount, desc, category, type, source, merchant, notes, timestamp ->
                             viewModel.addTransaction(amount = amount, description = desc,
-                                category = category, type = type, source = source, merchantName = merchant)
+                                category = category, type = type, source = source,
+                                merchantName = merchant, notes = notes, timestamp = timestamp)
                         },
                         onScanReceipt = { currentScreen = "scan" },
                         onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) },
@@ -184,7 +185,8 @@ fun MainApp(viewModel: MainViewModel) {
                         onConfirmAll = { viewModel.confirmSmsScanResults() },
                         onDiscard = { id -> viewModel.discardSmsScanResult(id) },
                         onReset = { viewModel.resetSmsScanState() },
-                        onNavigateBack = { currentScreen = "settings"; viewModel.setSelectedTab(3) }
+                        onNavigateBack = { currentScreen = "settings"; viewModel.setSelectedTab(3) },
+                        currencyCode = currencyCode
                     )
                     "settings" -> SettingsScreen(
                         settings = uiState.settings,
@@ -200,7 +202,10 @@ fun MainApp(viewModel: MainViewModel) {
                         onFetchRates = { viewModel.fetchExchangeRates() },
                         localAiStatus = localAiStatus,
                         localAiSuggestion = localAiSuggestion,
-                        onCheckLocalAi = { viewModel.checkLocalAiAvailability() }
+                        onCheckLocalAi = { viewModel.checkLocalAiAvailability() },
+                        categories = uiState.categories,
+                        onAddCategory = { name -> viewModel.addCategory(name) },
+                        onDeleteCategory = { id -> viewModel.deleteCategory(id) }
                     )
                 }
             }

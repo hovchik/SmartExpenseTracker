@@ -28,6 +28,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartexpense.tracker.data.model.AppSettings
+import com.smartexpense.tracker.data.model.Category
 import com.smartexpense.tracker.data.model.SUPPORTED_CURRENCIES
 import com.smartexpense.tracker.data.model.ThemeMode
 import com.smartexpense.tracker.data.model.currencyInfoFor
@@ -51,12 +52,18 @@ fun SettingsScreen(
     localAiStatus: String? = null,
     /** Non-null when there's a suggestion for enabling a better AI backend. */
     localAiSuggestion: String? = null,
-    onCheckLocalAi: () -> Unit = {}
+    onCheckLocalAi: () -> Unit = {},
+    categories: List<Category> = emptyList(),
+    onAddCategory: (String) -> Unit = {},
+    onDeleteCategory: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     var showClearDialog by remember { mutableStateOf(false) }
     var showImportConfirmDialog by remember { mutableStateOf(false) }
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
+
+    // Category management state
+    var newCategoryText by remember { mutableStateOf("") }
 
     // Currency selector state
     var showCurrencyDropdown by remember { mutableStateOf(false) }
@@ -505,6 +512,91 @@ fun SettingsScreen(
             Icon(Icons.Filled.Sms, contentDescription = null, modifier = Modifier.size(22.dp))
             Spacer(modifier = Modifier.width(10.dp))
             Text("Scan SMS Inbox for Transactions", fontWeight = FontWeight.SemiBold)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ─── Categories Section ────────────────────────────────────
+        Text(
+            "CATEGORIES",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                // Add new category row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = newCategoryText,
+                        onValueChange = { newCategoryText = it },
+                        label = { Text("New category name") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    FilledTonalIconButton(
+                        onClick = {
+                            val name = newCategoryText.trim()
+                            if (name.isNotEmpty()) {
+                                onAddCategory(name)
+                                newCategoryText = ""
+                            }
+                        },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = "Add category")
+                    }
+                }
+
+                if (categories.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    categories.forEach { cat ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Filled.Label,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                cat.name,
+                                modifier = Modifier.weight(1f),
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 14.sp
+                            )
+                            IconButton(
+                                onClick = { onDeleteCategory(cat.id) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.Delete,
+                                    contentDescription = "Delete ${cat.name}",
+                                    tint = RedExpense,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))

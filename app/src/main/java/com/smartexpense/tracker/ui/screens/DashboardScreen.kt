@@ -119,6 +119,8 @@ fun DashboardScreen(
 
 @Composable
 fun BalanceSummaryCard(uiState: UiState, currencyCode: String = "USD") {
+    var balanceHidden by remember { mutableStateOf(false) }
+    val mask = "••••••"
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -134,11 +136,28 @@ fun BalanceSummaryCard(uiState: UiState, currencyCode: String = "USD") {
                 .padding(24.dp)
         ) {
             Column {
-                Text("Monthly Balance", color = Color.White.copy(alpha = 0.8f),
-                    style = MaterialTheme.typography.bodyMedium)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Monthly Balance", color = Color.White.copy(alpha = 0.8f),
+                        style = MaterialTheme.typography.bodyMedium)
+                    IconButton(
+                        onClick = { balanceHidden = !balanceHidden },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            if (balanceHidden) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            contentDescription = if (balanceHidden) "Show balance" else "Hide balance",
+                            tint = Color.White.copy(alpha = 0.8f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    CurrencyUtils.format(uiState.netBalance, currencyCode),
+                    if (balanceHidden) mask else CurrencyUtils.format(uiState.netBalance, currencyCode),
                     color = Color.White, style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -151,8 +170,10 @@ fun BalanceSummaryCard(uiState: UiState, currencyCode: String = "USD") {
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Income", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
                         }
-                        Text(CurrencyUtils.format(uiState.monthlyIncome, currencyCode),
-                            color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                        Text(
+                            if (balanceHidden) mask else CurrencyUtils.format(uiState.monthlyIncome, currencyCode),
+                            color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp
+                        )
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -161,8 +182,10 @@ fun BalanceSummaryCard(uiState: UiState, currencyCode: String = "USD") {
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Expenses", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
                         }
-                        Text(CurrencyUtils.format(uiState.monthlyExpenses, currencyCode),
-                            color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                        Text(
+                            if (balanceHidden) mask else CurrencyUtils.format(uiState.monthlyExpenses, currencyCode),
+                            color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp
+                        )
                     }
                 }
             }
@@ -330,6 +353,8 @@ fun TransactionItem(
 ) {
     var showDetail by remember { mutableStateOf(false) }
     val isExpense = transaction.type == TransactionType.EXPENSE
+    // Show a small exchange icon when this transaction was auto-converted from another currency
+    val isConverted = transaction.notes.contains("Original:")
     Card(
         modifier = Modifier.fillMaxWidth().clickable { showDetail = true },
         shape = RoundedCornerShape(12.dp)
@@ -358,7 +383,7 @@ fun TransactionItem(
             Column(modifier = Modifier.weight(1f)) {
                 Text(transaction.description, fontWeight = FontWeight.Medium, fontSize = 14.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Row {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(transaction.category, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(" · ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(DateUtils.formatShortDate(transaction.timestamp), fontSize = 12.sp,
@@ -367,6 +392,15 @@ fun TransactionItem(
                         Text(" · ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(transaction.source.name.lowercase().replace("_", " "),
                             fontSize = 11.sp, color = BluePrimary)
+                    }
+                    if (isConverted) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            Icons.Filled.CurrencyExchange,
+                            contentDescription = "Currency converted",
+                            modifier = Modifier.size(11.dp),
+                            tint = OrangeWarning
+                        )
                     }
                 }
             }
