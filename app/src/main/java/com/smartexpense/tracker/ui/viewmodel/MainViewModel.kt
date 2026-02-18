@@ -621,8 +621,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val discoveredBankingApps: StateFlow<List<DiscoveredApp>> = _discoveredBankingApps.asStateFlow()
 
     /**
-     * Scans all installed applications whose **name** contains "bank", "payment", or "wallet".
-     * Retrieves their package names, suppresses duplicates, and stores them in [discoveredBankingApps].
+     * Scans all installed applications in two passes:
+     * 1. Apps whose **name** (label) contains "bank", "payment", or "wallet"
+     * 2. Apps whose **package name** contains those same keywords
+     * Results are merged, duplicates suppressed, and stored in [discoveredBankingApps].
      */
     fun scanForBankingApps() {
         viewModelScope.launch {
@@ -631,18 +633,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             val installed = withContext(Dispatchers.IO) {
                 val seenPackages = mutableSetOf<String>()
-                pm.getInstalledApplications(0).mapNotNull { appInfo ->
+                val results = mutableListOf<DiscoveredApp>()
+                val allApps = pm.getInstalledApplications(0)
+
+                // Pass 1: match by app name (label)
+                for (appInfo in allApps) {
                     val label = pm.getApplicationLabel(appInfo).toString()
                     val labelLower = label.lowercase()
-                    val matches = scanKeywords.any { kw -> labelLower.contains(kw) }
-                    if (matches && seenPackages.add(appInfo.packageName)) {
-                        DiscoveredApp(
+                    if (scanKeywords.any { kw -> labelLower.contains(kw) } &&
+                        seenPackages.add(appInfo.packageName)) {
+                        results += DiscoveredApp(
                             packageName = appInfo.packageName,
                             appName = label,
                             isAlreadyMonitored = appInfo.packageName in currentPackages
                         )
-                    } else null
-                }.sortedWith(compareBy({ it.isAlreadyMonitored }, { it.appName.lowercase() }))
+                    }
+                }
+
+                // Pass 2: match by package name
+                for (appInfo in allApps) {
+                    val pkgLower = appInfo.packageName.lowercase()
+                    if (scanKeywords.any { kw -> pkgLower.contains(kw) } &&
+                        seenPackages.add(appInfo.packageName)) {
+                        results += DiscoveredApp(
+                            packageName = appInfo.packageName,
+                            appName = pm.getApplicationLabel(appInfo).toString(),
+                            isAlreadyMonitored = appInfo.packageName in currentPackages
+                        )
+                    }
+                }
+
+                results.sortedWith(compareBy({ it.isAlreadyMonitored }, { it.appName.lowercase() }))
             }
             _discoveredBankingApps.value = installed
         }
