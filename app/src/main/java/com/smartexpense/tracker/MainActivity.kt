@@ -49,6 +49,7 @@ fun MainApp(viewModel: MainViewModel) {
     val localAiStatus by viewModel.localAiStatus.collectAsState()
     val localAiSuggestion by viewModel.localAiSuggestion.collectAsState()
     val discoveredBankingApps by viewModel.discoveredBankingApps.collectAsState()
+    val allInstalledApps by viewModel.allInstalledApps.collectAsState()
     val scope = rememberCoroutineScope()
 
     // Shortcut to always-up-to-date currency code
@@ -217,7 +218,10 @@ fun MainApp(viewModel: MainViewModel) {
                         discoveredBankingApps = discoveredBankingApps,
                         onScanBankingApps = { viewModel.scanForBankingApps() },
                         onAddBankingApp = { pkg -> viewModel.addBankingApp(pkg) },
-                        onRemoveBankingApp = { pkg -> viewModel.removeBankingApp(pkg) }
+                        onRemoveBankingApp = { pkg -> viewModel.removeBankingApp(pkg) },
+                        allInstalledApps = allInstalledApps,
+                        onLoadAllInstalledApps = { viewModel.loadAllInstalledApps() },
+                        onUpdateScanKeywords = { keywords -> viewModel.updateScanKeywords(keywords) }
                     )
                 }
             }

@@ -210,6 +210,8 @@ data class AppSettings(
      * devices that do not support it (requires Pixel 8+ or Samsung Galaxy S24+ with Android 14+).
      */
     val localAiEnabled: Boolean = false,
+    /** Keywords used when scanning for banking/payment apps on the device. */
+    val scanKeywords: List<String> = listOf("bank", "payment", "wallet"),
     val bankingAppPackages: List<String> = listOf(
         "com.chase.sig.android",
         "com.wf.wellsfargomobile",

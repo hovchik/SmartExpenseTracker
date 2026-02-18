@@ -14,6 +14,8 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -67,7 +69,11 @@ fun SettingsScreen(
     discoveredBankingApps: List<com.smartexpense.tracker.ui.viewmodel.MainViewModel.DiscoveredApp> = emptyList(),
     onScanBankingApps: () -> Unit = {},
     onAddBankingApp: (String) -> Unit = {},
-    onRemoveBankingApp: (String) -> Unit = {}
+    onRemoveBankingApp: (String) -> Unit = {},
+    /** All user-installed apps on the device. */
+    allInstalledApps: List<com.smartexpense.tracker.ui.viewmodel.MainViewModel.InstalledApp> = emptyList(),
+    onLoadAllInstalledApps: () -> Unit = {},
+    onUpdateScanKeywords: (List<String>) -> Unit = {}
 ) {
     val context = LocalContext.current
     var showClearDialog by remember { mutableStateOf(false) }
@@ -627,6 +633,87 @@ fun SettingsScreen(
                 HorizontalDivider()
                 Spacer(modifier = Modifier.height(12.dp))
 
+                // ─── Configurable Scan Keywords ────────────────
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.Tune,
+                        contentDescription = null,
+                        tint = BluePrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("Scan Keywords", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Keywords matched against app names and package names when scanning.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Display current keywords as removable chips
+                val currentKeywords = settings.scanKeywords
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    currentKeywords.forEach { keyword ->
+                        InputChip(
+                            selected = false,
+                            onClick = {
+                                onUpdateScanKeywords(currentKeywords.filter { it != keyword })
+                            },
+                            label = { Text(keyword, fontSize = 13.sp) },
+                            trailingIcon = {
+                                Icon(
+                                    Icons.Filled.Close,
+                                    contentDescription = "Remove $keyword",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        )
+                    }
+                }
+
+                // Add new keyword input
+                Spacer(modifier = Modifier.height(8.dp))
+                var newKeyword by remember { mutableStateOf("") }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = newKeyword,
+                        onValueChange = { newKeyword = it.lowercase().trim() },
+                        label = { Text("New keyword") },
+                        placeholder = { Text("e.g. finance", fontSize = 12.sp) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    Button(
+                        onClick = {
+                            val kw = newKeyword.trim()
+                            if (kw.isNotEmpty() && kw !in currentKeywords) {
+                                onUpdateScanKeywords(currentKeywords + kw)
+                                newKeyword = ""
+                            }
+                        },
+                        enabled = newKeyword.trim().let { it.isNotEmpty() && it !in currentKeywords },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Add")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(12.dp))
+
                 // Scan for new banking apps
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
@@ -640,7 +727,7 @@ fun SettingsScreen(
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    "Scans installed apps whose name contains \"bank\", \"payment\", or \"wallet\" and shows their package names.",
+                    "Scans installed apps whose name contains ${currentKeywords.joinToString { "\"$it\"" }} and shows their package names.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -764,6 +851,135 @@ fun SettingsScreen(
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Text("Add")
+                    }
+                }
+
+                // ─── Browse All Installed Apps ────────────────
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(12.dp))
+
+                var showAllApps by remember { mutableStateOf(false) }
+                var appSearchQuery by remember { mutableStateOf("") }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.Apps,
+                        contentDescription = null,
+                        tint = BluePrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("Browse All Installed Apps", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Pick from any user-installed app on your device to add it to the monitored list.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = {
+                        onLoadAllInstalledApps()
+                        showAllApps = !showAllApps
+                        appSearchQuery = ""
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = BluePrimary)
+                ) {
+                    Icon(
+                        if (showAllApps) Icons.Filled.ExpandLess else Icons.Filled.Apps,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        if (showAllApps) "Hide App List" else "Show All Installed Apps",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                if (showAllApps) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = appSearchQuery,
+                        onValueChange = { appSearchQuery = it },
+                        label = { Text("Search apps") },
+                        placeholder = { Text("Filter by name or package", fontSize = 12.sp) },
+                        leadingIcon = { Icon(Icons.Filled.Search, null, modifier = Modifier.size(18.dp)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val monitoredSet = settings.bankingAppPackages.toSet()
+                    val query = appSearchQuery.lowercase()
+                    val filteredApps = allInstalledApps.filter { app ->
+                        (query.isEmpty() ||
+                            app.appName.lowercase().contains(query) ||
+                            app.packageName.lowercase().contains(query)) &&
+                            app.packageName !in monitoredSet
+                    }
+
+                    if (allInstalledApps.isEmpty()) {
+                        Text(
+                            "Loading apps…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            "${filteredApps.size} app(s) available",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 300.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            filteredApps.forEach { app ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Filled.PhoneAndroid,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(app.appName, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                                        Text(
+                                            app.packageName,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { onAddBankingApp(app.packageName) },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.AddCircle,
+                                            contentDescription = "Add ${app.appName}",
+                                            tint = GreenPrimary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
