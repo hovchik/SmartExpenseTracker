@@ -182,28 +182,56 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun processOcrText(ocrText: String) {
         viewModelScope.launch {
             try {
-                val currencyCode = repository.appData.value.settings.currencyCode
+                val settings = repository.appData.value.settings
+                val currencyCode = settings.currencyCode
                 val parsed = aiEngine.parseReceiptText(ocrText, currencyCode)
                 val amount = parsed.totalAmount ?: parsed.items.sumOf { it.second }
                 val currencySymbol = currencyInfoFor(currencyCode).symbol
+
                 if (amount > 0) {
-                    val category = aiEngine.categorize(parsed.merchantName)
+                    // Use Gemini Nano for categorisation when local AI is enabled
+                    val category = smartCategorize(
+                        "${parsed.merchantName} ${parsed.items.joinToString(" ") { it.first }}"
+                    )
+
+                    // Build notes: include items list and, if local AI is on, an AI summary
+                    val itemsNote = if (parsed.items.isNotEmpty())
+                        "Items: ${parsed.items.joinToString(", ") { "${it.first}: $currencySymbol${String.format("%.2f", it.second)}" }}"
+                    else ""
+
+                    val aiNote: String = if (settings.localAiEnabled) {
+                        val topCat = category
+                        val insight = withContext(Dispatchers.IO) {
+                            localAiService.generateInsight(
+                                totalExpenses = amount,
+                                totalIncome = 0.0,
+                                topCategory = topCat,
+                                topCategoryAmount = amount,
+                                transactionCount = 1
+                            )
+                        }
+                        if (insight != null) "\nAI: $insight" else ""
+                    } else ""
+
                     val now = System.currentTimeMillis()
                     val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
                     repository.addTransaction(Transaction(
                         amount = amount,
                         description = "Receipt: ${parsed.merchantName}",
-                        category = category, type = TransactionType.EXPENSE,
+                        category = category,
+                        type = TransactionType.EXPENSE,
                         source = TransactionSource.OCR_SCAN,
                         merchantName = parsed.merchantName,
-                        timestamp = now, dateTime = dtFormatter.format(Date(now)),
-                        notes = if (parsed.items.isNotEmpty())
-                            "Items: ${parsed.items.joinToString(", ") { "${it.first}: $currencySymbol${String.format("%.2f", it.second)}" }}"
-                        else ""
+                        timestamp = now,
+                        dateTime = dtFormatter.format(Date(now)),
+                        notes = listOf(itemsNote, aiNote).filter { it.isNotBlank() }.joinToString("\n")
                     ))
-                    _uiState.value = _uiState.value.copy(
-                        lastOcrResult = "Found: ${parsed.merchantName} - $currencySymbol${String.format("%.2f", amount)}"
-                    )
+
+                    val resultMsg = buildString {
+                        append("Found: ${parsed.merchantName} — $currencySymbol${String.format("%.2f", amount)}")
+                        if (category.isNotEmpty()) append(" · $category")
+                    }
+                    _uiState.value = _uiState.value.copy(lastOcrResult = resultMsg)
                 } else {
                     _uiState.value = _uiState.value.copy(
                         lastOcrResult = "Could not extract amount from receipt."

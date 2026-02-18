@@ -472,6 +472,8 @@ class AiExpenseEngine {
 
             // Ordered from most specific to least specific
             val amountPatterns = listOf(
+                // "12 000.00 AMD" — amount with space-thousands-separator followed by currency
+                Regex("""([0-9][0-9\s,]*\.[0-9]{1,2})\s+([A-Z]{3})\b"""),
                 // "17063.12 AMD" or "21.70 USD" — amount followed by 3-letter currency
                 Regex("""([\d,]+\.\d{1,2})\s+([A-Z]{3})"""),
                 // "AMD 17,063.12" or "INR 500" — currency before amount
@@ -621,11 +623,13 @@ class AiExpenseEngine {
         try {
             val lines = ocrText.lines().map { it.trim() }.filter { it.isNotEmpty() }
 
-            // Merchant name — first non-numeric, non-date, substantive line
+            // Merchant name — first non-numeric, non-date, substantive line.
+            // Excludes POS terminal boilerplate lines (TID, MID, Tarihi, AUTH*, card numbers).
             val merchantName = lines.firstOrNull { line ->
                 line.length > 2 &&
                 !line.matches(Regex("""^[\d\s/\-:.]+$""")) &&
-                !line.matches(Regex("""(?i)^(receipt|invoice|bill|date|time|tel|phone|fax|www).*"""))
+                !line.matches(Regex("""(?i)^(receipt|invoice|bill|date|time|tel|phone|fax|www|tid|mid|tarihi|sale|вaчaрq|authcode|auth code|approved|visa|mastercard|\*+.*).*""")) &&
+                !line.matches(Regex("""^\*[\d\*\s]+$"""))  // masked card numbers
             }?.take(50) ?: "Unknown Store"
 
             // ── Build currency-specific amount patterns ───────────────
@@ -690,9 +694,16 @@ class AiExpenseEngine {
             // Priority-1: currency-specific total markers
             val currencyTotalPatterns: List<Regex> = when (currencyCode.uppercase()) {
                 "AMD" -> listOf(
-                    // "ԸՆԴԱՄԵՆԸ" = "total" in Armenian; also "TOTAL", "AMD", "֏"
-                    Regex("""(?:ԸՆԴԱՄԵՆԸ|ընդամենը|total|grand\s*total)[:\s]*(?:֏|AMD|դրամ)?\s*([\d,\s]+\.?\d*)""", RegexOption.IGNORE_CASE),
-                    Regex("""(?:֏|AMD|դրամ)\s*([\d,\s]+\.?\d*)""", RegexOption.IGNORE_CASE)
+                    // Armenian POS terminal receipts: "Գumарi: 12 000.00 AMD"
+                    // "Գumар" / "Гumari" = Armenian for "sum/amount"
+                    // Handles space-as-thousands-separator: "12 000.00"
+                    Regex("""(?:Գumар[ий]?|Гumari?|gumar[i]?)[:\s]+([0-9][0-9\s,]*\.?[0-9]*)\s*(?:AMD|֏|դрам)""", RegexOption.IGNORE_CASE),
+                    // "ԸՆДAMENHH" = "total" in Armenian; also "TOTAL", "AMD", "֏"
+                    Regex("""(?:ԸՆДАМENNH|ընдамennh|total|grand\s*total)[:\s]*(?:֏|AMD|դрам)?\s*([0-9][0-9\s,]*\.?[0-9]*)""", RegexOption.IGNORE_CASE),
+                    // POS receipt: number immediately before AMD/֏ — "12 000.00 AMD"
+                    Regex("""([0-9][0-9\s,]*\.[0-9]{1,2})\s*(?:AMD|֏|դрам)""", RegexOption.IGNORE_CASE),
+                    // AMD/֏ before number — "AMD 12000.00" / "֏ 12,000"
+                    Regex("""(?:֏|AMD|դрам)[:\s]+([0-9][0-9\s,]*\.?[0-9]*)""", RegexOption.IGNORE_CASE)
                 )
                 "RUB" -> listOf(
                     Regex("""(?:ИТОГО|итого|total)[:\s]*(?:₽|руб\.?)?\s*([\d,\s]+\.?\d*)""", RegexOption.IGNORE_CASE),
@@ -733,15 +744,20 @@ class AiExpenseEngine {
                 total = if (sum > max * 1.5) sum else max
             }
 
-            // Date
+            // Date — also recognises "Tarihi: DD/MM/YY" found on Armenian/Turkish POS terminals
             val datePatterns = listOf(
+                Regex("""(?:tarihi|date|dated?)[:\s]*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})""", RegexOption.IGNORE_CASE),
                 Regex("""\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}"""),
                 Regex("""\d{4}[/\-]\d{1,2}[/\-]\d{1,2}""")
             )
             var date: String? = null
             for (p in datePatterns) {
-                date = p.find(ocrText)?.value
-                if (date != null) break
+                val m = p.find(ocrText)
+                if (m != null) {
+                    // If there's a capturing group (label pattern), use group 1; else full match
+                    date = if (m.groupValues.size > 1 && m.groupValues[1].isNotEmpty()) m.groupValues[1] else m.value
+                    break
+                }
             }
 
             return ParsedReceipt(totalAmount = total, items = items, merchantName = merchantName, date = date)
