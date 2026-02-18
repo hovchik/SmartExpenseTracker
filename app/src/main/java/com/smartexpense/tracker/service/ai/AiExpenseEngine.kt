@@ -534,6 +534,88 @@ class AiExpenseEngine {
         return parts.joinToString(" ")
     }
 
+    // ─── Expense Reduction Tips ──────────────────────────────────
+
+    /**
+     * Generates actionable tips to reduce expenses based on the report data.
+     * Analyzes category breakdown, spending patterns, and comparison with previous period.
+     */
+    fun generateExpenseReductionTips(report: ExpenseReport, currencyCode: String = "AMD"): List<String> {
+        val sym = currencyInfoFor(currencyCode).symbol
+        val tips = mutableListOf<String>()
+
+        // 1. Identify top spending category and suggest reduction
+        val sortedCategories = report.categoryBreakdown.entries.sortedByDescending { it.value }
+        val topCat = sortedCategories.firstOrNull()
+        if (topCat != null && report.totalExpenses > 0) {
+            val pct = (topCat.value / report.totalExpenses * 100).roundToInt()
+            if (pct > 30) {
+                val tenPct = topCat.value * 0.1
+                tips.add("Your biggest expense is ${topCat.key} ($pct% of total). Try reducing it by 10% to save ~$sym${String.format("%.0f", tenPct)} per period.")
+            }
+        }
+
+        // 2. Dining/food spending tip
+        val foodCategories = listOf("Food & Dining", "Groceries", "Restaurant", "Cafe")
+        val foodSpend = report.categoryBreakdown.filter { it.key in foodCategories }.values.sum()
+        if (foodSpend > 0 && report.totalExpenses > 0) {
+            val foodPct = (foodSpend / report.totalExpenses * 100).roundToInt()
+            if (foodPct > 25) {
+                tips.add("Food expenses account for $foodPct% of your spending. Meal planning and cooking at home can reduce food costs by 30-40%.")
+            }
+        }
+
+        // 3. Spending increase warning
+        if (report.comparisonWithPrevious > 10) {
+            tips.add("Your spending increased ${report.comparisonWithPrevious.roundToInt()}% vs the previous period. Review recent transactions to identify unexpected expenses.")
+        }
+
+        // 4. Weekend vs weekday spending
+        val weekendDays = listOf("Sat", "Sun")
+        val weekendSpend = report.dayOfWeekSpending.filter { it.key in weekendDays }.values.sum()
+        val weekdaySpend = report.dayOfWeekSpending.filter { it.key !in weekendDays }.values.sum()
+        if (weekendSpend > 0 && weekdaySpend > 0) {
+            val avgWeekend = weekendSpend / 2
+            val avgWeekday = weekdaySpend / 5
+            if (avgWeekend > avgWeekday * 1.5) {
+                tips.add("Weekend spending is ${String.format("%.0f", avgWeekend / avgWeekday)}x higher than weekdays. Setting a weekend budget can help control impulse purchases.")
+            }
+        }
+
+        // 5. Multiple merchants in same category
+        if (report.topMerchants.size > 3) {
+            val topMerchant = report.topMerchants.entries.maxByOrNull { it.value }
+            if (topMerchant != null) {
+                tips.add("You frequently spend at ${topMerchant.key}. Check if loyalty programs or alternatives could save you money.")
+            }
+        }
+
+        // 6. Savings rate advice
+        if (report.totalIncome > 0) {
+            val savingsRate = ((report.totalIncome - report.totalExpenses) / report.totalIncome * 100)
+            if (savingsRate < 20) {
+                val targetSaving = report.totalIncome * 0.2 - (report.totalIncome - report.totalExpenses)
+                if (targetSaving > 0) {
+                    tips.add("To reach the recommended 20% savings rate, try to cut ~$sym${String.format("%.0f", targetSaving)} from non-essential categories like Entertainment or Shopping.")
+                }
+            }
+        }
+
+        // 7. Subscription audit tip (if recurring patterns exist)
+        val hasSubscriptions = report.categoryBreakdown.containsKey("Bills & Utilities") ||
+            report.categoryBreakdown.containsKey("Entertainment")
+        if (hasSubscriptions) {
+            tips.add("Review your subscriptions and recurring bills. Canceling unused services is one of the easiest ways to cut expenses.")
+        }
+
+        // 8. General best practice
+        if (tips.size < 2) {
+            tips.add("Track every expense and set category budgets. People who actively track spending save 15-20% more on average.")
+        }
+
+        return tips.take(4) // Return at most 4 tips to avoid overwhelming
+    }
+
     // ─── SMS / Notification Parsing ────────────────────────────────
 
     data class ParsedTransaction(

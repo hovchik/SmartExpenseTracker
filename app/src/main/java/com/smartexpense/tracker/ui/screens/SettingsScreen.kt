@@ -559,7 +559,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ─── Banking App Scanner ─────────────────────────────
+        // ─── Connected Banking Apps ────────────────────────────
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp)
@@ -567,24 +567,84 @@ fun SettingsScreen(
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        Icons.Filled.PhoneAndroid,
+                        Icons.Filled.AccountBalance,
                         contentDescription = null,
                         tint = BluePrimary,
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Banking App Scanner", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Text("Connected Banking Apps", fontWeight = FontWeight.Medium, fontSize = 14.sp)
                         Text(
-                            "Scan installed apps to find banking and payment applications",
+                            "${settings.bankingAppPackages.size} app(s) being monitored for transactions",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
 
+                // Always show currently connected apps as editable list
+                if (settings.bankingAppPackages.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(6.dp))
+                    settings.bankingAppPackages.forEach { pkg ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Filled.CheckCircle,
+                                contentDescription = null,
+                                tint = GreenPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                pkg,
+                                modifier = Modifier.weight(1f),
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            IconButton(
+                                onClick = { onRemoveBankingApp(pkg) },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.Close,
+                                    contentDescription = "Remove $pkg",
+                                    tint = RedExpense,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider()
                 Spacer(modifier = Modifier.height(12.dp))
 
+                // Scan for new banking apps
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.PhoneAndroid,
+                        contentDescription = null,
+                        tint = GreenPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("Find Banking Apps on Device", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    "Scan installed applications to discover banking and payment apps (Ameriabank, Evocabank, Idram, Ineco, etc.)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(10.dp))
                 Button(
                     onClick = onScanBankingApps,
                     modifier = Modifier.fillMaxWidth(),
@@ -596,52 +656,45 @@ fun SettingsScreen(
                     Text("Scan for Banking Apps", fontWeight = FontWeight.SemiBold)
                 }
 
+                // Show discovered (not-yet-added) apps after scanning
                 if (discoveredBankingApps.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalDivider()
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "${discoveredBankingApps.size} banking app(s) found",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
-                    discoveredBankingApps.forEach { app ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                if (app.isAlreadyMonitored) Icons.Filled.CheckCircle else Icons.Filled.PhoneAndroid,
-                                contentDescription = null,
-                                tint = if (app.isAlreadyMonitored) GreenPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(app.appName, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                                Text(
-                                    app.packageName,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 11.sp
+                    val newApps = discoveredBankingApps.filter { !it.isAlreadyMonitored }
+                    val alreadyAdded = discoveredBankingApps.filter { it.isAlreadyMonitored }
+
+                    if (newApps.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "${newApps.size} new app(s) found",
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 13.sp,
+                            color = BluePrimary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        newApps.forEach { app ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Filled.PhoneAndroid,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
                                 )
-                            }
-                            if (app.isAlreadyMonitored) {
-                                IconButton(
-                                    onClick = { onRemoveBankingApp(app.packageName) },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Filled.RemoveCircle,
-                                        contentDescription = "Remove ${app.appName}",
-                                        tint = RedExpense,
-                                        modifier = Modifier.size(18.dp)
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(app.appName, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                                    Text(
+                                        app.packageName,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 11.sp
                                     )
                                 }
-                            } else {
                                 IconButton(
                                     onClick = { onAddBankingApp(app.packageName) },
                                     modifier = Modifier.size(32.dp)
@@ -656,16 +709,16 @@ fun SettingsScreen(
                             }
                         }
                     }
+                    if (alreadyAdded.isNotEmpty() && newApps.isEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "All ${alreadyAdded.size} detected app(s) are already connected.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = GreenPrimary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
-
-                // Show currently monitored apps count
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "${settings.bankingAppPackages.size} app(s) currently monitored",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Medium
-                )
             }
         }
         } // end Column in AnimatedVisibility for Data Sources

@@ -119,7 +119,7 @@ fun DashboardScreen(
 
 @Composable
 fun BalanceSummaryCard(uiState: UiState, currencyCode: String = "USD") {
-    var balanceHidden by remember { mutableStateOf(false) }
+    var balanceHidden by remember { mutableStateOf(true) }
     val mask = "••••••"
     Card(
         modifier = Modifier.fillMaxWidth(),

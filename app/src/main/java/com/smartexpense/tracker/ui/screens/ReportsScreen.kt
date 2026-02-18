@@ -734,6 +734,58 @@ fun ReportsScreen(
             }
         }
 
+        // ─── AI Expense Reduction Tips ───────────────────────
+        if (report.totalExpenses > 0) {
+            val aiEngine = remember { com.smartexpense.tracker.service.ai.AiExpenseEngine() }
+            val tips = remember(report) { aiEngine.generateExpenseReductionTips(report, currencyCode) }
+            if (tips.isNotEmpty()) {
+                item {
+                    Text("How to Reduce Expenses", style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
+                }
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = BluePrimary.copy(alpha = 0.06f)
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.Lightbulb, null,
+                                    tint = BluePrimary, modifier = Modifier.size(22.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("AI Recommendations", fontWeight = FontWeight.SemiBold,
+                                    fontSize = 14.sp, color = BluePrimary)
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                            tips.forEachIndexed { index, tip ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Text(
+                                        "${index + 1}.",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = BluePrimary,
+                                        modifier = Modifier.width(20.dp)
+                                    )
+                                    Text(
+                                        tip,
+                                        fontSize = 13.sp,
+                                        lineHeight = 18.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // ─── Empty state ───────────────────────────────
         if (report.transactionCount == 0) {
             item {
@@ -1037,6 +1089,19 @@ private fun buildShareText(
         sb.appendLine("🤖 AI Insight: ${report.aiInsight}")
     }
 
+    // AI expense reduction tips
+    if (report.totalExpenses > 0) {
+        val aiEngine = com.smartexpense.tracker.service.ai.AiExpenseEngine()
+        val tips = aiEngine.generateExpenseReductionTips(report, currencyCode)
+        if (tips.isNotEmpty()) {
+            sb.appendLine()
+            sb.appendLine("💡 How to Reduce Expenses:")
+            tips.forEachIndexed { index, tip ->
+                sb.appendLine("  ${index + 1}. $tip")
+            }
+        }
+    }
+
     sb.appendLine()
     sb.append("Shared from Smart Expense Tracker")
     return sb.toString()
@@ -1289,6 +1354,19 @@ private fun buildEnhancedReportLines(
             txList.forEach { tx ->
                 val typePrefix = if (tx.type == TransactionType.EXPENSE) "-" else "+"
                 lines += ReportLine("  $typePrefix ${CurrencyUtils.format(tx.amount, currencyCode)}  ${tx.description}  [${tx.category}]")
+            }
+        }
+    }
+
+    // AI expense reduction tips
+    if (report.totalExpenses > 0) {
+        val aiEngine = com.smartexpense.tracker.service.ai.AiExpenseEngine()
+        val tips = aiEngine.generateExpenseReductionTips(report, currencyCode)
+        if (tips.isNotEmpty()) {
+            lines += ReportLine("")
+            lines += ReportLine("How to Reduce Expenses", isBold = true)
+            tips.forEachIndexed { index, tip ->
+                lines += ReportLine("  ${index + 1}. $tip")
             }
         }
     }

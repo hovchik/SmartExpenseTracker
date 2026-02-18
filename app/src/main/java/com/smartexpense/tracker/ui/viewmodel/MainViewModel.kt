@@ -609,11 +609,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Known banking/payment app keywords used to identify financial apps among installed packages.
      */
     private val bankingAppKeywords = listOf(
+        // Generic financial keywords
         "bank", "arca", "pay", "wallet", "finance", "credit", "loan",
-        "money", "cash", "transfer", "saving", "invest", "revolut",
-        "wise", "zelle", "venmo", "paypal", "idram", "ineco", "ameria",
-        "ardshin", "acba", "converse", "evoca", "unibank", "vtb",
-        "mellat", "araratbank", "telcell", "easypay"
+        "money", "cash", "transfer", "saving", "invest",
+        // International payment apps
+        "revolut", "wise", "zelle", "venmo", "paypal", "stripe",
+        // Armenian banks & payment apps (match by brand name)
+        "idram", "ineco", "ameria", "ameriabank", "ardshin", "ardshinbank",
+        "acba", "converse", "conversebank", "evoca", "evocabank",
+        "unibank", "vtb", "mellat", "araratbank", "armswiss",
+        "telcell", "easypay", "idbank", "inecobank",
+        // Indian banks / UPI
+        "paytm", "phonepe", "gpay", "bhim", "upi",
+        // Common international
+        "chase", "citi", "hsbc", "barclays", "monzo", "n26"
     )
 
     data class DiscoveredApp(
