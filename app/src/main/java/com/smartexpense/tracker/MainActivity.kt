@@ -63,6 +63,7 @@ fun MainApp(viewModel: MainViewModel) {
     val ollamaModels by viewModel.ollamaModels.collectAsState()
     val ollamaConnecting by viewModel.ollamaConnecting.collectAsState()
     val dashboardSectionOrder by viewModel.dashboardSectionOrder.collectAsState()
+    val storeLocations by viewModel.storeLocations.collectAsState()
     val scope = rememberCoroutineScope()
 
     // Shortcut to always-up-to-date currency code
@@ -75,13 +76,14 @@ fun MainApp(viewModel: MainViewModel) {
     // are handled explicitly in the when-branch below.
     BackHandler(enabled = currentScreen != "dashboard") {
         when (currentScreen) {
-            "sms_scan" -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
-            else       -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+            "sms_scan"  -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
+            "store_map" -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+            else        -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
         }
     }
 
-    // Hide the top bar on full-screen sub-screens
-    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan")
+    // Hide the top bar on full-screen sub-screens (store_map has its own top bar)
+    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map")
 
     Scaffold(
         topBar = {
@@ -100,6 +102,9 @@ fun MainApp(viewModel: MainViewModel) {
                         )
                     },
                     actions = {
+                        IconButton(onClick = { currentScreen = "store_map" }) {
+                            Icon(Icons.Filled.Map, contentDescription = "Store Map")
+                        }
                         NotificationBell(
                             notifications  = inAppNotifications,
                             unreadCount    = unreadCount,
@@ -113,7 +118,7 @@ fun MainApp(viewModel: MainViewModel) {
             }
         },
         bottomBar = {
-            if (currentScreen != "add" && currentScreen != "scan" && currentScreen != "sms_scan") {
+            if (currentScreen !in listOf("add", "scan", "sms_scan", "store_map")) {
                 NavigationBar(tonalElevation = 2.dp) {
                     // Home
                     NavigationBarItem(
@@ -222,6 +227,16 @@ fun MainApp(viewModel: MainViewModel) {
                         onReset = { viewModel.resetSmsScanState() },
                         onNavigateBack = { currentScreen = "settings"; viewModel.setSelectedTab(3) },
                         currencyCode = currencyCode
+                    )
+                    "store_map" -> StoreMapScreen(
+                        storeLocations = storeLocations,
+                        allTransactions = uiState.allTransactions,
+                        currencyCode = currencyCode,
+                        onAddStoreLocation = { name, lat, lng, addr ->
+                            viewModel.addStoreLocation(name, lat, lng, addr)
+                        },
+                        onDeleteStoreLocation = { id -> viewModel.deleteStoreLocation(id) },
+                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
                     )
                     "settings" -> SettingsScreen(
                         settings = uiState.settings,

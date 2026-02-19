@@ -96,6 +96,10 @@ dependencies {
     // Accompanist permissions
     implementation("com.google.accompanist:accompanist-permissions:0.34.0")
 
+    // Google Maps for Compose (Store Map screen)
+    implementation("com.google.maps.android:maps-compose:4.3.0")
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
+
     // Charts (Vico)
     implementation("com.patrykandpatrick.vico:compose-m3:1.13.1")
 

@@ -13,6 +13,10 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
 
+    <!-- Location permission for Store Map -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <!-- Notification Listener permission is granted via Settings -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
@@ -25,6 +29,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SmartExpenseTracker"
         tools:targetApi="34">
+
+        <!-- Google Maps API key – replace with your key from https://console.cloud.google.com -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="" />
 
         <activity
             android:name=".MainActivity"

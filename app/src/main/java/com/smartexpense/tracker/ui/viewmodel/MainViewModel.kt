@@ -546,6 +546,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteTransaction(id: String) { viewModelScope.launch { repository.deleteTransaction(id) } }
 
+    // ─── Store locations ────────────────────────────────────────
+
+    /** Reactive flow of store locations for the Store Map screen. */
+    val storeLocations: StateFlow<List<StoreLocation>> = repository.appData
+        .map { it.storeLocations }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    fun addStoreLocation(merchantName: String, latitude: Double, longitude: Double, address: String) {
+        viewModelScope.launch {
+            repository.addStoreLocation(
+                StoreLocation(
+                    merchantName = merchantName,
+                    latitude = latitude,
+                    longitude = longitude,
+                    address = address
+                )
+            )
+        }
+    }
+
+    fun deleteStoreLocation(id: String) {
+        viewModelScope.launch { repository.deleteStoreLocation(id) }
+    }
+
     /**
      * Parses OCR/QR receipt data and stores it in [ocrParsedData] for the user to review
      * and edit before saving. Does NOT save the transaction automatically.

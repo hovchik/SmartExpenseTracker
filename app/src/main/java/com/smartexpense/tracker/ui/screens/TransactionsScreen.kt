@@ -72,8 +72,8 @@ fun TransactionsScreen(
             }
     }
 
-    // Track which month sections are collapsed; default = all expanded
-    val collapsedMonths = remember { mutableStateMapOf<String, Boolean>() }
+    // Track which month sections are expanded; default = all collapsed
+    val expandedMonths = remember { mutableStateMapOf<String, Boolean>() }
 
     Column(modifier = Modifier.fillMaxSize()) {
 
@@ -138,7 +138,7 @@ fun TransactionsScreen(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 byMonth.forEach { (monthLabel, txList) ->
-                    val isCollapsed = collapsedMonths[monthLabel] == true
+                    val isCollapsed = expandedMonths[monthLabel] != true
                     val monthExpenses = txList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
                     val monthIncome  = txList.filter { it.type == TransactionType.INCOME  }.sumOf { it.amount }
 
@@ -146,7 +146,7 @@ fun TransactionsScreen(
                     item(key = "hdr_$monthLabel") {
                         Surface(
                             onClick = {
-                                collapsedMonths[monthLabel] = !isCollapsed
+                                expandedMonths[monthLabel] = isCollapsed
                             },
                             shape = RoundedCornerShape(12.dp),
                             color = MaterialTheme.colorScheme.secondaryContainer,

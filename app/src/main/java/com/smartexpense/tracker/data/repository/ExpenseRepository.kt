@@ -179,6 +179,26 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         storage.saveData(updated)
     }
 
+    // ─── Store Locations ─────────────────────────────────────────
+
+    suspend fun addStoreLocation(storeLocation: StoreLocation) {
+        val current = _appData.value
+        val updated = current.copy(
+            storeLocations = current.storeLocations + storeLocation
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    suspend fun deleteStoreLocation(id: String) {
+        val current = _appData.value
+        val updated = current.copy(
+            storeLocations = current.storeLocations.filter { it.id != id }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
     // ─── Settings ──────────────────────────────────────────────────
 
     suspend fun updateSettings(settings: AppSettings) {
