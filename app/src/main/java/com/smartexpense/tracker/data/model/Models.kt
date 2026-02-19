@@ -26,7 +26,11 @@ data class Transaction(
     val tags: List<String> = emptyList(),
     val notes: String = "",
     val merchantName: String = "",
-    val isRecurring: Boolean = false
+    val isRecurring: Boolean = false,
+    /** GPS latitude captured at transaction time; null if unavailable. */
+    val latitude: Double? = null,
+    /** GPS longitude captured at transaction time; null if unavailable. */
+    val longitude: Double? = null
 )
 
 enum class TransactionType {
@@ -182,6 +186,7 @@ data class AppData(
     val budgets: List<Budget> = emptyList(),
     val suggestions: List<AiSuggestion> = emptyList(),
     val inAppNotifications: List<InAppNotification> = emptyList(),
+    val storeLocations: List<StoreLocation> = emptyList(),
     val settings: AppSettings = AppSettings(),
     val lastUpdated: Long = System.currentTimeMillis()
 )
@@ -232,6 +237,19 @@ enum class DashboardSection {
     CATEGORY_BREAKDOWN,
     RECENT_TRANSACTIONS
 }
+
+/**
+ * A store/merchant location pinned on the map.
+ * Links a merchant name to geographic coordinates so the Store Map screen
+ * can show where shopping happens and aggregate transactions per location.
+ */
+data class StoreLocation(
+    val id: String = UUID.randomUUID().toString(),
+    val merchantName: String,
+    val latitude: Double,
+    val longitude: Double,
+    val address: String = ""
+)
 
 data class AppSettings(
     /** Legacy single-char symbol kept for backward-compat. Use currencyCode instead. */

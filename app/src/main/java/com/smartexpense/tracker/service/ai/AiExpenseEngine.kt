@@ -265,27 +265,29 @@ class AiExpenseEngine {
 
     fun generateSuggestions(
         transactions: List<Transaction>,
-        budgets: List<Budget>
+        budgets: List<Budget>,
+        currencyCode: String = "USD"
     ): List<AiSuggestion> {
         if (transactions.isEmpty()) return emptyList()
+        val sym = currencyInfoFor(currencyCode).symbol
         val suggestions = mutableListOf<AiSuggestion>()
         val expenses = transactions.filter { it.type == TransactionType.EXPENSE }
         val now = System.currentTimeMillis()
         val thirtyDaysAgo = now - 30L * 24 * 60 * 60 * 1000
         val recentExpenses = expenses.filter { it.timestamp > thirtyDaysAgo }
 
-        suggestions.addAll(detectHighSpendingCategories(recentExpenses))
-        suggestions.addAll(detectSubscriptionOptimizations(recentExpenses))
-        suggestions.addAll(detectSpendingSpikes(expenses))
-        suggestions.addAll(detectBudgetOverruns(recentExpenses, budgets))
-        suggestions.addAll(detectDiningPatterns(recentExpenses))
-        suggestions.addAll(detectWeekendSpending(recentExpenses))
+        suggestions.addAll(detectHighSpendingCategories(recentExpenses, sym))
+        suggestions.addAll(detectSubscriptionOptimizations(recentExpenses, sym))
+        suggestions.addAll(detectSpendingSpikes(expenses, sym))
+        suggestions.addAll(detectBudgetOverruns(recentExpenses, budgets, sym))
+        suggestions.addAll(detectDiningPatterns(recentExpenses, sym))
+        suggestions.addAll(detectWeekendSpending(recentExpenses, sym))
         suggestions.addAll(detectSavingsPotential(recentExpenses, transactions))
 
         return suggestions.take(10)
     }
 
-    private fun detectHighSpendingCategories(expenses: List<Transaction>): List<AiSuggestion> {
+    private fun detectHighSpendingCategories(expenses: List<Transaction>, sym: String): List<AiSuggestion> {
         val suggestions = mutableListOf<AiSuggestion>()
         val totalSpend = expenses.sumOf { it.amount }
         if (totalSpend == 0.0) return suggestions
@@ -298,7 +300,7 @@ class AiExpenseEngine {
                 suggestions.add(AiSuggestion(
                     title = "High spending on $category",
                     description = "You're spending $percentage% of your budget on $category " +
-                            "(\$${String.format("%.2f", amount)} this month). Consider setting " +
+                            "($sym${String.format("%.2f", amount)} this month). Consider setting " +
                             "a budget limit and finding alternatives.",
                     potentialSaving = amount * 0.2, category = category,
                     priority = SuggestionPriority.HIGH
@@ -308,7 +310,7 @@ class AiExpenseEngine {
         return suggestions
     }
 
-    private fun detectSubscriptionOptimizations(expenses: List<Transaction>): List<AiSuggestion> {
+    private fun detectSubscriptionOptimizations(expenses: List<Transaction>, sym: String): List<AiSuggestion> {
         val suggestions = mutableListOf<AiSuggestion>()
         val possibleSubs = expenses.filter {
             it.category == "Entertainment" || it.category == "Bills & Utilities"
@@ -322,7 +324,7 @@ class AiExpenseEngine {
             suggestions.add(AiSuggestion(
                 title = "Review your subscriptions",
                 description = "You have ${merchantCounts.size} recurring subscriptions totaling " +
-                        "\$${String.format("%.2f", totalSubCost)}. Consider consolidating or canceling unused ones.",
+                        "$sym${String.format("%.2f", totalSubCost)}. Consider consolidating or canceling unused ones.",
                 potentialSaving = totalSubCost * 0.25, category = "Entertainment",
                 priority = SuggestionPriority.MEDIUM
             ))
@@ -330,7 +332,7 @@ class AiExpenseEngine {
         return suggestions
     }
 
-    private fun detectSpendingSpikes(expenses: List<Transaction>): List<AiSuggestion> {
+    private fun detectSpendingSpikes(expenses: List<Transaction>, sym: String): List<AiSuggestion> {
         val suggestions = mutableListOf<AiSuggestion>()
         val now = System.currentTimeMillis()
         val oneWeekAgo = now - 7L * 24 * 60 * 60 * 1000
@@ -340,7 +342,7 @@ class AiExpenseEngine {
         if (lastWeek > 0 && thisWeek > lastWeek * 1.5) {
             suggestions.add(AiSuggestion(
                 title = "Spending spike detected",
-                description = "This week's spending (\$${String.format("%.2f", thisWeek)}) is " +
+                description = "This week's spending ($sym${String.format("%.2f", thisWeek)}) is " +
                         "${((thisWeek / lastWeek - 1) * 100).roundToInt()}% higher than last week.",
                 potentialSaving = thisWeek - lastWeek, category = "General",
                 priority = SuggestionPriority.HIGH
@@ -349,7 +351,7 @@ class AiExpenseEngine {
         return suggestions
     }
 
-    private fun detectBudgetOverruns(expenses: List<Transaction>, budgets: List<Budget>): List<AiSuggestion> {
+    private fun detectBudgetOverruns(expenses: List<Transaction>, budgets: List<Budget>, sym: String): List<AiSuggestion> {
         val suggestions = mutableListOf<AiSuggestion>()
         for (budget in budgets) {
             val spent = expenses.filter { it.category == budget.categoryId }.sumOf { it.amount }
@@ -357,7 +359,7 @@ class AiExpenseEngine {
                 val percentage = (spent / budget.monthlyLimit * 100).roundToInt()
                 suggestions.add(AiSuggestion(
                     title = "Budget alert: ${budget.categoryId}",
-                    description = "You've used $percentage% of your \$${String.format("%.2f", budget.monthlyLimit)} budget.",
+                    description = "You've used $percentage% of your $sym${String.format("%.2f", budget.monthlyLimit)} budget.",
                     potentialSaving = spent - budget.monthlyLimit, category = budget.categoryId,
                     priority = if (spent > budget.monthlyLimit) SuggestionPriority.HIGH else SuggestionPriority.MEDIUM
                 ))
@@ -366,7 +368,7 @@ class AiExpenseEngine {
         return suggestions
     }
 
-    private fun detectDiningPatterns(expenses: List<Transaction>): List<AiSuggestion> {
+    private fun detectDiningPatterns(expenses: List<Transaction>, sym: String): List<AiSuggestion> {
         val suggestions = mutableListOf<AiSuggestion>()
         val dining = expenses.filter { it.category == "Food & Dining" }
         if (dining.size > 10) {
@@ -375,7 +377,7 @@ class AiExpenseEngine {
             suggestions.add(AiSuggestion(
                 title = "Dining out frequency",
                 description = "You've dined out ${dining.size} times recently, averaging " +
-                        "\$${String.format("%.2f", avgMeal)} per meal. Cooking at home 2 more " +
+                        "$sym${String.format("%.2f", avgMeal)} per meal. Cooking at home 2 more " +
                         "days per week could save significant money.",
                 potentialSaving = avgMeal * 8, category = "Food & Dining",
                 priority = SuggestionPriority.MEDIUM
@@ -384,7 +386,7 @@ class AiExpenseEngine {
         return suggestions
     }
 
-    private fun detectWeekendSpending(expenses: List<Transaction>): List<AiSuggestion> {
+    private fun detectWeekendSpending(expenses: List<Transaction>, sym: String): List<AiSuggestion> {
         val suggestions = mutableListOf<AiSuggestion>()
         val cal = Calendar.getInstance()
         val weekend = expenses.filter {
@@ -402,8 +404,8 @@ class AiExpenseEngine {
             if (avgWeekend > avgWeekday * 2) {
                 suggestions.add(AiSuggestion(
                     title = "Weekend spending is high",
-                    description = "Your average weekend transaction (\$${String.format("%.2f", avgWeekend)}) " +
-                            "is ${(avgWeekend / avgWeekday).roundToInt()}x higher than weekday (\$${String.format("%.2f", avgWeekday)}).",
+                    description = "Your average weekend transaction ($sym${String.format("%.2f", avgWeekend)}) " +
+                            "is ${(avgWeekend / avgWeekday).roundToInt()}x higher than weekday ($sym${String.format("%.2f", avgWeekday)}).",
                     potentialSaving = (avgWeekend - avgWeekday) * 8, category = "General",
                     priority = SuggestionPriority.LOW
                 ))
@@ -555,6 +557,163 @@ class AiExpenseEngine {
 
         return parts.joinToString(" ")
     }
+
+    // ─── Deep Transaction Analysis ─────────────────────────────────
+
+    /**
+     * Produces a detailed multi-paragraph analysis of the supplied transactions.
+     * When [category] is non-null only transactions in that category are examined.
+     */
+    fun generateAnalysis(
+        transactions: List<Transaction>,
+        startDate: Long,
+        endDate: Long,
+        currencyCode: String = "USD",
+        category: String? = null
+    ): String {
+        val sym = currencyInfoFor(currencyCode).symbol
+        val dateFormat = SimpleDateFormat("MMM dd", Locale.US)
+        val rangeLabel = "${dateFormat.format(Date(startDate))} – ${dateFormat.format(Date(endDate))}"
+
+        val filtered = transactions.filter { t ->
+            t.timestamp in startDate..endDate &&
+                (category == null || t.category == category)
+        }
+
+        if (filtered.isEmpty()) {
+            return if (category != null)
+                "No transactions found in \"$category\" for $rangeLabel."
+            else
+                "No transactions found for $rangeLabel."
+        }
+
+        val expenses = filtered.filter { it.type == TransactionType.EXPENSE }
+        val income   = filtered.filter { it.type == TransactionType.INCOME }
+        val totalExpense = expenses.sumOf { it.amount }
+        val totalIncome  = income.sumOf  { it.amount }
+        val days = ((endDate - startDate) / (24 * 60 * 60 * 1000.0)).coerceAtLeast(1.0)
+
+        val sections = mutableListOf<String>()
+
+        // ── 1. Overview ──────────────────────────────────────────
+        val header = buildString {
+            append("Analysis for $rangeLabel")
+            if (category != null) append(" (category: $category)")
+            append("\n${filtered.size} transactions found.")
+        }
+        sections.add(header)
+
+        val overview = buildString {
+            append("OVERVIEW\n")
+            append("Total expenses: $sym${fmt(totalExpense)}\n")
+            append("Total income: $sym${fmt(totalIncome)}\n")
+            append("Net: $sym${fmt(totalIncome - totalExpense)}\n")
+            append("Daily average spend: $sym${fmt(totalExpense / days)}")
+        }
+        sections.add(overview)
+
+        // ── 2. Category breakdown (skip when already filtered to one category)
+        if (category == null && expenses.isNotEmpty()) {
+            val catBreakdown = expenses.groupBy { it.category }
+                .mapValues { it.value.sumOf { t -> t.amount } }
+                .entries.sortedByDescending { it.value }
+            val sb = StringBuilder("SPENDING BY CATEGORY\n")
+            for ((cat, amt) in catBreakdown) {
+                val pct = if (totalExpense > 0) (amt / totalExpense * 100).roundToInt() else 0
+                sb.append("  $cat: $sym${fmt(amt)} ($pct%)\n")
+            }
+            sections.add(sb.toString().trimEnd())
+        }
+
+        // ── 3. Top transactions ──────────────────────────────────
+        val top = expenses.sortedByDescending { it.amount }.take(5)
+        if (top.isNotEmpty()) {
+            val sb = StringBuilder("LARGEST EXPENSES\n")
+            for (t in top) {
+                val d = dateFormat.format(Date(t.timestamp))
+                val desc = t.description.take(30)
+                sb.append("  $d  $sym${fmt(t.amount)}  $desc\n")
+            }
+            sections.add(sb.toString().trimEnd())
+        }
+
+        // ── 4. Spending trend (week-over-week) ───────────────────
+        if (days >= 14) {
+            val mid = startDate + ((endDate - startDate) / 2)
+            val firstHalf = expenses.filter { it.timestamp < mid }.sumOf { it.amount }
+            val secondHalf = expenses.filter { it.timestamp >= mid }.sumOf { it.amount }
+            if (firstHalf > 0) {
+                val change = ((secondHalf - firstHalf) / firstHalf * 100).roundToInt()
+                val dir = if (change >= 0) "increased" else "decreased"
+                sections.add("TREND\nSpending $dir by ${abs(change)}% in the second half of the period compared to the first half.")
+            }
+        }
+
+        // ── 5. Merchant concentration ────────────────────────────
+        val merchants = expenses.filter { it.merchantName.isNotEmpty() }
+            .groupBy { it.merchantName }
+            .mapValues { it.value.sumOf { t -> t.amount } }
+            .entries.sortedByDescending { it.value }
+        if (merchants.isNotEmpty()) {
+            val sb = StringBuilder("TOP MERCHANTS\n")
+            for ((m, amt) in merchants.take(5)) {
+                sb.append("  $m: $sym${fmt(amt)}\n")
+            }
+            sections.add(sb.toString().trimEnd())
+        }
+
+        // ── 6. Day-of-week pattern ───────────────────────────────
+        if (expenses.size >= 7) {
+            val cal = Calendar.getInstance()
+            val dayNames = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+            val byDay = mutableMapOf<String, Double>()
+            for (e in expenses) {
+                cal.timeInMillis = e.timestamp
+                val name = dayNames[cal.get(Calendar.DAY_OF_WEEK) - 1]
+                byDay[name] = (byDay[name] ?: 0.0) + e.amount
+            }
+            val peak = byDay.maxByOrNull { it.value }
+            val low  = byDay.minByOrNull { it.value }
+            if (peak != null && low != null && peak.key != low.key) {
+                sections.add("DAY-OF-WEEK PATTERN\nHighest spending day: ${peak.key} ($sym${fmt(peak.value)}). " +
+                        "Lowest: ${low.key} ($sym${fmt(low.value)}).")
+            }
+        }
+
+        // ── 7. Recommendations ───────────────────────────────────
+        val recs = mutableListOf<String>()
+        if (category == null) {
+            val topCat = expenses.groupBy { it.category }
+                .mapValues { it.value.sumOf { t -> t.amount } }
+                .maxByOrNull { it.value }
+            if (topCat != null && totalExpense > 0) {
+                val pct = (topCat.value / totalExpense * 100).roundToInt()
+                if (pct > 30) recs.add("${topCat.key} dominates at $pct% — review whether all purchases were necessary.")
+            }
+        }
+        if (totalIncome > 0) {
+            val savingsRate = ((totalIncome - totalExpense) / totalIncome * 100).roundToInt()
+            if (savingsRate < 20) recs.add("Savings rate is only $savingsRate%. Aim for at least 20%.")
+            else recs.add("Good savings rate of $savingsRate%.")
+        }
+        val avgTx = if (expenses.isNotEmpty()) totalExpense / expenses.size else 0.0
+        if (avgTx > 0) recs.add("Average transaction size: $sym${fmt(avgTx)}.")
+        if (merchants.size >= 2) {
+            val topM = merchants.first()
+            val topMPct = if (totalExpense > 0) (topM.value / totalExpense * 100).roundToInt() else 0
+            if (topMPct > 25) recs.add("${topM.key} accounts for $topMPct% of spending — check for alternatives or loyalty rewards.")
+        }
+
+        if (recs.isNotEmpty()) {
+            val sb = StringBuilder("RECOMMENDATIONS\n")
+            recs.forEachIndexed { i, r -> sb.append("  ${i + 1}. $r\n") }
+            sections.add(sb.toString().trimEnd())
+        }
+
+        return sections.joinToString("\n\n")
+    }
+
+    private fun fmt(v: Double): String = String.format("%,.2f", v)
 
     // ─── Expense Reduction Tips ──────────────────────────────────
 

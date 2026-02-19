@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.Locale
 
 /**
  * Single source of truth for all app data.
@@ -179,6 +180,40 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         storage.saveData(updated)
     }
 
+    // ─── Store Locations ─────────────────────────────────────────
+
+    suspend fun addStoreLocation(storeLocation: StoreLocation) {
+        val current = _appData.value
+        val updated = current.copy(
+            storeLocations = current.storeLocations + storeLocation
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    suspend fun deleteStoreLocation(id: String) {
+        val current = _appData.value
+        val updated = current.copy(
+            storeLocations = current.storeLocations.filter { it.id != id }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    /**
+     * Multiplies every transaction amount and budget limit by [rate].
+     * Used when the user switches the app currency.
+     */
+    suspend fun convertAmounts(rate: Double) {
+        val current = _appData.value
+        val updated = current.copy(
+            transactions = current.transactions.map { it.copy(amount = it.amount * rate) },
+            budgets = current.budgets.map { it.copy(monthlyLimit = it.monthlyLimit * rate) }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
     // ─── Settings ──────────────────────────────────────────────────
 
     suspend fun updateSettings(settings: AppSettings) {
@@ -276,10 +311,22 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
 
     suspend fun clearAllData() {
         val current = _appData.value
-        // Preserve user-configured settings (banking apps, scan keywords, currency,
-        // theme, etc.) and custom categories across data clears.
+        // Reset currency to the device's country default
+        val localeCurrency = try {
+            java.util.Currency.getInstance(Locale.getDefault()).currencyCode
+        } catch (_: Exception) { null }
+        val info = localeCurrency?.let { code ->
+            SUPPORTED_CURRENCIES.firstOrNull { it.code == code }
+        }
+        val resetSettings = if (info != null) {
+            current.settings.copy(currencyCode = info.code, currency = info.symbol)
+        } else {
+            current.settings
+        }
+        // Preserve user-configured settings (banking apps, scan keywords, theme,
+        // etc.) and custom categories across data clears.
         val preserved = AppData(
-            settings = current.settings,
+            settings = resetSettings,
             categories = current.categories
         )
         storage.clearData()

@@ -132,18 +132,18 @@ fun SettingsScreen(
     // Category management state
     var newCategoryText by remember { mutableStateOf("") }
 
-    // Section expanded state (all open by default)
-    var appearanceExpanded by remember { mutableStateOf(true) }
-    var currencyExpanded by remember { mutableStateOf(true) }
-    var dataSourcesExpanded by remember { mutableStateOf(true) }
-    var appScannerExpanded by remember { mutableStateOf(true) }
+    // Section expanded state (all closed by default)
+    var appearanceExpanded by remember { mutableStateOf(false) }
+    var currencyExpanded by remember { mutableStateOf(false) }
+    var dataSourcesExpanded by remember { mutableStateOf(false) }
+    var appScannerExpanded by remember { mutableStateOf(false) }
     var connectedAppsExpanded by remember { mutableStateOf(false) }
-    var budgetExpanded by remember { mutableStateOf(true) }
-    var salaryExpanded by remember { mutableStateOf(true) }
-    var categoriesExpanded by remember { mutableStateOf(true) }
-    var localAiExpanded by remember { mutableStateOf(true) }
-    var importExportExpanded by remember { mutableStateOf(true) }
-    var storageExpanded by remember { mutableStateOf(true) }
+    var budgetExpanded by remember { mutableStateOf(false) }
+    var salaryExpanded by remember { mutableStateOf(false) }
+    var categoriesExpanded by remember { mutableStateOf(false) }
+    var localAiExpanded by remember { mutableStateOf(false) }
+    var importExportExpanded by remember { mutableStateOf(false) }
+    var storageExpanded by remember { mutableStateOf(false) }
 
     // Currency selector state
     var showCurrencyDropdown by remember { mutableStateOf(false) }

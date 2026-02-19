@@ -15,6 +15,7 @@ import com.smartexpense.tracker.service.currency.CurrencyConverterService
 import com.smartexpense.tracker.service.notification.ExpenseNotificationHelper
 import com.smartexpense.tracker.service.scheduler.SalarySchedulerWorker
 import com.smartexpense.tracker.util.DateUtils
+import com.smartexpense.tracker.util.LocationProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -535,16 +536,70 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val finalCategory = category ?: smartCategorize(description)
             val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+            val loc = currentLocation()
             val added = repository.addTransaction(Transaction(
                 amount = amount, description = description, category = finalCategory,
                 type = type, source = source, merchantName = merchantName, notes = notes,
-                timestamp = timestamp, dateTime = dtFormatter.format(Date(timestamp))
+                timestamp = timestamp, dateTime = dtFormatter.format(Date(timestamp)),
+                latitude = loc?.latitude, longitude = loc?.longitude
             ))
-            if (added) refreshSuggestions()
+            if (added) {
+                autoCreateStoreIfNeeded(merchantName, loc?.latitude, loc?.longitude)
+                refreshSuggestions()
+            }
         }
     }
 
     fun deleteTransaction(id: String) { viewModelScope.launch { repository.deleteTransaction(id) } }
+
+    // ─── Store locations ────────────────────────────────────────
+
+    /** Reactive flow of store locations for the Store Map screen. */
+    val storeLocations: StateFlow<List<StoreLocation>> = repository.appData
+        .map { it.storeLocations }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    fun addStoreLocation(merchantName: String, latitude: Double, longitude: Double, address: String) {
+        viewModelScope.launch {
+            repository.addStoreLocation(
+                StoreLocation(
+                    merchantName = merchantName,
+                    latitude = latitude,
+                    longitude = longitude,
+                    address = address
+                )
+            )
+        }
+    }
+
+    fun deleteStoreLocation(id: String) {
+        viewModelScope.launch { repository.deleteStoreLocation(id) }
+    }
+
+    /**
+     * Automatically creates a [StoreLocation] for [merchantName] at the given
+     * coordinates if one doesn't already exist for that merchant.
+     */
+    private suspend fun autoCreateStoreIfNeeded(
+        merchantName: String,
+        latitude: Double?,
+        longitude: Double?
+    ) {
+        if (merchantName.isBlank() || latitude == null || longitude == null) return
+        val existing = repository.appData.value.storeLocations
+        if (existing.any { it.merchantName.equals(merchantName, ignoreCase = true) }) return
+        repository.addStoreLocation(
+            StoreLocation(
+                merchantName = merchantName,
+                latitude = latitude,
+                longitude = longitude
+            )
+        )
+    }
+
+    /** Returns the current device location, or null. */
+    private fun currentLocation(): LocationProvider.LatLng? =
+        LocationProvider.getLastKnownLocation(getApplication())
 
     /**
      * Parses OCR/QR receipt data and stores it in [ocrParsedData] for the user to review
@@ -638,6 +693,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 repository.ensureCategoryExists(category)
 
+                val loc = currentLocation()
                 val now = System.currentTimeMillis()
                 val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
                 repository.addTransaction(Transaction(
@@ -649,8 +705,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     merchantName = merchantName,
                     timestamp = now,
                     dateTime = dtFormatter.format(Date(now)),
-                    notes = listOf(itemsNote, sourceNote, aiNote).filter { it.isNotBlank() }.joinToString("\n")
+                    notes = listOf(itemsNote, sourceNote, aiNote).filter { it.isNotBlank() }.joinToString("\n"),
+                    latitude = loc?.latitude,
+                    longitude = loc?.longitude
                 ))
+                autoCreateStoreIfNeeded(merchantName, loc?.latitude, loc?.longitude)
 
                 val resultMsg = buildString {
                     append("Found: $merchantName — $currencySymbol${String.format("%.2f", amount)}")
@@ -675,7 +734,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshSuggestions() {
         viewModelScope.launch {
             val data = repository.appData.value
-            val suggestions = aiEngine.generateSuggestions(data.transactions, data.budgets)
+            val suggestions = aiEngine.generateSuggestions(
+                data.transactions, data.budgets, data.settings.currencyCode
+            )
             repository.addSuggestions(suggestions)
         }
     }
@@ -739,6 +800,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    fun analyzeTransactions(startMillis: Long, endMillis: Long, category: String?): String {
+        val currencyCode = repository.appData.value.settings.currencyCode
+        return aiEngine.generateAnalysis(
+            repository.appData.value.transactions,
+            startMillis, endMillis, currencyCode, category
+        )
+    }
+
     fun getWeeklyChartData(): List<Pair<String, Double>> {
         val data = repository.appData.value
         return DateUtils.getDaysInRange(DateUtils.getStartOfWeek(), DateUtils.getEndOfWeek()).map { dayStart ->
@@ -761,9 +830,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateSettings(settings: AppSettings) {
         viewModelScope.launch {
+            val oldCurrency = repository.appData.value.settings.currencyCode
+            val newCurrency = settings.currencyCode
             repository.updateSettings(settings)
-            // Invalidate cached rates when base currency changes
             CurrencyConverterService.invalidateCache()
+
+            // When currency changes, convert all transaction amounts and budget limits
+            if (oldCurrency != newCurrency) {
+                val rate = withContext(Dispatchers.IO) {
+                    CurrencyConverterService.convert(1.0, oldCurrency, newCurrency)
+                }
+                if (rate != null && rate > 0) {
+                    repository.convertAmounts(rate)
+                    refreshSuggestions()
+                }
+            }
         }
     }
 

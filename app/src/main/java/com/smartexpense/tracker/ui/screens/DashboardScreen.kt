@@ -43,7 +43,8 @@ fun DashboardScreen(
     onDeleteTransaction: (String) -> Unit,
     sectionOrder: List<DashboardSection>,
     onMoveSections: (DashboardSection, DashboardSection) -> Unit,
-    currencyCode: String = "USD"
+    currencyCode: String = "USD",
+    onNavigateToAnalyze: () -> Unit = {}
 ) {
     val visibleSections = remember(
         sectionOrder,
@@ -89,7 +90,7 @@ fun DashboardScreen(
                     DashboardSection.WEEKLY_CHART ->
                         WeeklySpendingChart(weeklyChartData, currencyCode)
                     DashboardSection.AI_INSIGHTS ->
-                        AiInsightsSection(uiState.suggestions, currencyCode, onDismissSuggestion)
+                        AiInsightsSection(uiState.suggestions, currencyCode, onDismissSuggestion, onNavigateToAnalyze)
                     DashboardSection.CATEGORY_BREAKDOWN ->
                         CategoryBreakdownSection(
                             uiState.categoryBreakdown, uiState.monthlyExpenses, currencyCode
@@ -111,14 +112,33 @@ fun DashboardScreen(
 private fun AiInsightsSection(
     suggestions: List<AiSuggestion>,
     currencyCode: String,
-    onDismissSuggestion: (String) -> Unit
+    onDismissSuggestion: (String) -> Unit,
+    onNavigateToAnalyze: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
-            "AI Insights",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Filled.AutoAwesome,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                "AI Insights",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(onClick = onNavigateToAnalyze) {
+                Text("Analyze", fontSize = 12.sp)
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(Icons.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(14.dp))
+            }
+        }
         suggestions.take(3).forEach { suggestion ->
             AiSuggestionCard(
                 suggestion, currencyCode,
@@ -301,6 +321,7 @@ fun StatCard(
 @Composable
 fun WeeklySpendingChart(data: List<Pair<String, Double>>, currencyCode: String = "USD") {
     val sym = CurrencyUtils.symbolFor(currencyCode)
+    val todayLabel = remember { DateUtils.formatDay(System.currentTimeMillis()) }
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("This Week", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -322,12 +343,13 @@ fun WeeklySpendingChart(data: List<Pair<String, Double>>, currencyCode: String =
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(modifier = Modifier.height(4.dp))
                         }
+                        val isToday = day == todayLabel
                         val height = if (maxValue > 0) (amount / maxValue * 80).coerceAtLeast(4.0) else 4.0
                         Box(
                             modifier = Modifier
                                 .width(28.dp).height(height.dp)
                                 .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
-                                .background(GreenPrimary.copy(alpha = if (DateUtils.isToday(System.currentTimeMillis())) 1f else 0.5f))
+                                .background(GreenPrimary.copy(alpha = if (isToday) 1f else 0.5f))
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(day, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -340,46 +362,96 @@ fun WeeklySpendingChart(data: List<Pair<String, Double>>, currencyCode: String =
 
 @Composable
 fun AiSuggestionCard(suggestion: AiSuggestion, currencyCode: String = "USD", onDismiss: () -> Unit) {
+    val accentColor = when (suggestion.priority) {
+        SuggestionPriority.HIGH -> RedExpense
+        SuggestionPriority.MEDIUM -> OrangeWarning
+        SuggestionPriority.LOW -> BluePrimary
+    }
+
     Card(
-        modifier = Modifier.fillMaxWidth().animateContentSize(),
-        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = when (suggestion.priority) {
-                SuggestionPriority.HIGH -> RedExpense.copy(alpha = 0.1f)
-                SuggestionPriority.MEDIUM -> OrangeWarning.copy(alpha = 0.1f)
-                SuggestionPriority.LOW -> BluePrimary.copy(alpha = 0.1f)
-            }
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+            // Colored accent bar
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(accentColor, RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp))
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 4.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.AutoAwesome, contentDescription = null,
-                        tint = when (suggestion.priority) {
-                            SuggestionPriority.HIGH -> RedExpense
-                            SuggestionPriority.MEDIUM -> OrangeWarning
-                            SuggestionPriority.LOW -> BluePrimary
-                        }, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(suggestion.title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                // Title row with priority chip and dismiss
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        suggestion.title,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = accentColor.copy(alpha = 0.15f),
+                        modifier = Modifier.padding(horizontal = 6.dp)
+                    ) {
+                        Text(
+                            when (suggestion.priority) {
+                                SuggestionPriority.HIGH -> "High"
+                                SuggestionPriority.MEDIUM -> "Med"
+                                SuggestionPriority.LOW -> "Low"
+                            },
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = accentColor,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Filled.Close, contentDescription = "Dismiss",
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
-                IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Filled.Close, contentDescription = "Dismiss", modifier = Modifier.size(16.dp))
-                }
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(suggestion.description, style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (suggestion.potentialSaving > 0) {
-                Spacer(modifier = Modifier.height(8.dp))
+                // Description
                 Text(
-                    "Potential saving: ${CurrencyUtils.format(suggestion.potentialSaving, currencyCode)}/month",
-                    fontWeight = FontWeight.Medium, fontSize = 12.sp, color = GreenIncome
+                    suggestion.description,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
+                // Saving amount
+                if (suggestion.potentialSaving > 0) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Filled.TrendingDown,
+                            contentDescription = null,
+                            tint = GreenIncome,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            "Save ${CurrencyUtils.format(suggestion.potentialSaving, currencyCode)}/mo",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.sp,
+                            color = GreenIncome
+                        )
+                    }
+                }
             }
         }
     }
