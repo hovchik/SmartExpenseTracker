@@ -59,6 +59,7 @@ fun MainApp(viewModel: MainViewModel) {
     val isDownloadingModel by viewModel.isDownloadingModel.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
     val downloadError by viewModel.downloadError.collectAsState()
+    val modelImportMessage by viewModel.modelImportMessage.collectAsState()
     val scope = rememberCoroutineScope()
 
     // Shortcut to always-up-to-date currency code
@@ -259,7 +260,10 @@ fun MainApp(viewModel: MainViewModel) {
                         isModelDownloaded = { model -> viewModel.isModelDownloaded(model) },
                         isDownloadingModel = isDownloadingModel,
                         downloadProgress = downloadProgress,
-                        downloadError = downloadError
+                        downloadError = downloadError,
+                        onImportModelFile = { uri -> viewModel.importModelFile(uri) },
+                        modelImportMessage = modelImportMessage,
+                        isGalleryInstalled = viewModel.isGalleryInstalled()
                     )
                 }
             }

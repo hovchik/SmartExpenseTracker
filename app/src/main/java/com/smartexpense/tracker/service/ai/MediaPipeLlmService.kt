@@ -1,10 +1,12 @@
 package com.smartexpense.tracker.service.ai
 
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -28,7 +30,11 @@ class MediaPipeLlmService(private val context: Context) {
         private val MODEL_SEARCH_DIRS = listOf(
             "/data/local/tmp/llm",
             "/sdcard/Download",
-            "/sdcard/Documents"
+            "/sdcard/Documents",
+            "/storage/emulated/0/Download",
+            "/storage/emulated/0/Documents",
+            "/sdcard/Android/media/com.google.ai.edge.gallery",
+            "/sdcard/Android/media/com.google.ai.edge.gallery/files"
         )
 
         /** File extensions recognized as MediaPipe model files. */
@@ -36,6 +42,10 @@ class MediaPipeLlmService(private val context: Context) {
 
         /** Google AI Edge Gallery package name. */
         const val GALLERY_PACKAGE = "com.google.ai.edge.gallery"
+
+        /** Play Store URL for Google AI Edge Gallery. */
+        const val GALLERY_PLAY_STORE_URL =
+            "https://play.google.com/store/apps/details?id=$GALLERY_PACKAGE"
     }
 
     // ── Model catalog ────────────────────────────────────────────────
@@ -247,6 +257,42 @@ class MediaPipeLlmService(private val context: Context) {
         val temp = File(modelsDir(), "${model.fileName}.tmp")
         temp.delete()
         return file.delete()
+    }
+
+    // ── File import ───────────────────────────────────────────────────
+
+    /**
+     * Imports a model file from a content URI (e.g. picked via SAF file picker).
+     * Copies the file into the app-private models directory.
+     * Returns the local file path on success, null on failure.
+     */
+    suspend fun importModelFile(uri: Uri, fileName: String): String? = withContext(Dispatchers.IO) {
+        try {
+            val destFile = File(modelsDir(), fileName)
+            val inputStream: InputStream = context.contentResolver.openInputStream(uri)
+                ?: run {
+                    Log.e(TAG, "Cannot open input stream for URI: $uri")
+                    return@withContext null
+                }
+
+            inputStream.use { input ->
+                destFile.outputStream().buffered().use { output ->
+                    input.copyTo(output, bufferSize = 8192)
+                }
+            }
+
+            if (destFile.length() < 1024 * 1024) {
+                Log.e(TAG, "Imported file too small (${destFile.length()} bytes), likely not a model")
+                destFile.delete()
+                return@withContext null
+            }
+
+            Log.d(TAG, "Model imported: ${destFile.absolutePath} (${destFile.length() / 1024 / 1024} MB)")
+            destFile.absolutePath
+        } catch (e: Exception) {
+            Log.e(TAG, "Model import failed: ${e.message}", e)
+            null
+        }
     }
 
     // ── Model discovery ──────────────────────────────────────────────

@@ -351,6 +351,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         discoverModels()
     }
 
+    // ── Model file import (SAF file picker) ───────────────────────
+
+    /** Status message from the last model import attempt. */
+    private val _modelImportMessage = MutableStateFlow<String?>(null)
+    val modelImportMessage: StateFlow<String?> = _modelImportMessage.asStateFlow()
+
+    /**
+     * Imports a model file from a content URI (picked via SAF).
+     * Copies it to the app-private models directory, then auto-loads it.
+     */
+    fun importModelFile(uri: Uri) {
+        viewModelScope.launch {
+            _isLoadingModel.value = true
+            _localAiStatus.value = "Importing model file…"
+            _modelImportMessage.value = null
+
+            // Derive file name from URI path or use a default
+            val segments = uri.lastPathSegment?.split("/")
+            val rawName = segments?.lastOrNull()?.takeIf { it.isNotBlank() } ?: "imported_model.task"
+            // Sanitize name to just keep the file name
+            val fileName = rawName.replace("[^a-zA-Z0-9._-]".toRegex(), "_")
+
+            val path = localAiService.mediaPipeLlm.importModelFile(uri, fileName)
+            _isLoadingModel.value = false
+
+            if (path != null) {
+                _modelImportMessage.value = "Model imported successfully"
+                loadMediaPipeModel(path)
+                discoverModels()
+            } else {
+                _modelImportMessage.value = "Failed to import model file. Make sure it's a valid .task, .bin, or .tflite file (>1 MB)."
+                _localAiStatus.value = localAiService.statusMessage()
+            }
+        }
+    }
+
+    /** Whether the Google AI Edge Gallery app is installed on device. */
+    fun isGalleryInstalled(): Boolean = localAiService.mediaPipeLlm.isGalleryInstalled()
+
     /**
      * Returns a category using on-device AI when enabled, otherwise falls back to rules.
      * When AI suggests a category that doesn't exist yet, it is auto-created.
