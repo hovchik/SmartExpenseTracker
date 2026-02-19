@@ -10,6 +10,7 @@ import com.smartexpense.tracker.data.model.currencyInfoFor
 import com.smartexpense.tracker.data.repository.ExpenseRepository
 import com.smartexpense.tracker.service.ai.AiExpenseEngine
 import com.smartexpense.tracker.service.ai.LocalAiService
+import com.smartexpense.tracker.service.ai.MediaPipeLlmService
 import com.smartexpense.tracker.service.currency.CurrencyConverterService
 import com.smartexpense.tracker.service.notification.ExpenseNotificationHelper
 import com.smartexpense.tracker.service.scheduler.SalarySchedulerWorker
