@@ -72,6 +72,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _exchangeRates = MutableStateFlow<Map<String, Double>>(emptyMap())
     val exchangeRates: StateFlow<Map<String, Double>> = _exchangeRates.asStateFlow()
 
+    /**
+     * Cached conversion rates keyed by base currency, e.g. "USD" → {"AMD" → 389.5, …}.
+     * Populated lazily when [convertAmount] encounters a cross-currency transaction.
+     */
+    @Volatile
+    private var conversionRateCache: Map<String, Map<String, Double>> = emptyMap()
+
     /** Parsed OCR data awaiting user confirmation (editable review form). */
     private val _ocrParsedData = MutableStateFlow<OcrParsedData?>(null)
     val ocrParsedData: StateFlow<OcrParsedData?> = _ocrParsedData.asStateFlow()
@@ -134,8 +141,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ─── Currency conversion helper ─────────────────────────────────────
+
+    /**
+     * Returns [Transaction.amount] converted to [targetCurrency].
+     * If the transaction is already in the target currency (or has no
+     * explicit currency), the amount is returned as-is.
+     * Falls back to the unconverted amount when rates are unavailable.
+     */
+    fun convertAmount(tx: Transaction, targetCurrency: String): Double {
+        val txCur = tx.currencyCode.ifEmpty { targetCurrency }
+        if (txCur == targetCurrency) return tx.amount
+        val rateMap = conversionRateCache[txCur]
+        val rate = rateMap?.get(targetCurrency)
+        return if (rate != null) tx.amount * rate else tx.amount
+    }
+
+    /**
+     * Pre-fetches exchange rates for every distinct currency found in
+     * the current transaction list so that [convertAmount] can work
+     * synchronously.
+     */
+    private fun preloadConversionRates(transactions: List<Transaction>, appCurrency: String) {
+        val currencies = transactions
+            .map { it.currencyCode.ifEmpty { appCurrency } }
+            .distinct()
+            .filter { it != appCurrency }
+        if (currencies.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val newCache = conversionRateCache.toMutableMap()
+            for (cur in currencies) {
+                if (newCache.containsKey(cur)) continue
+                val rates = CurrencyConverterService.getRates(cur)
+                if (rates != null) newCache[cur] = rates
+            }
+            conversionRateCache = newCache
+        }
+    }
+
     private fun updateUiState(data: AppData) {
         val now = System.currentTimeMillis()
+        val appCurrency = data.settings.currencyCode
         val startOfMonth = DateUtils.getStartOfMonth(now)
         val endOfMonth = DateUtils.getEndOfMonth(now)
         val startOfWeek = DateUtils.getStartOfWeek(now)
@@ -143,25 +189,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val startOfDay = DateUtils.getStartOfDay(now)
         val endOfDay = DateUtils.getEndOfDay(now)
 
+        // Pre-fetch rates for cross-currency transactions (async; first render uses raw amounts)
+        preloadConversionRates(data.transactions, appCurrency)
+
         val monthlyExpenses = data.transactions
             .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfMonth..endOfMonth }
-            .sumOf { it.amount }
+            .sumOf { convertAmount(it, appCurrency) }
         val monthlyIncome = data.transactions
             .filter { it.type == TransactionType.INCOME && it.timestamp in startOfMonth..endOfMonth }
-            .sumOf { it.amount }
+            .sumOf { convertAmount(it, appCurrency) }
         val todayExpenses = data.transactions
             .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfDay..endOfDay }
-            .sumOf { it.amount }
+            .sumOf { convertAmount(it, appCurrency) }
         val weeklyExpenses = data.transactions
             .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfWeek..endOfWeek }
-            .sumOf { it.amount }
+            .sumOf { convertAmount(it, appCurrency) }
 
         val allTransactionsSorted = data.transactions.sortedByDescending { it.timestamp }
         val recentTransactions = allTransactionsSorted.take(20)
         val categoryBreakdown = data.transactions
             .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfMonth..endOfMonth }
             .groupBy { it.category }
-            .mapValues { it.value.sumOf { t -> t.amount } }
+            .mapValues { it.value.sumOf { t -> convertAmount(t, appCurrency) } }
             .entries.sortedByDescending { it.value }
             .associate { it.key to it.value }
 
@@ -741,6 +790,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Returns a copy of all transactions with amounts converted to [targetCurrency]. */
+    private fun transactionsInDisplayCurrency(targetCurrency: String): List<Transaction> {
+        return repository.appData.value.transactions.map { tx ->
+            val converted = convertAmount(tx, targetCurrency)
+            if (converted != tx.amount) tx.copy(amount = converted, currencyCode = targetCurrency) else tx
+        }
+    }
+
     fun generateReport(period: ReportPeriod): ExpenseReport {
         val now = System.currentTimeMillis()
         val (start, end) = when (period) {
@@ -750,7 +807,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ReportPeriod.CUSTOM -> DateUtils.getStartOfMonth(now) to DateUtils.getEndOfMonth(now) // fallback; use generateReportForRange for custom
         }
         val currencyCode = repository.appData.value.settings.currencyCode
-        return aiEngine.generateReport(repository.appData.value.transactions, period, start, end, currencyCode)
+        return aiEngine.generateReport(transactionsInDisplayCurrency(currencyCode), period, start, end, currencyCode)
     }
 
     /**
@@ -778,7 +835,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         val currencyCode = repository.appData.value.settings.currencyCode
         return aiEngine.generateReport(
-            repository.appData.value.transactions,
+            transactionsInDisplayCurrency(currencyCode),
             ReportPeriod.MONTHLY,
             startCal.timeInMillis,
             endCal.timeInMillis,
@@ -792,7 +849,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun generateReportForRange(startMillis: Long, endMillis: Long): ExpenseReport {
         val currencyCode = repository.appData.value.settings.currencyCode
         return aiEngine.generateReport(
-            repository.appData.value.transactions,
+            transactionsInDisplayCurrency(currencyCode),
             ReportPeriod.CUSTOM,
             startMillis,
             endMillis,
@@ -803,18 +860,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun analyzeTransactions(startMillis: Long, endMillis: Long, category: String?): String {
         val currencyCode = repository.appData.value.settings.currencyCode
         return aiEngine.generateAnalysis(
-            repository.appData.value.transactions,
+            transactionsInDisplayCurrency(currencyCode),
             startMillis, endMillis, currencyCode, category
         )
     }
 
     fun getWeeklyChartData(): List<Pair<String, Double>> {
         val data = repository.appData.value
+        val appCurrency = data.settings.currencyCode
         return DateUtils.getDaysInRange(DateUtils.getStartOfWeek(), DateUtils.getEndOfWeek()).map { dayStart ->
             val dayEnd = DateUtils.getEndOfDay(dayStart)
             val total = data.transactions
                 .filter { it.type == TransactionType.EXPENSE && it.timestamp in dayStart..dayEnd }
-                .sumOf { it.amount }
+                .sumOf { convertAmount(it, appCurrency) }
             DateUtils.formatDay(dayStart) to total
         }
     }

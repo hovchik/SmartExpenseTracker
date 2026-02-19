@@ -15,6 +15,7 @@ private val isoDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
  */
 data class Transaction(
     val id: String = UUID.randomUUID().toString(),
+    /** Amount stored in the original currency (see [currencyCode]). */
     val amount: Double,
     val description: String,
     val category: String,
@@ -30,7 +31,9 @@ data class Transaction(
     /** GPS latitude captured at transaction time; null if unavailable. */
     val latitude: Double? = null,
     /** GPS longitude captured at transaction time; null if unavailable. */
-    val longitude: Double? = null
+    val longitude: Double? = null,
+    /** ISO-4217 currency code the [amount] is denominated in. Empty = app default at time of creation. */
+    val currencyCode: String = ""
 )
 
 enum class TransactionType {

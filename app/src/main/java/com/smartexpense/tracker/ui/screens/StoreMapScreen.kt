@@ -62,13 +62,19 @@ fun StoreMapScreen(
         Configuration.getInstance().userAgentValue = context.packageName
     }
 
+    // Transactions that carry a GPS fix (captured at SMS/notification time)
+    val geoTaggedTransactions = remember(allTransactions) {
+        allTransactions.filter { it.latitude != null && it.longitude != null }
+    }
+
     // Default map centre – adjusts to markers if available
-    val defaultCenter = if (storeLocations.isNotEmpty()) {
-        val avgLat = storeLocations.map { it.latitude }.average()
-        val avgLng = storeLocations.map { it.longitude }.average()
-        GeoPoint(avgLat, avgLng)
-    } else {
-        GeoPoint(40.1872, 44.5152) // Default: Yerevan, Armenia
+    val defaultCenter = run {
+        val allLats = storeLocations.map { it.latitude } +
+                geoTaggedTransactions.mapNotNull { it.latitude }
+        val allLngs = storeLocations.map { it.longitude } +
+                geoTaggedTransactions.mapNotNull { it.longitude }
+        if (allLats.isNotEmpty()) GeoPoint(allLats.average(), allLngs.average())
+        else GeoPoint(40.1872, 44.5152) // Default: Yerevan, Armenia
     }
 
     // Group transactions by merchant name (case-insensitive) for quick lookup
@@ -103,12 +109,14 @@ fun StoreMapScreen(
     var mapViewRef by remember { mutableStateOf<MapView?>(null) }
 
     // Update markers whenever storeLocations or transactions change
-    LaunchedEffect(storeLocations, transactionsByMerchant, mapViewRef) {
+    val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.US) }
+    LaunchedEffect(storeLocations, transactionsByMerchant, geoTaggedTransactions, mapViewRef) {
         val mapView = mapViewRef ?: return@LaunchedEffect
         // Close any open info windows and remove old markers (keep the MapEventsOverlay at index 0)
         InfoWindow.closeAllInfoWindowsOn(mapView)
         mapView.overlays.removeAll { it is Marker }
 
+        // ── Store-location markers (pink / grey) ─────────────────
         storeLocations.forEach { store ->
             val merchantTx = transactionsByMerchant[store.merchantName.lowercase()] ?: emptyList()
             val totalSpent = merchantTx
@@ -148,6 +156,39 @@ fun StoreMapScreen(
             }
             mapView.overlays.add(marker)
         }
+
+        // ── Geo-tagged transaction markers (blue) ────────────────
+        // Collect IDs of store locations' lat/lng so we don't double-pin
+        val storeCoords = storeLocations.map { "${it.latitude},${it.longitude}" }.toSet()
+        geoTaggedTransactions.forEach { tx ->
+            val coord = "${tx.latitude},${tx.longitude}"
+            if (coord in storeCoords) return@forEach // already shown via store marker
+
+            val marker = Marker(mapView).apply {
+                position = GeoPoint(tx.latitude!!, tx.longitude!!)
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                title = tx.merchantName.ifBlank { tx.description.take(30) }
+                snippet = buildString {
+                    val sign = if (tx.type == TransactionType.EXPENSE) "-" else "+"
+                    append("$sign${CurrencyUtils.format(tx.amount, currencyCode)}")
+                    append(" · ${tx.category}")
+                    append("\n${dateFormatter.format(Date(tx.timestamp))}")
+                }
+                // Blue pin for transaction locations
+                icon = createPinDrawable(mapView, 0xFF3B82F6.toInt())
+
+                setOnMarkerClickListener { m, _ ->
+                    if (m.isInfoWindowShown) m.closeInfoWindow()
+                    else {
+                        InfoWindow.closeAllInfoWindowsOn(mapView)
+                        m.showInfoWindow()
+                    }
+                    true
+                }
+            }
+            mapView.overlays.add(marker)
+        }
+
         mapView.invalidate()
     }
 

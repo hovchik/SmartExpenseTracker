@@ -15,6 +15,7 @@ import com.smartexpense.tracker.data.model.TransactionType
 import com.smartexpense.tracker.data.model.currencyInfoFor
 import com.smartexpense.tracker.service.ai.AiExpenseEngine
 import com.smartexpense.tracker.service.currency.CurrencyConverterService
+import com.smartexpense.tracker.util.LocationProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -141,37 +142,30 @@ class SmsReceiver : BroadcastReceiver() {
                         val userCatNames = repo.appData.value.categories
                             .filter { !it.isDefault }.map { it.name }
 
-                        // ── Currency conversion ──────────────────────────────────
-                        // If the SMS reports a different currency than the app's currency, convert.
-                        val (finalAmount, conversionNote) = if (
-                            parsed.currency.isNotEmpty() && parsed.currency != appCurrency
-                        ) {
-                            val converted = CurrencyConverterService.convert(
-                                parsed.amount, parsed.currency, appCurrency
-                            )
-                            if (converted != null) {
-                                val rate = converted / parsed.amount
-                                val fromSym = currencyInfoFor(parsed.currency).symbol
-                                converted to "Original: $fromSym${String.format("%.2f", parsed.amount)} ${parsed.currency} · 1 ${parsed.currency} = ${String.format("%.4f", rate)} $appCurrency"
-                            } else {
-                                parsed.amount to ""
-                            }
-                        } else {
-                            parsed.amount to ""
-                        }
+                        // ── Store original amount & currency ─────────────────────
+                        // The transaction keeps the original amount; conversion
+                        // happens at display time so a currency-setting change
+                        // recalculates everything automatically.
+                        val txCurrency = parsed.currency.ifEmpty { appCurrency }
 
                         val cardNote = if (parsed.cardLastFour.isNotEmpty()) "card:${parsed.cardLastFour}" else ""
-                        val notes = listOf(dedupKey, cardNote, conversionNote)
+                        val notes = listOf(dedupKey, cardNote)
                             .filter { it.isNotBlank() }.joinToString("\n")
 
+                        // ── Capture current device location ──────────────────────
+                        val location = LocationProvider.getLastKnownLocation(context)
+
                         val transaction = Transaction(
-                            amount = finalAmount,
+                            amount = parsed.amount,
                             description = parsed.description.ifEmpty { fullMessage.take(80) },
                             category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }, parsed.isExpense, userCatNames),
                             type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                             source = TransactionSource.SMS,
                             merchantName = parsed.merchantName,
-                            notes = notes
+                            notes = notes,
+                            currencyCode = txCurrency,
+                            latitude = location?.latitude,
+                            longitude = location?.longitude
                         )
 
                         // Auto-create category if not present
@@ -179,21 +173,20 @@ class SmsReceiver : BroadcastReceiver() {
                         // addTransaction returns false if duplicate
                         val added = repo.addTransaction(transaction)
                         if (added) {
-                            val sym = currencyInfoFor(appCurrency).symbol
+                            val sym = currencyInfoFor(txCurrency).symbol
                             val typeLabel = if (parsed.isExpense) "Expense" else "Income"
                             repo.addInAppNotification(
                                 InAppNotification(
                                     title = "$typeLabel detected via SMS",
-                                    message = "${transaction.description}: $sym${String.format("%.2f", finalAmount)}" +
-                                        (if (parsed.merchantName.isNotEmpty()) " at ${parsed.merchantName}" else "") +
-                                        (if (conversionNote.isNotEmpty()) " (${parsed.amount} ${parsed.currency})" else ""),
+                                    message = "${transaction.description}: $sym${String.format("%.2f", parsed.amount)}" +
+                                        (if (parsed.merchantName.isNotEmpty()) " at ${parsed.merchantName}" else ""),
                                     type = InAppNotificationType.TRANSACTION_DETECTED,
                                     relatedTransactionId = transaction.id
                                 )
                             )
-                            Log.d(TAG, "Saved SMS transaction: $finalAmount $appCurrency from $sender")
+                            Log.d(TAG, "Saved SMS transaction: ${parsed.amount} $txCurrency from $sender")
                         } else {
-                            Log.d(TAG, "Skipped duplicate: $finalAmount")
+                            Log.d(TAG, "Skipped duplicate: ${parsed.amount}")
                         }
                     } else {
                         // Fallback: own storage instance (no conversion possible without settings)
@@ -202,6 +195,7 @@ class SmsReceiver : BroadcastReceiver() {
                         fallbackRepo.initialize()
                         val fallbackCatNames = fallbackRepo.appData.value.categories
                             .filter { !it.isDefault }.map { it.name }
+                        val fbLocation = LocationProvider.getLastKnownLocation(context)
                         fallbackRepo.addTransaction(Transaction(
                             amount = parsed.amount,
                             description = parsed.description.ifEmpty { fullMessage.take(80) },
@@ -209,7 +203,10 @@ class SmsReceiver : BroadcastReceiver() {
                             type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                             source = TransactionSource.SMS,
                             merchantName = parsed.merchantName,
-                            notes = dedupKey
+                            notes = dedupKey,
+                            currencyCode = parsed.currency.ifEmpty { "AMD" },
+                            latitude = fbLocation?.latitude,
+                            longitude = fbLocation?.longitude
                         ))
                     }
                 } catch (e: Exception) {
