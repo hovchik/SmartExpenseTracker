@@ -59,6 +59,8 @@ fun SmsScanScreen(
     var hasPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) ==
+                PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) ==
                 PackageManager.PERMISSION_GRANTED
         )
     }
@@ -78,10 +80,11 @@ fun SmsScanScreen(
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { granted ->
-            hasPermission = granted
-            if (granted) {
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+        onResult = { results ->
+            val allGranted = results.values.all { it }
+            hasPermission = allGranted
+            if (allGranted) {
                 onLoadSmsCount()
                 if (pendingScan) {
                     pendingScan = false
@@ -91,7 +94,7 @@ fun SmsScanScreen(
                         if (!useMessageLimit) endDate else null
                     )
                 }
-            } else if (!granted) {
+            } else {
                 pendingScan = false
                 Toast.makeText(context, "SMS permission is required to scan messages", Toast.LENGTH_LONG).show()
             }
@@ -111,7 +114,7 @@ fun SmsScanScreen(
             )
         } else {
             pendingScan = true
-            permissionLauncher.launch(Manifest.permission.READ_SMS)
+            permissionLauncher.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS))
         }
     }
 

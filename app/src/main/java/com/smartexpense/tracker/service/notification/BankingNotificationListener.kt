@@ -149,27 +149,11 @@ class BankingNotificationListener : NotificationListenerService() {
                 try {
                     val app = applicationContext as? SmartExpenseApp ?: return@launch
                     val repo = app.repository
-                    val now = System.currentTimeMillis()
-
-                    // Dedup: skip if a transaction with the same amount already exists
-                    // across ALL sources (SMS + Notification) within a time window.
-                    // Uses wider 10-min window when card last-4 digits also match.
-                    val isDuplicate = repo.appData.value.transactions.any { t ->
-                        t.amount == parsed.amount && when {
-                            parsed.cardLastFour.isNotEmpty() &&
-                                t.notes.contains(parsed.cardLastFour) ->
-                                kotlin.math.abs(t.timestamp - now) < 600_000
-                            t.source == TransactionSource.NOTIFICATION ||
-                                t.source == TransactionSource.SMS ->
-                                kotlin.math.abs(t.timestamp - now) < 120_000
-                            else -> false
-                        }
-                    }
-                    if (isDuplicate) {
-                        Log.d(TAG, "Skipped duplicate: ${parsed.amount}")
+                    // Wait for repository to finish loading data from disk.
+                    if (!repo.awaitInitialization()) {
+                        Log.w(TAG, "Repository init timed out, skipping notification")
                         return@launch
                     }
-
                     val settings = repo.appData.value.settings
                     val appCurrency = settings.currencyCode
 
@@ -212,23 +196,25 @@ class BankingNotificationListener : NotificationListenerService() {
                         merchantName = parsed.merchantName,
                         notes = notes
                     )
-                    repo.addTransaction(transaction)
-
-                    // Post an in-app notification
-                    val sym = currencyInfoFor(appCurrency).symbol
-                    val typeLabel = if (parsed.isExpense) "Expense" else "Income"
-                    repo.addInAppNotification(
-                        InAppNotification(
-                            title = "$typeLabel detected – $appName",
-                            message = "${parsed.description}: $sym${String.format("%.2f", finalAmount)}" +
-                                (if (parsed.merchantName.isNotEmpty()) " at ${parsed.merchantName}" else "") +
-                                (if (conversionNote.isNotEmpty()) " (${parsed.amount} ${parsed.currency})" else ""),
-                            type = InAppNotificationType.TRANSACTION_DETECTED,
-                            relatedTransactionId = transaction.id
+                    // addTransaction returns false if duplicate
+                    val added = repo.addTransaction(transaction)
+                    if (added) {
+                        val sym = currencyInfoFor(appCurrency).symbol
+                        val typeLabel = if (parsed.isExpense) "Expense" else "Income"
+                        repo.addInAppNotification(
+                            InAppNotification(
+                                title = "$typeLabel detected – $appName",
+                                message = "${parsed.description}: $sym${String.format("%.2f", finalAmount)}" +
+                                    (if (parsed.merchantName.isNotEmpty()) " at ${parsed.merchantName}" else "") +
+                                    (if (conversionNote.isNotEmpty()) " (${parsed.amount} ${parsed.currency})" else ""),
+                                type = InAppNotificationType.TRANSACTION_DETECTED,
+                                relatedTransactionId = transaction.id
+                            )
                         )
-                    )
-
-                    Log.d(TAG, "Saved notification transaction: $finalAmount $appCurrency")
+                        Log.d(TAG, "Saved notification transaction: $finalAmount $appCurrency")
+                    } else {
+                        Log.d(TAG, "Skipped duplicate: $finalAmount")
+                    }
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to save notification transaction", e)
                 }

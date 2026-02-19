@@ -2,9 +2,11 @@ package com.smartexpense.tracker.data.repository
 
 import com.smartexpense.tracker.data.json.JsonStorageManager
 import com.smartexpense.tracker.data.model.*
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Single source of truth for all app data.
@@ -15,20 +17,71 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
     private val _appData = MutableStateFlow(AppData())
     val appData: StateFlow<AppData> = _appData.asStateFlow()
 
+    private val _initialized = CompletableDeferred<Unit>()
+
     suspend fun initialize() {
         val data = storage.loadData()
         _appData.value = data
+        _initialized.complete(Unit)
+    }
+
+    /**
+     * Suspends until [initialize] has completed, up to [timeoutMs].
+     * Background components (BroadcastReceivers, NotificationListenerService)
+     * must call this before reading [appData] to avoid racing with init.
+     */
+    suspend fun awaitInitialization(timeoutMs: Long = 10_000): Boolean {
+        return withTimeoutOrNull(timeoutMs) { _initialized.await() } != null
     }
 
     // ─── Transactions ──────────────────────────────────────────────
 
-    suspend fun addTransaction(transaction: Transaction) {
+    /**
+     * Adds a transaction after checking for duplicates.
+     * Returns `true` if the transaction was saved, `false` if it was a duplicate.
+     *
+     * Dedup rules (by source):
+     *  - MANUAL / OCR_SCAN  : same amount + same description within 30 s
+     *  - SMS / NOTIFICATION  : same amount + same merchant/description within 2 min,
+     *                          OR same amount + same card last-4 within 10 min
+     *  - IMPORT              : never considered a duplicate (imports are intentional)
+     */
+    suspend fun addTransaction(transaction: Transaction): Boolean {
         val current = _appData.value
+        val isDuplicate = current.transactions.any { t ->
+            if (t.amount != transaction.amount) return@any false
+            val timeDiff = kotlin.math.abs(t.timestamp - transaction.timestamp)
+            when (transaction.source) {
+                TransactionSource.MANUAL, TransactionSource.OCR_SCAN -> {
+                    t.source == transaction.source &&
+                        t.description.equals(transaction.description, ignoreCase = true) &&
+                        timeDiff < 30_000
+                }
+                TransactionSource.SMS, TransactionSource.NOTIFICATION -> {
+                    // Strong match: same card last-4 digits within 10 minutes
+                    val cardRegex = Regex("""card:(\d{4})""")
+                    val newCard = cardRegex.find(transaction.notes)?.groupValues?.get(1)
+                    val existingCard = cardRegex.find(t.notes)?.groupValues?.get(1)
+                    if (!newCard.isNullOrEmpty() && newCard == existingCard && timeDiff < 600_000) {
+                        true
+                    } else {
+                        // Weak match: same amount + similar description within 2 minutes
+                        (t.source == TransactionSource.SMS || t.source == TransactionSource.NOTIFICATION) &&
+                            timeDiff < 120_000 &&
+                            (t.description.equals(transaction.description, ignoreCase = true) ||
+                                (t.merchantName.isNotEmpty() && t.merchantName.equals(transaction.merchantName, ignoreCase = true)))
+                    }
+                }
+                TransactionSource.IMPORT -> false
+            }
+        }
+        if (isDuplicate) return false
         val updated = current.copy(
             transactions = current.transactions + transaction
         )
         _appData.value = updated
         storage.saveData(updated)
+        return true
     }
 
     suspend fun updateTransaction(transaction: Transaction) {

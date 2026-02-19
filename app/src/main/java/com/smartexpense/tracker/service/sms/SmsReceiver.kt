@@ -122,6 +122,14 @@ class SmsReceiver : BroadcastReceiver() {
                     val app = context.applicationContext as? SmartExpenseApp
                     if (app != null) {
                         val repo = app.repository
+                        // Wait for repository to finish loading data from disk.
+                        // Without this, a cold-start broadcast could read empty defaults
+                        // and corrupt existing data on save.
+                        if (!repo.awaitInitialization()) {
+                            Log.w(TAG, "Repository init timed out, skipping SMS")
+                            pendingResult.finish()
+                            return@launch
+                        }
                         val settings = repo.appData.value.settings
                         val appCurrency = settings.currencyCode
                         val userCatNames = repo.appData.value.categories
@@ -160,30 +168,11 @@ class SmsReceiver : BroadcastReceiver() {
                             notes = notes
                         )
 
-                        // Dedup: skip if a transaction with the same amount already exists
-                        // within a time window. Checks across ALL sources (SMS + Notification)
-                        // to catch banks that send multiple messages for the same transaction.
-                        // Uses a wider 10-minute window when card last-4 digits also match.
-                        val existing = repo.appData.value.transactions
-                        val now = System.currentTimeMillis()
-                        val isDuplicate = existing.any { t ->
-                            t.amount == finalAmount && when {
-                                // Same card digits → strong match, 10 min window
-                                parsed.cardLastFour.isNotEmpty() &&
-                                    t.notes.contains(parsed.cardLastFour) ->
-                                    kotlin.math.abs(t.timestamp - now) < 600_000
-                                // Same source, amount only → 2 min window (original)
-                                t.source == TransactionSource.SMS ||
-                                    t.source == TransactionSource.NOTIFICATION ->
-                                    kotlin.math.abs(t.timestamp - now) < 120_000
-                                else -> false
-                            }
-                        }
-                        if (!isDuplicate) {
-                            // Auto-create category if not present
-                            repo.ensureCategoryExists(transaction.category)
-                            repo.addTransaction(transaction)
-                            // Post in-app notification
+                        // Auto-create category if not present
+                        repo.ensureCategoryExists(transaction.category)
+                        // addTransaction returns false if duplicate
+                        val added = repo.addTransaction(transaction)
+                        if (added) {
                             val sym = currencyInfoFor(appCurrency).symbol
                             val typeLabel = if (parsed.isExpense) "Expense" else "Income"
                             repo.addInAppNotification(
@@ -191,7 +180,7 @@ class SmsReceiver : BroadcastReceiver() {
                                     title = "$typeLabel detected via SMS",
                                     message = "${transaction.description}: $sym${String.format("%.2f", finalAmount)}" +
                                         (if (parsed.merchantName.isNotEmpty()) " at ${parsed.merchantName}" else "") +
-                                        (if (conversionNote.isNotEmpty()) " (${ parsed.amount} ${parsed.currency})" else ""),
+                                        (if (conversionNote.isNotEmpty()) " (${parsed.amount} ${parsed.currency})" else ""),
                                     type = InAppNotificationType.TRANSACTION_DETECTED,
                                     relatedTransactionId = transaction.id
                                 )

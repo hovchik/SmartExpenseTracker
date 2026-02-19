@@ -213,25 +213,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         timestamp: Long = System.currentTimeMillis()
     ) {
         viewModelScope.launch {
-            val now = System.currentTimeMillis()
-            // Dedup: skip if an identical manual transaction was saved within 5 seconds
-            // (guards against accidental double-tap on the Save button)
-            val isDuplicate = repository.appData.value.transactions.any { t ->
-                t.source == source &&
-                t.amount == amount &&
-                t.description.equals(description, ignoreCase = true) &&
-                kotlin.math.abs(t.timestamp - now) < 5_000
-            }
-            if (isDuplicate) return@launch
-
             val finalCategory = category ?: smartCategorize(description)
             val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
-            repository.addTransaction(Transaction(
+            val added = repository.addTransaction(Transaction(
                 amount = amount, description = description, category = finalCategory,
                 type = type, source = source, merchantName = merchantName, notes = notes,
                 timestamp = timestamp, dateTime = dtFormatter.format(Date(timestamp))
             ))
-            refreshSuggestions()
+            if (added) refreshSuggestions()
         }
     }
 
@@ -248,20 +237,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val ocrParsed = if (ocrText.isNotBlank()) aiEngine.parseReceiptText(ocrText, currencyCode) else null
                 val ocrAmount = (ocrParsed?.totalAmount ?: ocrParsed?.items?.sumOf { it.second }) ?: 0.0
 
-                // If OCR fails, try QR code data as fallback
-                val (parsed, fromQr) = if (ocrAmount > 0 && ocrParsed != null) {
-                    ocrParsed to false
-                } else if (!qrData.isNullOrBlank()) {
-                    val qrParsed = aiEngine.parseQrCodeString(qrData)
-                    if ((qrParsed.totalAmount ?: 0.0) > 0) {
-                        qrParsed to true
-                    } else if (ocrParsed != null) {
-                        ocrParsed to false
+                // When QR data is available, prefer it — QR codes are machine-readable
+                // and more reliable than OCR text. Fall back to OCR only when QR has no amount.
+                val qrParsed = if (!qrData.isNullOrBlank()) aiEngine.parseQrCodeString(qrData) else null
+                val qrAmount = qrParsed?.totalAmount ?: 0.0
+
+                val (parsed, fromQr) = if (qrAmount > 0 && qrParsed != null) {
+                    // QR has amount — use it, but supplement merchant from OCR if QR merchant is generic
+                    val merchant = if (qrParsed.merchantName in listOf("QR Receipt", "Unknown") && ocrParsed != null && ocrParsed.merchantName.isNotBlank() && ocrParsed.merchantName != "Unknown") {
+                        ocrParsed.merchantName
                     } else {
-                        qrParsed to true
+                        qrParsed.merchantName
                     }
+                    qrParsed.copy(merchantName = merchant, items = ocrParsed?.items ?: emptyList()) to true
+                } else if (ocrAmount > 0 && ocrParsed != null) {
+                    ocrParsed to false
                 } else {
-                    (ocrParsed ?: AiExpenseEngine.ParsedReceipt(null, emptyList(), "Unknown", null)) to false
+                    (ocrParsed ?: qrParsed ?: AiExpenseEngine.ParsedReceipt(null, emptyList(), "Unknown", null)) to (qrParsed != null)
                 }
 
                 val amount = parsed.totalAmount ?: parsed.items.sumOf { it.second }
