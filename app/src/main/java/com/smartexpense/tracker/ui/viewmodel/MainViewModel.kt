@@ -312,7 +312,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _downloadError.value = null
             _localAiStatus.value = "Downloading ${model.name}…"
 
-            val path = localAiService.mediaPipeLlm.downloadModel(model) { progress ->
+            val hfToken = repository.appData.value.settings.huggingFaceToken
+            val path = localAiService.mediaPipeLlm.downloadModel(model, hfToken) { progress ->
                 _downloadProgress.value = progress
             }
 

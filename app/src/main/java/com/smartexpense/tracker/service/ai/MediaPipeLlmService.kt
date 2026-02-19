@@ -143,6 +143,7 @@ class MediaPipeLlmService(private val context: Context) {
      */
     suspend fun downloadModel(
         model: CatalogModel,
+        hfToken: String = "",
         onProgress: ((Float) -> Unit)? = null
     ): String? = withContext(Dispatchers.IO) {
         if (isDownloading) {
@@ -163,6 +164,10 @@ class MediaPipeLlmService(private val context: Context) {
             connection.connectTimeout = 30_000
             connection.readTimeout = 60_000
             connection.setRequestProperty("User-Agent", "SmartExpenseTracker/1.0")
+            // HuggingFace gated models require Bearer token
+            if (hfToken.isNotBlank()) {
+                connection.setRequestProperty("Authorization", "Bearer $hfToken")
+            }
             // Support resuming partial downloads
             if (tempFile.exists() && tempFile.length() > 0) {
                 connection.setRequestProperty("Range", "bytes=${tempFile.length()}-")
@@ -170,6 +175,13 @@ class MediaPipeLlmService(private val context: Context) {
             connection.connect()
 
             val responseCode = connection.responseCode
+            if (responseCode == 401 || responseCode == 403) {
+                downloadError = "Authentication required. Enter your HuggingFace token in settings to download gated models."
+                Log.e(TAG, "Auth failed: HTTP $responseCode for ${model.downloadUrl}")
+                connection.disconnect()
+                isDownloading = false
+                return@withContext null
+            }
             if (responseCode !in listOf(200, 206)) {
                 downloadError = "Download failed: HTTP $responseCode"
                 Log.e(TAG, "Download failed: HTTP $responseCode for ${model.downloadUrl}")

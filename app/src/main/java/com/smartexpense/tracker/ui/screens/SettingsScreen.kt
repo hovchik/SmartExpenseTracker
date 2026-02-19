@@ -1545,6 +1545,56 @@ fun SettingsScreen(
                                     fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
 
+                            // ── HuggingFace token ──
+                            Spacer(modifier = Modifier.height(10.dp))
+                            HorizontalDivider()
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            var hfTokenText by remember(settings.huggingFaceToken) {
+                                mutableStateOf(settings.huggingFaceToken)
+                            }
+                            var hfTokenVisible by remember { mutableStateOf(false) }
+
+                            Text("HuggingFace Token", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text("Required to download gated models like Gemma. Get a free token at huggingface.co/settings/tokens",
+                                fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 14.sp)
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            OutlinedTextField(
+                                value = hfTokenText,
+                                onValueChange = { hfTokenText = it },
+                                label = { Text("hf_...") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                visualTransformation = if (hfTokenVisible)
+                                    androidx.compose.ui.text.input.VisualTransformation.None
+                                else
+                                    androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                                trailingIcon = {
+                                    Row {
+                                        IconButton(onClick = { hfTokenVisible = !hfTokenVisible },
+                                            modifier = Modifier.size(36.dp)) {
+                                            Icon(
+                                                if (hfTokenVisible) Icons.Filled.VisibilityOff
+                                                else Icons.Filled.Visibility,
+                                                "Toggle visibility", modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        if (hfTokenText != settings.huggingFaceToken) {
+                                            IconButton(onClick = {
+                                                onUpdateSettings(settings.copy(huggingFaceToken = hfTokenText))
+                                            }, modifier = Modifier.size(36.dp)) {
+                                                Icon(Icons.Filled.Check, "Save token",
+                                                    tint = GreenPrimary, modifier = Modifier.size(18.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            )
+
                             // ── Model catalog (downloadable) ──
                             if (modelCatalog.isNotEmpty()) {
                                 Spacer(modifier = Modifier.height(12.dp))

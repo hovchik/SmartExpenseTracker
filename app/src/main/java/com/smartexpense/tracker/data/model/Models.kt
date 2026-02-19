@@ -227,6 +227,8 @@ data class AppSettings(
     val aiEnginePreference: AiEnginePreference = AiEnginePreference.AUTO,
     /** Path to a MediaPipe-compatible model file (e.g. Gemma .task file). */
     val mediapipeModelPath: String = "",
+    /** HuggingFace API token for downloading gated models (e.g. Gemma). */
+    val huggingFaceToken: String = "",
     /** Keywords used when scanning for banking/payment apps on the device. */
     val scanKeywords: List<String> = listOf("bank", "payment", "wallet"),
     val bankingAppPackages: List<String> = listOf(
