@@ -82,8 +82,8 @@ fun MainApp(viewModel: MainViewModel) {
         }
     }
 
-    // Hide the top bar on full-screen sub-screens (store_map has its own top bar)
-    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map")
+    // Hide the top bar on full-screen sub-screens (they have their own top bar)
+    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze")
 
     Scaffold(
         topBar = {
@@ -118,7 +118,7 @@ fun MainApp(viewModel: MainViewModel) {
             }
         },
         bottomBar = {
-            if (currentScreen !in listOf("add", "scan", "sms_scan", "store_map")) {
+            if (currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze")) {
                 NavigationBar(tonalElevation = 2.dp) {
                     // Home
                     NavigationBarItem(
@@ -169,7 +169,8 @@ fun MainApp(viewModel: MainViewModel) {
                         onDeleteTransaction = { viewModel.deleteTransaction(it) },
                         sectionOrder = dashboardSectionOrder,
                         onMoveSections = { from, to -> viewModel.moveDashboardSection(from, to) },
-                        currencyCode = currencyCode
+                        currencyCode = currencyCode,
+                        onNavigateToAnalyze = { currentScreen = "ai_analyze" }
                     )
                     "reports" -> ReportsScreen(
                         generateReport = { viewModel.generateReport(it) },
@@ -236,6 +237,12 @@ fun MainApp(viewModel: MainViewModel) {
                             viewModel.addStoreLocation(name, lat, lng, addr)
                         },
                         onDeleteStoreLocation = { id -> viewModel.deleteStoreLocation(id) },
+                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+                    )
+                    "ai_analyze" -> AiAnalyzeScreen(
+                        categories = uiState.categories,
+                        currencyCode = currencyCode,
+                        onAnalyze = { start, end, cat -> viewModel.analyzeTransactions(start, end, cat) },
                         onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
                     )
                     "settings" -> SettingsScreen(

@@ -43,7 +43,8 @@ fun DashboardScreen(
     onDeleteTransaction: (String) -> Unit,
     sectionOrder: List<DashboardSection>,
     onMoveSections: (DashboardSection, DashboardSection) -> Unit,
-    currencyCode: String = "USD"
+    currencyCode: String = "USD",
+    onNavigateToAnalyze: () -> Unit = {}
 ) {
     val visibleSections = remember(
         sectionOrder,
@@ -89,7 +90,7 @@ fun DashboardScreen(
                     DashboardSection.WEEKLY_CHART ->
                         WeeklySpendingChart(weeklyChartData, currencyCode)
                     DashboardSection.AI_INSIGHTS ->
-                        AiInsightsSection(uiState.suggestions, currencyCode, onDismissSuggestion)
+                        AiInsightsSection(uiState.suggestions, currencyCode, onDismissSuggestion, onNavigateToAnalyze)
                     DashboardSection.CATEGORY_BREAKDOWN ->
                         CategoryBreakdownSection(
                             uiState.categoryBreakdown, uiState.monthlyExpenses, currencyCode
@@ -111,7 +112,8 @@ fun DashboardScreen(
 private fun AiInsightsSection(
     suggestions: List<AiSuggestion>,
     currencyCode: String,
-    onDismissSuggestion: (String) -> Unit
+    onDismissSuggestion: (String) -> Unit,
+    onNavigateToAnalyze: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
@@ -128,8 +130,14 @@ private fun AiInsightsSection(
             Text(
                 "AI Insights",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f)
             )
+            TextButton(onClick = onNavigateToAnalyze) {
+                Text("Analyze", fontSize = 12.sp)
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(Icons.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(14.dp))
+            }
         }
         suggestions.take(3).forEach { suggestion ->
             AiSuggestionCard(

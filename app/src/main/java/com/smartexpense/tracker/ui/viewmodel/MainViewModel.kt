@@ -800,6 +800,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    fun analyzeTransactions(startMillis: Long, endMillis: Long, category: String?): String {
+        val currencyCode = repository.appData.value.settings.currencyCode
+        return aiEngine.generateAnalysis(
+            repository.appData.value.transactions,
+            startMillis, endMillis, currencyCode, category
+        )
+    }
+
     fun getWeeklyChartData(): List<Pair<String, Double>> {
         val data = repository.appData.value
         return DateUtils.getDaysInRange(DateUtils.getStartOfWeek(), DateUtils.getEndOfWeek()).map { dayStart ->
