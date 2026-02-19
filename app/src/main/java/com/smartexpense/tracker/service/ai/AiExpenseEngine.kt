@@ -265,27 +265,29 @@ class AiExpenseEngine {
 
     fun generateSuggestions(
         transactions: List<Transaction>,
-        budgets: List<Budget>
+        budgets: List<Budget>,
+        currencyCode: String = "USD"
     ): List<AiSuggestion> {
         if (transactions.isEmpty()) return emptyList()
+        val sym = currencyInfoFor(currencyCode).symbol
         val suggestions = mutableListOf<AiSuggestion>()
         val expenses = transactions.filter { it.type == TransactionType.EXPENSE }
         val now = System.currentTimeMillis()
         val thirtyDaysAgo = now - 30L * 24 * 60 * 60 * 1000
         val recentExpenses = expenses.filter { it.timestamp > thirtyDaysAgo }
 
-        suggestions.addAll(detectHighSpendingCategories(recentExpenses))
-        suggestions.addAll(detectSubscriptionOptimizations(recentExpenses))
-        suggestions.addAll(detectSpendingSpikes(expenses))
-        suggestions.addAll(detectBudgetOverruns(recentExpenses, budgets))
-        suggestions.addAll(detectDiningPatterns(recentExpenses))
-        suggestions.addAll(detectWeekendSpending(recentExpenses))
+        suggestions.addAll(detectHighSpendingCategories(recentExpenses, sym))
+        suggestions.addAll(detectSubscriptionOptimizations(recentExpenses, sym))
+        suggestions.addAll(detectSpendingSpikes(expenses, sym))
+        suggestions.addAll(detectBudgetOverruns(recentExpenses, budgets, sym))
+        suggestions.addAll(detectDiningPatterns(recentExpenses, sym))
+        suggestions.addAll(detectWeekendSpending(recentExpenses, sym))
         suggestions.addAll(detectSavingsPotential(recentExpenses, transactions))
 
         return suggestions.take(10)
     }
 
-    private fun detectHighSpendingCategories(expenses: List<Transaction>): List<AiSuggestion> {
+    private fun detectHighSpendingCategories(expenses: List<Transaction>, sym: String): List<AiSuggestion> {
         val suggestions = mutableListOf<AiSuggestion>()
         val totalSpend = expenses.sumOf { it.amount }
         if (totalSpend == 0.0) return suggestions
@@ -298,7 +300,7 @@ class AiExpenseEngine {
                 suggestions.add(AiSuggestion(
                     title = "High spending on $category",
                     description = "You're spending $percentage% of your budget on $category " +
-                            "(\$${String.format("%.2f", amount)} this month). Consider setting " +
+                            "($sym${String.format("%.2f", amount)} this month). Consider setting " +
                             "a budget limit and finding alternatives.",
                     potentialSaving = amount * 0.2, category = category,
                     priority = SuggestionPriority.HIGH
@@ -308,7 +310,7 @@ class AiExpenseEngine {
         return suggestions
     }
 
-    private fun detectSubscriptionOptimizations(expenses: List<Transaction>): List<AiSuggestion> {
+    private fun detectSubscriptionOptimizations(expenses: List<Transaction>, sym: String): List<AiSuggestion> {
         val suggestions = mutableListOf<AiSuggestion>()
         val possibleSubs = expenses.filter {
             it.category == "Entertainment" || it.category == "Bills & Utilities"
@@ -322,7 +324,7 @@ class AiExpenseEngine {
             suggestions.add(AiSuggestion(
                 title = "Review your subscriptions",
                 description = "You have ${merchantCounts.size} recurring subscriptions totaling " +
-                        "\$${String.format("%.2f", totalSubCost)}. Consider consolidating or canceling unused ones.",
+                        "$sym${String.format("%.2f", totalSubCost)}. Consider consolidating or canceling unused ones.",
                 potentialSaving = totalSubCost * 0.25, category = "Entertainment",
                 priority = SuggestionPriority.MEDIUM
             ))
@@ -330,7 +332,7 @@ class AiExpenseEngine {
         return suggestions
     }
 
-    private fun detectSpendingSpikes(expenses: List<Transaction>): List<AiSuggestion> {
+    private fun detectSpendingSpikes(expenses: List<Transaction>, sym: String): List<AiSuggestion> {
         val suggestions = mutableListOf<AiSuggestion>()
         val now = System.currentTimeMillis()
         val oneWeekAgo = now - 7L * 24 * 60 * 60 * 1000
@@ -340,7 +342,7 @@ class AiExpenseEngine {
         if (lastWeek > 0 && thisWeek > lastWeek * 1.5) {
             suggestions.add(AiSuggestion(
                 title = "Spending spike detected",
-                description = "This week's spending (\$${String.format("%.2f", thisWeek)}) is " +
+                description = "This week's spending ($sym${String.format("%.2f", thisWeek)}) is " +
                         "${((thisWeek / lastWeek - 1) * 100).roundToInt()}% higher than last week.",
                 potentialSaving = thisWeek - lastWeek, category = "General",
                 priority = SuggestionPriority.HIGH
@@ -349,7 +351,7 @@ class AiExpenseEngine {
         return suggestions
     }
 
-    private fun detectBudgetOverruns(expenses: List<Transaction>, budgets: List<Budget>): List<AiSuggestion> {
+    private fun detectBudgetOverruns(expenses: List<Transaction>, budgets: List<Budget>, sym: String): List<AiSuggestion> {
         val suggestions = mutableListOf<AiSuggestion>()
         for (budget in budgets) {
             val spent = expenses.filter { it.category == budget.categoryId }.sumOf { it.amount }
@@ -357,7 +359,7 @@ class AiExpenseEngine {
                 val percentage = (spent / budget.monthlyLimit * 100).roundToInt()
                 suggestions.add(AiSuggestion(
                     title = "Budget alert: ${budget.categoryId}",
-                    description = "You've used $percentage% of your \$${String.format("%.2f", budget.monthlyLimit)} budget.",
+                    description = "You've used $percentage% of your $sym${String.format("%.2f", budget.monthlyLimit)} budget.",
                     potentialSaving = spent - budget.monthlyLimit, category = budget.categoryId,
                     priority = if (spent > budget.monthlyLimit) SuggestionPriority.HIGH else SuggestionPriority.MEDIUM
                 ))
@@ -366,7 +368,7 @@ class AiExpenseEngine {
         return suggestions
     }
 
-    private fun detectDiningPatterns(expenses: List<Transaction>): List<AiSuggestion> {
+    private fun detectDiningPatterns(expenses: List<Transaction>, sym: String): List<AiSuggestion> {
         val suggestions = mutableListOf<AiSuggestion>()
         val dining = expenses.filter { it.category == "Food & Dining" }
         if (dining.size > 10) {
@@ -375,7 +377,7 @@ class AiExpenseEngine {
             suggestions.add(AiSuggestion(
                 title = "Dining out frequency",
                 description = "You've dined out ${dining.size} times recently, averaging " +
-                        "\$${String.format("%.2f", avgMeal)} per meal. Cooking at home 2 more " +
+                        "$sym${String.format("%.2f", avgMeal)} per meal. Cooking at home 2 more " +
                         "days per week could save significant money.",
                 potentialSaving = avgMeal * 8, category = "Food & Dining",
                 priority = SuggestionPriority.MEDIUM
@@ -384,7 +386,7 @@ class AiExpenseEngine {
         return suggestions
     }
 
-    private fun detectWeekendSpending(expenses: List<Transaction>): List<AiSuggestion> {
+    private fun detectWeekendSpending(expenses: List<Transaction>, sym: String): List<AiSuggestion> {
         val suggestions = mutableListOf<AiSuggestion>()
         val cal = Calendar.getInstance()
         val weekend = expenses.filter {
@@ -402,8 +404,8 @@ class AiExpenseEngine {
             if (avgWeekend > avgWeekday * 2) {
                 suggestions.add(AiSuggestion(
                     title = "Weekend spending is high",
-                    description = "Your average weekend transaction (\$${String.format("%.2f", avgWeekend)}) " +
-                            "is ${(avgWeekend / avgWeekday).roundToInt()}x higher than weekday (\$${String.format("%.2f", avgWeekday)}).",
+                    description = "Your average weekend transaction ($sym${String.format("%.2f", avgWeekend)}) " +
+                            "is ${(avgWeekend / avgWeekday).roundToInt()}x higher than weekday ($sym${String.format("%.2f", avgWeekday)}).",
                     potentialSaving = (avgWeekend - avgWeekday) * 8, category = "General",
                     priority = SuggestionPriority.LOW
                 ))

@@ -734,7 +734,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshSuggestions() {
         viewModelScope.launch {
             val data = repository.appData.value
-            val suggestions = aiEngine.generateSuggestions(data.transactions, data.budgets)
+            val suggestions = aiEngine.generateSuggestions(
+                data.transactions, data.budgets, data.settings.currencyCode
+            )
             repository.addSuggestions(suggestions)
         }
     }
@@ -820,9 +822,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateSettings(settings: AppSettings) {
         viewModelScope.launch {
+            val oldCurrency = repository.appData.value.settings.currencyCode
+            val newCurrency = settings.currencyCode
             repository.updateSettings(settings)
-            // Invalidate cached rates when base currency changes
             CurrencyConverterService.invalidateCache()
+
+            // When currency changes, convert all transaction amounts and budget limits
+            if (oldCurrency != newCurrency) {
+                val rate = withContext(Dispatchers.IO) {
+                    CurrencyConverterService.convert(1.0, oldCurrency, newCurrency)
+                }
+                if (rate != null && rate > 0) {
+                    repository.convertAmounts(rate)
+                    refreshSuggestions()
+                }
+            }
         }
     }
 

@@ -113,12 +113,24 @@ private fun AiInsightsSection(
     currencyCode: String,
     onDismissSuggestion: (String) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
-            "AI Insights",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Filled.AutoAwesome,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                "AI Insights",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
         suggestions.take(3).forEach { suggestion ->
             AiSuggestionCard(
                 suggestion, currencyCode,
@@ -340,46 +352,96 @@ fun WeeklySpendingChart(data: List<Pair<String, Double>>, currencyCode: String =
 
 @Composable
 fun AiSuggestionCard(suggestion: AiSuggestion, currencyCode: String = "USD", onDismiss: () -> Unit) {
+    val accentColor = when (suggestion.priority) {
+        SuggestionPriority.HIGH -> RedExpense
+        SuggestionPriority.MEDIUM -> OrangeWarning
+        SuggestionPriority.LOW -> BluePrimary
+    }
+
     Card(
-        modifier = Modifier.fillMaxWidth().animateContentSize(),
-        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = when (suggestion.priority) {
-                SuggestionPriority.HIGH -> RedExpense.copy(alpha = 0.1f)
-                SuggestionPriority.MEDIUM -> OrangeWarning.copy(alpha = 0.1f)
-                SuggestionPriority.LOW -> BluePrimary.copy(alpha = 0.1f)
-            }
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+            // Colored accent bar
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(accentColor, RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp))
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 4.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.AutoAwesome, contentDescription = null,
-                        tint = when (suggestion.priority) {
-                            SuggestionPriority.HIGH -> RedExpense
-                            SuggestionPriority.MEDIUM -> OrangeWarning
-                            SuggestionPriority.LOW -> BluePrimary
-                        }, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(suggestion.title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                // Title row with priority chip and dismiss
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        suggestion.title,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = accentColor.copy(alpha = 0.15f),
+                        modifier = Modifier.padding(horizontal = 6.dp)
+                    ) {
+                        Text(
+                            when (suggestion.priority) {
+                                SuggestionPriority.HIGH -> "High"
+                                SuggestionPriority.MEDIUM -> "Med"
+                                SuggestionPriority.LOW -> "Low"
+                            },
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = accentColor,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Filled.Close, contentDescription = "Dismiss",
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
-                IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Filled.Close, contentDescription = "Dismiss", modifier = Modifier.size(16.dp))
-                }
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(suggestion.description, style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (suggestion.potentialSaving > 0) {
-                Spacer(modifier = Modifier.height(8.dp))
+                // Description
                 Text(
-                    "Potential saving: ${CurrencyUtils.format(suggestion.potentialSaving, currencyCode)}/month",
-                    fontWeight = FontWeight.Medium, fontSize = 12.sp, color = GreenIncome
+                    suggestion.description,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
+                // Saving amount
+                if (suggestion.potentialSaving > 0) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Filled.TrendingDown,
+                            contentDescription = null,
+                            tint = GreenIncome,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            "Save ${CurrencyUtils.format(suggestion.potentialSaving, currencyCode)}/mo",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.sp,
+                            color = GreenIncome
+                        )
+                    }
+                }
             }
         }
     }
