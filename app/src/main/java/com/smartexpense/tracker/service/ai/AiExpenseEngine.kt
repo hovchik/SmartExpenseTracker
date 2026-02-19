@@ -669,7 +669,11 @@ class AiExpenseEngine {
         "Նախաէttv", "авторизация", "предавторизация"
     )
 
-    fun parseFinancialMessage(message: String): ParsedTransaction? {
+    fun parseFinancialMessage(
+        message: String,
+        customIncomeKeywords: List<String> = emptyList(),
+        customExpenseKeywords: List<String> = emptyList()
+    ): ParsedTransaction? {
         try {
             val lowerMsg = message.lowercase()
 
@@ -798,21 +802,24 @@ class AiExpenseEngine {
 
             // ── EXPENSE VS INCOME ───────────────────────
 
-            val expenseWords = listOf(
+            val builtInExpenseWords = listOf(
                 "purchase", "atm cash", "atm", "mail order", "pos",
                 "charged", "debited", "spent", "paid", "withdrawal",
                 "sent", "debit", "withdrawn", "payment of", "used at",
                 "debit account", "e-commerce", "online purchase"
             )
-            val incomeWords = listOf(
+            val builtInIncomeWords = listOf(
                 "credit account", "credited", "received", "deposit", "refund",
                 "cashback", "transfer to your", "added to", "reversed",
                 "salary", "income", "reward"
             )
+            // Merge custom keywords (checked first for user priority)
+            val allIncomeWords = customIncomeKeywords + builtInIncomeWords
+            val allExpenseWords = customExpenseKeywords + builtInExpenseWords
 
             val isExpense = when {
-                incomeWords.any { lowerMsg.contains(it) } -> false
-                expenseWords.any { lowerMsg.contains(it) } -> true
+                allIncomeWords.any { it.isNotEmpty() && lowerMsg.contains(it.lowercase()) } -> false
+                allExpenseWords.any { it.isNotEmpty() && lowerMsg.contains(it.lowercase()) } -> true
                 lowerMsg.contains("approved") && !lowerMsg.contains("credit account") -> true
                 else -> true // Default to expense
             }

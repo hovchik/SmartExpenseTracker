@@ -110,7 +110,13 @@ class SmsReceiver : BroadcastReceiver() {
             Log.d(TAG, "Financial SMS detected from: $sender")
 
             val aiEngine = AiExpenseEngine()
-            val parsed = aiEngine.parseFinancialMessage(fullMessage) ?: return
+            val app0 = context.applicationContext as? SmartExpenseApp
+            val settings0 = app0?.repository?.appData?.value?.settings
+            val parsed = aiEngine.parseFinancialMessage(
+                fullMessage,
+                customIncomeKeywords = settings0?.incomeKeywords.orEmpty(),
+                customExpenseKeywords = settings0?.expenseKeywords.orEmpty()
+            ) ?: return
 
             val dedupKey = "Auto SMS: $sender | ${System.currentTimeMillis() / 60000}"
 

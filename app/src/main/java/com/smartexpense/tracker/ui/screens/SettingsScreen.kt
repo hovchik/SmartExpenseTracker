@@ -78,6 +78,9 @@ fun SettingsScreen(
     allInstalledApps: List<com.smartexpense.tracker.ui.viewmodel.MainViewModel.InstalledApp> = emptyList(),
     onLoadAllInstalledApps: () -> Unit = {},
     onUpdateScanKeywords: (List<String>) -> Unit = {},
+    // ── Transaction type detection keywords ──
+    onUpdateIncomeKeywords: (List<String>) -> Unit = {},
+    onUpdateExpenseKeywords: (List<String>) -> Unit = {},
     // ── AI engine selection ──
     engineDescriptions: Map<AiEnginePreference, String> = emptyMap(),
     onSetAiEngine: (AiEnginePreference) -> Unit = {},
@@ -570,6 +573,152 @@ fun SettingsScreen(
                         onUpdateSettings(settings.copy(autoCategorizationEnabled = it))
                     }
                 )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ─── Transaction Type Detection Keywords ─────────────────
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.Label,
+                        contentDescription = null,
+                        tint = BluePrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Transaction Type Keywords", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Text(
+                            "Keywords used to classify incoming SMS/notifications as income or expense.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // ── Income keywords ──
+                Text(
+                    "Income keywords",
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp,
+                    color = GreenPrimary
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                val incomeKws = settings.incomeKeywords
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    incomeKws.forEach { kw ->
+                        InputChip(
+                            selected = false,
+                            onClick = { onUpdateIncomeKeywords(incomeKws.filter { it != kw }) },
+                            label = { Text(kw, fontSize = 12.sp) },
+                            trailingIcon = {
+                                Icon(Icons.Filled.Close, contentDescription = "Remove", modifier = Modifier.size(16.dp))
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+                var newIncomeKw by remember { mutableStateOf("") }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = newIncomeKw,
+                        onValueChange = { newIncomeKw = it.trim() },
+                        label = { Text("Add income keyword") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    Button(
+                        onClick = {
+                            val kw = newIncomeKw.trim()
+                            if (kw.isNotEmpty() && kw !in incomeKws) {
+                                onUpdateIncomeKeywords(incomeKws + kw)
+                                newIncomeKw = ""
+                            }
+                        },
+                        enabled = newIncomeKw.trim().let { it.isNotEmpty() && it !in incomeKws },
+                        shape = RoundedCornerShape(10.dp)
+                    ) { Text("Add") }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // ── Expense keywords ──
+                Text(
+                    "Expense keywords",
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp,
+                    color = RedExpense
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                val expenseKws = settings.expenseKeywords
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    expenseKws.forEach { kw ->
+                        InputChip(
+                            selected = false,
+                            onClick = { onUpdateExpenseKeywords(expenseKws.filter { it != kw }) },
+                            label = { Text(kw, fontSize = 12.sp) },
+                            trailingIcon = {
+                                Icon(Icons.Filled.Close, contentDescription = "Remove", modifier = Modifier.size(16.dp))
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+                var newExpenseKw by remember { mutableStateOf("") }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = newExpenseKw,
+                        onValueChange = { newExpenseKw = it.trim() },
+                        label = { Text("Add expense keyword") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    Button(
+                        onClick = {
+                            val kw = newExpenseKw.trim()
+                            if (kw.isNotEmpty() && kw !in expenseKws) {
+                                onUpdateExpenseKeywords(expenseKws + kw)
+                                newExpenseKw = ""
+                            }
+                        },
+                        enabled = newExpenseKw.trim().let { it.isNotEmpty() && it !in expenseKws },
+                        shape = RoundedCornerShape(10.dp)
+                    ) { Text("Add") }
+                }
             }
         }
 

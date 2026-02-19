@@ -74,7 +74,9 @@ class SmsInboxScanner(private val context: Context) {
         existingTransactionNotes: Set<String> = emptySet(),
         userCategoryNames: List<String> = emptyList(),
         startDate: Long? = null,
-        endDate: Long? = null
+        endDate: Long? = null,
+        customIncomeKeywords: List<String> = emptyList(),
+        customExpenseKeywords: List<String> = emptyList()
     ): ScanResult {
         val aiEngine: AiExpenseEngine
         try {
@@ -88,7 +90,7 @@ class SmsInboxScanner(private val context: Context) {
         val uris = listOf("content://sms/inbox", "content://sms")
         for (uriString in uris) {
             try {
-                val result = doScan(Uri.parse(uriString), aiEngine, maxMessages, existingTransactionNotes, uriString.contains("inbox"), userCategoryNames, startDate, endDate)
+                val result = doScan(Uri.parse(uriString), aiEngine, maxMessages, existingTransactionNotes, uriString.contains("inbox"), userCategoryNames, startDate, endDate, customIncomeKeywords, customExpenseKeywords)
                 if (result != null) return result
             } catch (e: Throwable) {
                 Log.w(TAG, "Failed with $uriString: ${e.message}")
@@ -124,7 +126,9 @@ class SmsInboxScanner(private val context: Context) {
         uri: Uri, aiEngine: AiExpenseEngine, maxMessages: Int,
         existingNotes: Set<String>, isInboxUri: Boolean,
         userCategoryNames: List<String> = emptyList(),
-        startDate: Long? = null, endDate: Long? = null
+        startDate: Long? = null, endDate: Long? = null,
+        customIncomeKeywords: List<String> = emptyList(),
+        customExpenseKeywords: List<String> = emptyList()
     ): ScanResult? {
         val transactions = mutableListOf<Transaction>()
         val transactionCards = mutableListOf<String>()
@@ -180,7 +184,7 @@ class SmsInboxScanner(private val context: Context) {
                     if (!isFinancialMessage(sender, body)) continue
                     financialFound++
 
-                    val parsed = try { aiEngine.parseFinancialMessage(body) } catch (_: Throwable) { null }
+                    val parsed = try { aiEngine.parseFinancialMessage(body, customIncomeKeywords, customExpenseKeywords) } catch (_: Throwable) { null }
                         ?: continue
 
                     val noteKey = "SMS scan: $sender | $date"

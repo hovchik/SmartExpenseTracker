@@ -248,6 +248,8 @@ fun MainApp(viewModel: MainViewModel) {
                         allInstalledApps = allInstalledApps,
                         onLoadAllInstalledApps = { viewModel.loadAllInstalledApps() },
                         onUpdateScanKeywords = { keywords -> viewModel.updateScanKeywords(keywords) },
+                        onUpdateIncomeKeywords = { keywords -> viewModel.updateIncomeKeywords(keywords) },
+                        onUpdateExpenseKeywords = { keywords -> viewModel.updateExpenseKeywords(keywords) },
                         engineDescriptions = engineDescriptions,
                         onSetAiEngine = { pref -> viewModel.setAiEnginePreference(pref) },
                         discoveredModels = discoveredModels,

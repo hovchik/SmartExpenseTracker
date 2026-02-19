@@ -776,6 +776,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         .toSet()
                 } catch (_: Throwable) { emptySet() }
 
+                val settings = repository.appData.value.settings
                 val userCatNames = repository.appData.value.categories
                     .filter { !it.isDefault }.map { it.name }
                 val result = withContext(Dispatchers.IO) {
@@ -786,7 +787,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 existingTransactionNotes = existingNotes,
                                 userCategoryNames = userCatNames,
                                 startDate = startDate,
-                                endDate = endDate
+                                endDate = endDate,
+                                customIncomeKeywords = settings.incomeKeywords,
+                                customExpenseKeywords = settings.expenseKeywords
                             )
                     } catch (e: Throwable) {
                         com.smartexpense.tracker.service.sms.SmsInboxScanner.ScanResult(
@@ -987,6 +990,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val settings = repository.appData.value.settings
             val updated = settings.copy(scanKeywords = keywords)
             repository.updateSettings(updated)
+        }
+    }
+
+    fun updateIncomeKeywords(keywords: List<String>) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            repository.updateSettings(settings.copy(incomeKeywords = keywords))
+        }
+    }
+
+    fun updateExpenseKeywords(keywords: List<String>) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            repository.updateSettings(settings.copy(expenseKeywords = keywords))
         }
     }
 

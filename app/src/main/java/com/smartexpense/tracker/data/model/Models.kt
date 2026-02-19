@@ -244,6 +244,28 @@ data class AppSettings(
         "com.squareup.cash",
         "com.zellepay.zelle"
     ),
+    // ── Transaction type detection keywords ────────────────────────
+    /** Keywords in notification/SMS text that indicate an income transaction. */
+    val incomeKeywords: List<String> = listOf(
+        "credit account", "credited", "received", "deposit", "refund",
+        "cashback", "transfer to your", "added to", "reversed",
+        "salary", "income", "reward",
+        // Armenian: mutq (deposit), licqavorum (top-up), hamalrum (replenishment)
+        "\u0574\u0578\u0582\u057F\u0584", "\u056C\u056B\u0581\u0584\u0561\u057E\u0578\u0580\u0578\u0582\u0574", "\u0570\u0561\u0574\u0561\u056C\u0580\u0578\u0582\u0574",
+        // Russian (CIS banks)
+        "зачисление", "пополнение"
+    ),
+    /** Keywords in notification/SMS text that indicate an expense transaction. */
+    val expenseKeywords: List<String> = listOf(
+        "purchase", "atm cash", "atm", "mail order", "pos",
+        "charged", "debited", "spent", "paid", "withdrawal",
+        "sent", "debit", "withdrawn", "payment of", "used at",
+        "debit account", "e-commerce", "online purchase",
+        // Armenian: elq (outgoing/expense)
+        "\u0565\u056C\u0584",
+        // Russian (CIS banks)
+        "списание", "оплата", "покупка", "снятие"
+    ),
     // ── Monthly expense threshold ───────────────────────────────────
     /** 0 = disabled. When monthly expenses exceed this, a system notification is posted. */
     val monthlyExpenseLimit: Double = 0.0,
