@@ -216,7 +216,7 @@ fun SmsScanScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Save all button with loading state
+                    // Save all button with loading state + progress bar
                     Button(
                         onClick = onConfirmAll,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(48.dp),
@@ -231,12 +231,26 @@ fun SmsScanScreen(
                                 strokeWidth = 2.dp
                             )
                             Spacer(modifier = Modifier.width(10.dp))
-                            Text("Saving transactions…", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Saving ${scanState.savingProgress} of ${scanState.savingTotal}…",
+                                fontWeight = FontWeight.SemiBold
+                            )
                         } else {
                             Icon(Icons.Filled.Check, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Save All ${scanState.pendingTransactions.size} Transactions", fontWeight = FontWeight.SemiBold)
                         }
+                    }
+
+                    // Progress bar during saving
+                    if (scanState.isSaving && scanState.savingTotal > 0) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        LinearProgressIndicator(
+                            progress = { scanState.savingProgress.toFloat() / scanState.savingTotal.toFloat() },
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(6.dp),
+                            color = GreenPrimary,
+                            trackColor = GreenPrimary.copy(alpha = 0.15f)
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))

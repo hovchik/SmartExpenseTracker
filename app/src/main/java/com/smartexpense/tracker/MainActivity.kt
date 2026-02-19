@@ -52,6 +52,7 @@ fun MainApp(viewModel: MainViewModel) {
     val discoveredBankingApps by viewModel.discoveredBankingApps.collectAsState()
     val isScanningBankingApps by viewModel.isScanningBankingApps.collectAsState()
     val allInstalledApps by viewModel.allInstalledApps.collectAsState()
+    val ocrParsedData by viewModel.ocrParsedData.collectAsState()
     val scope = rememberCoroutineScope()
 
     // Shortcut to always-up-to-date currency code
@@ -184,7 +185,17 @@ fun MainApp(viewModel: MainViewModel) {
                     )
                     "scan" -> ScanReceiptScreen(
                         onOcrResult = { text, qrData -> viewModel.processOcrText(text, qrData) },
-                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) },
+                        onConfirmOcr = { amount, merchant, category ->
+                            viewModel.confirmOcrTransaction(amount, merchant, category)
+                        },
+                        onClearOcr = { viewModel.clearOcrData() },
+                        ocrParsedData = ocrParsedData,
+                        categories = uiState.categories.map { it.name },
+                        onNavigateBack = {
+                            viewModel.clearOcrData()
+                            currentScreen = "dashboard"
+                            viewModel.setSelectedTab(0)
+                        },
                         lastResult = uiState.lastOcrResult
                     )
                     "sms_scan" -> SmsScanScreen(

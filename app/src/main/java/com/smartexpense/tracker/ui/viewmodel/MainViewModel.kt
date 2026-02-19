@@ -66,6 +66,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _exchangeRates = MutableStateFlow<Map<String, Double>>(emptyMap())
     val exchangeRates: StateFlow<Map<String, Double>> = _exchangeRates.asStateFlow()
 
+    /** Parsed OCR data awaiting user confirmation (editable review form). */
+    private val _ocrParsedData = MutableStateFlow<OcrParsedData?>(null)
+    val ocrParsedData: StateFlow<OcrParsedData?> = _ocrParsedData.asStateFlow()
+
     /** In-app notifications (bell panel). */
     private val _inAppNotifications = MutableStateFlow<List<InAppNotification>>(emptyList())
     val inAppNotifications: StateFlow<List<InAppNotification>> = _inAppNotifications.asStateFlow()
@@ -226,6 +230,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteTransaction(id: String) { viewModelScope.launch { repository.deleteTransaction(id) } }
 
+    /**
+     * Parses OCR/QR receipt data and stores it in [ocrParsedData] for the user to review
+     * and edit before saving. Does NOT save the transaction automatically.
+     */
     fun processOcrText(ocrText: String, qrData: String? = null) {
         viewModelScope.launch {
             try {
@@ -233,17 +241,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val currencyCode = settings.currencyCode
                 val currencySymbol = currencyInfoFor(currencyCode).symbol
 
-                // Try OCR text parsing first
                 val ocrParsed = if (ocrText.isNotBlank()) aiEngine.parseReceiptText(ocrText, currencyCode) else null
                 val ocrAmount = (ocrParsed?.totalAmount ?: ocrParsed?.items?.sumOf { it.second }) ?: 0.0
 
-                // When QR data is available, prefer it — QR codes are machine-readable
-                // and more reliable than OCR text. Fall back to OCR only when QR has no amount.
                 val qrParsed = if (!qrData.isNullOrBlank()) aiEngine.parseQrCodeString(qrData) else null
                 val qrAmount = qrParsed?.totalAmount ?: 0.0
 
                 val (parsed, fromQr) = if (qrAmount > 0 && qrParsed != null) {
-                    // QR has amount — use it, but supplement merchant from OCR if QR merchant is generic
                     val merchant = if (qrParsed.merchantName in listOf("QR Receipt", "Unknown") && ocrParsed != null && ocrParsed.merchantName.isNotBlank() && ocrParsed.merchantName != "Unknown") {
                         ocrParsed.merchantName
                     } else {
@@ -262,58 +266,92 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val category = smartCategorize(
                         "${parsed.merchantName} ${parsed.items.joinToString(" ") { it.first }}"
                     )
-
-                    val itemsNote = if (parsed.items.isNotEmpty())
-                        "Items: ${parsed.items.joinToString(", ") { "${it.first}: $currencySymbol${String.format("%.2f", it.second)}" }}"
-                    else ""
-
-                    val sourceNote = if (fromQr) "Parsed from QR code" else ""
-
-                    val aiNote: String = if (settings.localAiEnabled) {
-                        val topCat = category
-                        val insight = withContext(Dispatchers.IO) {
-                            localAiService.generateInsight(
-                                totalExpenses = amount,
-                                totalIncome = 0.0,
-                                topCategory = topCat,
-                                topCategoryAmount = amount,
-                                transactionCount = 1,
-                                currencyCode = currencyCode
-                            )
-                        }
-                        if (insight != null) "\nAI: $insight" else ""
-                    } else ""
-
-                    val now = System.currentTimeMillis()
-                    val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
-                    repository.addTransaction(Transaction(
+                    _ocrParsedData.value = OcrParsedData(
                         amount = amount,
-                        description = "Receipt: ${parsed.merchantName}",
-                        category = category,
-                        type = TransactionType.EXPENSE,
-                        source = TransactionSource.OCR_SCAN,
                         merchantName = parsed.merchantName,
-                        timestamp = now,
-                        dateTime = dtFormatter.format(Date(now)),
-                        notes = listOf(itemsNote, sourceNote, aiNote).filter { it.isNotBlank() }.joinToString("\n")
-                    ))
-
-                    val resultMsg = buildString {
-                        append("Found: ${parsed.merchantName} — $currencySymbol${String.format("%.2f", amount)}")
-                        if (category.isNotEmpty()) append(" · $category")
-                        if (fromQr) append(" (from QR)")
-                    }
-                    _uiState.value = _uiState.value.copy(lastOcrResult = resultMsg)
+                        category = category,
+                        items = parsed.items,
+                        fromQr = fromQr,
+                        rawOcrText = ocrText,
+                        currencySymbol = currencySymbol
+                    )
+                    _uiState.value = _uiState.value.copy(lastOcrResult = null)
                 } else {
+                    _ocrParsedData.value = null
                     _uiState.value = _uiState.value.copy(
                         lastOcrResult = "Could not extract amount from receipt" +
                             if (qrData.isNullOrBlank()) "." else " or QR code."
                     )
                 }
             } catch (e: Exception) {
+                _ocrParsedData.value = null
                 _uiState.value = _uiState.value.copy(lastOcrResult = "OCR error: ${e.message}")
             }
         }
+    }
+
+    /**
+     * Saves the user-reviewed OCR transaction after edits.
+     */
+    fun confirmOcrTransaction(amount: Double, merchantName: String, category: String) {
+        viewModelScope.launch {
+            try {
+                val settings = repository.appData.value.settings
+                val currencyCode = settings.currencyCode
+                val currencySymbol = currencyInfoFor(currencyCode).symbol
+                val data = _ocrParsedData.value
+
+                val items = data?.items ?: emptyList()
+                val fromQr = data?.fromQr ?: false
+
+                val itemsNote = if (items.isNotEmpty())
+                    "Items: ${items.joinToString(", ") { "${it.first}: $currencySymbol${String.format("%.2f", it.second)}" }}"
+                else ""
+                val sourceNote = if (fromQr) "Parsed from QR code" else ""
+
+                val aiNote: String = if (settings.localAiEnabled) {
+                    val insight = withContext(Dispatchers.IO) {
+                        localAiService.generateInsight(
+                            totalExpenses = amount, totalIncome = 0.0,
+                            topCategory = category, topCategoryAmount = amount,
+                            transactionCount = 1, currencyCode = currencyCode
+                        )
+                    }
+                    if (insight != null) "\nAI: $insight" else ""
+                } else ""
+
+                repository.ensureCategoryExists(category)
+
+                val now = System.currentTimeMillis()
+                val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+                repository.addTransaction(Transaction(
+                    amount = amount,
+                    description = "Receipt: $merchantName",
+                    category = category,
+                    type = TransactionType.EXPENSE,
+                    source = TransactionSource.OCR_SCAN,
+                    merchantName = merchantName,
+                    timestamp = now,
+                    dateTime = dtFormatter.format(Date(now)),
+                    notes = listOf(itemsNote, sourceNote, aiNote).filter { it.isNotBlank() }.joinToString("\n")
+                ))
+
+                val resultMsg = buildString {
+                    append("Found: $merchantName — $currencySymbol${String.format("%.2f", amount)}")
+                    if (category.isNotEmpty()) append(" · $category")
+                    if (fromQr) append(" (from QR)")
+                }
+                _uiState.value = _uiState.value.copy(lastOcrResult = resultMsg)
+                _ocrParsedData.value = null
+                refreshSuggestions()
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(lastOcrResult = "Save error: ${e.message}")
+            }
+        }
+    }
+
+    fun clearOcrData() {
+        _ocrParsedData.value = null
     }
 
     fun dismissSuggestion(id: String) { viewModelScope.launch { repository.dismissSuggestion(id) } }
@@ -574,13 +612,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun confirmSmsScanResults() {
         viewModelScope.launch {
-            _smsScanState.value = _smsScanState.value.copy(isSaving = true)
             val pending = _smsScanState.value.pendingTransactions
+            _smsScanState.value = _smsScanState.value.copy(
+                isSaving = true, savingProgress = 0, savingTotal = pending.size
+            )
             val settings = repository.appData.value.settings
             val appCurrency = settings.currencyCode
-            val currencySymbol = settings.currency.ifEmpty { "$" }
 
-            for (tx in pending) {
+            for ((index, tx) in pending.withIndex()) {
+                _smsScanState.value = _smsScanState.value.copy(savingProgress = index + 1)
+
                 // Currency conversion: if parsed currency ≠ app currency, convert amount
                 val parsedCurrency = tx.notes.lines()
                     .find { it.startsWith("parsedCurrency:") }?.removePrefix("parsedCurrency:") ?: ""
@@ -615,19 +656,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Auto-create category if not in the existing list
                 repository.ensureCategoryExists(finalTx.category)
                 repository.addTransaction(finalTx)
-                // In-app notification for each confirmed SMS transaction
-                repository.addInAppNotification(
-                    InAppNotification(
-                        title = "SMS transaction added",
-                        message = "${finalTx.description}: $currencySymbol${String.format("%.2f", finalAmount)}" +
-                            if (finalTx.merchantName.isNotEmpty()) " at ${finalTx.merchantName}" else "",
-                        type = InAppNotificationType.SMS_PARSED,
-                        relatedTransactionId = finalTx.id
-                    )
-                )
             }
             _smsScanState.value = _smsScanState.value.copy(
-                isSaving = false, pendingTransactions = emptyList(), savedCount = pending.size
+                isSaving = false, pendingTransactions = emptyList(),
+                savedCount = pending.size, savingProgress = 0, savingTotal = 0
             )
             refreshSuggestions()
         }
@@ -813,7 +845,21 @@ data class SmsScanState(
     val transactionsParsed: Int = 0,
     val pendingTransactions: List<Transaction> = emptyList(),
     val savedCount: Int = 0, val errors: Int = 0,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val savingProgress: Int = 0, val savingTotal: Int = 0
+)
+
+/**
+ * Holds parsed OCR/QR receipt data for the editable review form.
+ */
+data class OcrParsedData(
+    val amount: Double,
+    val merchantName: String,
+    val category: String,
+    val items: List<Pair<String, Double>> = emptyList(),
+    val fromQr: Boolean = false,
+    val rawOcrText: String = "",
+    val currencySymbol: String = "$"
 )
 
 data class UiState(

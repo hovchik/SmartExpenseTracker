@@ -38,9 +38,14 @@ import com.smartexpense.tracker.ui.theme.*
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScanReceiptScreen(
     onOcrResult: (ocrText: String, qrData: String?) -> Unit,
+    onConfirmOcr: (amount: Double, merchantName: String, category: String) -> Unit,
+    onClearOcr: () -> Unit,
+    ocrParsedData: com.smartexpense.tracker.ui.viewmodel.OcrParsedData?,
+    categories: List<String>,
     onNavigateBack: () -> Unit,
     lastResult: String?
 ) {
@@ -265,8 +270,146 @@ fun ScanReceiptScreen(
             }
         }
 
-        // Result
-        if (lastResult != null) {
+        // ── Editable review form (shown after OCR parse, before saving) ──
+        if (ocrParsedData != null) {
+            var editAmount by remember(ocrParsedData) { mutableStateOf(String.format("%.2f", ocrParsedData.amount)) }
+            var editMerchant by remember(ocrParsedData) { mutableStateOf(ocrParsedData.merchantName) }
+            var editCategory by remember(ocrParsedData) { mutableStateOf(ocrParsedData.category) }
+            var categoryExpanded by remember { mutableStateOf(false) }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = GreenPrimary.copy(alpha = 0.06f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Edit, null, tint = GreenPrimary, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Review Transaction", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        if (ocrParsedData.fromQr) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = BluePrimary.copy(alpha = 0.15f)
+                            ) {
+                                Text("QR", fontSize = 10.sp, color = BluePrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Edit the details below before saving",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Amount field
+                    OutlinedTextField(
+                        value = editAmount,
+                        onValueChange = { editAmount = it },
+                        label = { Text("Amount (${ocrParsedData.currencySymbol})") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Merchant field
+                    OutlinedTextField(
+                        value = editMerchant,
+                        onValueChange = { editMerchant = it },
+                        label = { Text("Merchant / Description") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Category dropdown
+                    ExposedDropdownMenuBox(
+                        expanded = categoryExpanded,
+                        onExpandedChange = { categoryExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = editCategory,
+                            onValueChange = { editCategory = it },
+                            label = { Text("Category") },
+                            singleLine = true,
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                        val filtered = categories.filter { it.contains(editCategory, ignoreCase = true) }
+                        if (filtered.isNotEmpty()) {
+                            ExposedDropdownMenu(
+                                expanded = categoryExpanded,
+                                onDismissRequest = { categoryExpanded = false }
+                            ) {
+                                filtered.forEach { cat ->
+                                    DropdownMenuItem(
+                                        text = { Text(cat, fontSize = 14.sp) },
+                                        onClick = { editCategory = cat; categoryExpanded = false }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Items breakdown (read-only)
+                    if (ocrParsedData.items.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("Items detected:", fontWeight = FontWeight.Medium, fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        ocrParsedData.items.forEach { (name, price) ->
+                            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(name, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f))
+                                Text("${ocrParsedData.currencySymbol}${String.format("%.2f", price)}",
+                                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Save + Discard buttons
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(
+                            onClick = onClearOcr,
+                            modifier = Modifier.weight(1f).height(46.dp),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Discard", fontWeight = FontWeight.SemiBold)
+                        }
+                        Button(
+                            onClick = {
+                                val amt = editAmount.toDoubleOrNull()
+                                if (amt != null && amt > 0) {
+                                    onConfirmOcr(amt, editMerchant, editCategory)
+                                }
+                            },
+                            modifier = Modifier.weight(1f).height(46.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary)
+                        ) {
+                            Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Save", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Result (shown after saving)
+        if (lastResult != null && ocrParsedData == null) {
             Spacer(modifier = Modifier.height(16.dp))
             val isSuccess = lastResult.startsWith("Found")
             Card(
