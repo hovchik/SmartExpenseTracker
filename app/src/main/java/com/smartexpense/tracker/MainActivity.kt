@@ -62,6 +62,7 @@ fun MainApp(viewModel: MainViewModel) {
     val modelImportMessage by viewModel.modelImportMessage.collectAsState()
     val ollamaModels by viewModel.ollamaModels.collectAsState()
     val ollamaConnecting by viewModel.ollamaConnecting.collectAsState()
+    val dashboardSectionOrder by viewModel.dashboardSectionOrder.collectAsState()
     val scope = rememberCoroutineScope()
 
     // Shortcut to always-up-to-date currency code
@@ -161,6 +162,8 @@ fun MainApp(viewModel: MainViewModel) {
                         weeklyChartData = viewModel.getWeeklyChartData(),
                         onDismissSuggestion = { viewModel.dismissSuggestion(it) },
                         onDeleteTransaction = { viewModel.deleteTransaction(it) },
+                        sectionOrder = dashboardSectionOrder,
+                        onMoveSections = { from, to -> viewModel.moveDashboardSection(from, to) },
                         currencyCode = currencyCode
                     )
                     "reports" -> ReportsScreen(

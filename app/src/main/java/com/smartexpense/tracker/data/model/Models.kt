@@ -221,6 +221,18 @@ enum class RateSource {
     RATE_AM
 }
 
+/**
+ * Dashboard sections that can be reordered via drag-and-drop.
+ */
+enum class DashboardSection {
+    BALANCE_SUMMARY,
+    QUICK_STATS,
+    WEEKLY_CHART,
+    AI_INSIGHTS,
+    CATEGORY_BREAKDOWN,
+    RECENT_TRANSACTIONS
+}
+
 data class AppSettings(
     /** Legacy single-char symbol kept for backward-compat. Use currencyCode instead. */
     val currency: String = "֏",
@@ -294,7 +306,9 @@ data class AppSettings(
     val scheduledSalaryAmount: Double = 0.0,
     /** Day-of-month (1–31) to add the salary transaction automatically each month. */
     val scheduledSalaryDayOfMonth: Int = 1,
-    val scheduledSalaryDescription: String = "Monthly Salary"
+    val scheduledSalaryDescription: String = "Monthly Salary",
+    /** Persisted order of dashboard sections (stored as enum names). Empty = default order. */
+    val dashboardSectionOrder: List<String> = emptyList()
 )
 
 fun defaultCategories(): List<Category> = listOf(

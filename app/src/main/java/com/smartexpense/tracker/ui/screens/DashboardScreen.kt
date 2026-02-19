@@ -1,12 +1,15 @@
 package com.smartexpense.tracker.ui.screens
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -24,98 +27,169 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartexpense.tracker.data.model.*
+import com.smartexpense.tracker.ui.components.dragDropItem
+import com.smartexpense.tracker.ui.components.rememberDragDropListState
 import com.smartexpense.tracker.ui.theme.*
 import com.smartexpense.tracker.ui.viewmodel.UiState
 import com.smartexpense.tracker.util.CurrencyUtils
 import com.smartexpense.tracker.util.DateUtils
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DashboardScreen(
     uiState: UiState,
     weeklyChartData: List<Pair<String, Double>>,
     onDismissSuggestion: (String) -> Unit,
     onDeleteTransaction: (String) -> Unit,
+    sectionOrder: List<DashboardSection>,
+    onMoveSections: (DashboardSection, DashboardSection) -> Unit,
     currencyCode: String = "USD"
 ) {
+    val visibleSections = remember(
+        sectionOrder,
+        uiState.suggestions.isEmpty(),
+        uiState.categoryBreakdown.isEmpty()
+    ) {
+        sectionOrder.filter { section ->
+            when (section) {
+                DashboardSection.AI_INSIGHTS -> uiState.suggestions.isNotEmpty()
+                DashboardSection.CATEGORY_BREAKDOWN -> uiState.categoryBreakdown.isNotEmpty()
+                else -> true
+            }
+        }
+    }
+
+    val lazyListState = rememberLazyListState()
+    val dragDropState = rememberDragDropListState(lazyListState) { fromIndex, toIndex ->
+        if (fromIndex in visibleSections.indices && toIndex in visibleSections.indices) {
+            onMoveSections(visibleSections[fromIndex], visibleSections[toIndex])
+        }
+    }
+
     LazyColumn(
+        state = lazyListState,
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(vertical = 16.dp)
     ) {
-        item { BalanceSummaryCard(uiState, currencyCode) }
-        item { QuickStatsRow(uiState, currencyCode) }
-        item { WeeklySpendingChart(weeklyChartData, currencyCode) }
-
-        if (uiState.suggestions.isNotEmpty()) {
-            item {
-                Text(
-                    "AI Insights",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-            items(uiState.suggestions.take(3)) { suggestion ->
-                AiSuggestionCard(suggestion, currencyCode, onDismiss = { onDismissSuggestion(suggestion.id) })
-            }
-        }
-
-        if (uiState.categoryBreakdown.isNotEmpty()) {
-            item {
-                Text(
-                    "Spending by Category",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-            item { CategoryBreakdownCard(uiState.categoryBreakdown, uiState.monthlyExpenses, currencyCode) }
-        }
-
-        item {
-            Text(
-                "Recent Transactions",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
-
-        if (uiState.recentTransactions.isEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(Icons.Outlined.ReceiptLong, contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text("No transactions yet", style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(
-                            "Add one manually, scan a receipt, or enable SMS/notification tracking",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+        itemsIndexed(visibleSections, key = { _, section -> section.name }) { index, section ->
+            val isDragged = index == dragDropState.draggedIndex
+            Box(
+                modifier = Modifier
+                    .then(if (!isDragged) Modifier.animateItemPlacement() else Modifier)
+                    .dragDropItem(dragDropState, index)
+            ) {
+                when (section) {
+                    DashboardSection.BALANCE_SUMMARY ->
+                        BalanceSummaryCard(uiState, currencyCode)
+                    DashboardSection.QUICK_STATS ->
+                        QuickStatsRow(uiState, currencyCode)
+                    DashboardSection.WEEKLY_CHART ->
+                        WeeklySpendingChart(weeklyChartData, currencyCode)
+                    DashboardSection.AI_INSIGHTS ->
+                        AiInsightsSection(uiState.suggestions, currencyCode, onDismissSuggestion)
+                    DashboardSection.CATEGORY_BREAKDOWN ->
+                        CategoryBreakdownSection(
+                            uiState.categoryBreakdown, uiState.monthlyExpenses, currencyCode
                         )
-                    }
+                    DashboardSection.RECENT_TRANSACTIONS ->
+                        RecentTransactionsSection(
+                            uiState.recentTransactions, currencyCode, onDeleteTransaction
+                        )
                 }
             }
-        } else {
-            items(uiState.recentTransactions.take(10)) { transaction ->
-                TransactionItem(transaction, currencyCode, onDelete = { onDeleteTransaction(transaction.id) })
-            }
         }
-
         item { Spacer(modifier = Modifier.height(80.dp)) }
     }
 }
+
+// ── Section wrappers (group title + content into a single draggable unit) ────
+
+@Composable
+private fun AiInsightsSection(
+    suggestions: List<AiSuggestion>,
+    currencyCode: String,
+    onDismissSuggestion: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            "AI Insights",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        suggestions.take(3).forEach { suggestion ->
+            AiSuggestionCard(
+                suggestion, currencyCode,
+                onDismiss = { onDismissSuggestion(suggestion.id) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun CategoryBreakdownSection(
+    breakdown: Map<String, Double>,
+    totalExpenses: Double,
+    currencyCode: String
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            "Spending by Category",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        CategoryBreakdownCard(breakdown, totalExpenses, currencyCode)
+    }
+}
+
+@Composable
+private fun RecentTransactionsSection(
+    transactions: List<Transaction>,
+    currencyCode: String,
+    onDeleteTransaction: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            "Recent Transactions",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        if (transactions.isEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(Icons.Outlined.ReceiptLong, contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("No transactions yet", style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "Add one manually, scan a receipt, or enable SMS/notification tracking",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            transactions.take(10).forEach { transaction ->
+                TransactionItem(
+                    transaction, currencyCode,
+                    onDelete = { onDeleteTransaction(transaction.id) }
+                )
+            }
+        }
+    }
+}
+
+// ── Individual card composables (unchanged) ──────────────────────────────────
 
 @Composable
 fun BalanceSummaryCard(uiState: UiState, currencyCode: String = "USD") {

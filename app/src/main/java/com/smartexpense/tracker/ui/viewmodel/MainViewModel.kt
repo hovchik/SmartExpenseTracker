@@ -45,6 +45,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
+    /** Dashboard section order for drag-and-drop reordering. */
+    private val _dashboardSectionOrder = MutableStateFlow(DashboardSection.entries.toList())
+    val dashboardSectionOrder: StateFlow<List<DashboardSection>> = _dashboardSectionOrder.asStateFlow()
+
     private val _selectedTab = MutableStateFlow(0)
     val selectedTab: StateFlow<Int> = _selectedTab.asStateFlow()
 
@@ -91,6 +95,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository.initialize()
             val settings = repository.appData.value.settings
             _themeMode.value = settings.themeMode
+
+            // Restore dashboard section order from settings
+            _dashboardSectionOrder.value = restoreSectionOrder(settings.dashboardSectionOrder)
 
             // Auto-load saved MediaPipe model if configured
             if (settings.localAiEnabled && settings.mediapipeModelPath.isNotEmpty()) {
@@ -207,6 +214,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setSelectedTab(index: Int) { _selectedTab.value = index }
     fun setReportPeriod(period: ReportPeriod) { _reportPeriod.value = period }
+
+    // ─── Dashboard section reordering ────────────────────────────────
+
+    /**
+     * Moves a dashboard section from one position to another and persists the new order.
+     */
+    fun moveDashboardSection(from: DashboardSection, to: DashboardSection) {
+        val list = _dashboardSectionOrder.value.toMutableList()
+        val fromIdx = list.indexOf(from)
+        val toIdx = list.indexOf(to)
+        if (fromIdx >= 0 && toIdx >= 0) {
+            val item = list.removeAt(fromIdx)
+            list.add(toIdx, item)
+            _dashboardSectionOrder.value = list
+            viewModelScope.launch {
+                val settings = repository.appData.value.settings
+                repository.updateSettings(settings.copy(dashboardSectionOrder = list.map { it.name }))
+            }
+        }
+    }
+
+    private fun restoreSectionOrder(saved: List<String>): List<DashboardSection> {
+        if (saved.isEmpty()) return DashboardSection.entries.toList()
+        val restored = saved.mapNotNull { name ->
+            try { DashboardSection.valueOf(name) } catch (_: Exception) { null }
+        }
+        // Append any new sections that weren't in the saved order
+        val missing = DashboardSection.entries.filter { it !in restored }
+        return (restored + missing).ifEmpty { DashboardSection.entries.toList() }
+    }
 
     // ─── Local AI Engine ────────────────────────────────────────────
 
