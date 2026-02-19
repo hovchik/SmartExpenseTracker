@@ -60,6 +60,8 @@ fun MainApp(viewModel: MainViewModel) {
     val downloadProgress by viewModel.downloadProgress.collectAsState()
     val downloadError by viewModel.downloadError.collectAsState()
     val modelImportMessage by viewModel.modelImportMessage.collectAsState()
+    val ollamaModels by viewModel.ollamaModels.collectAsState()
+    val ollamaConnecting by viewModel.ollamaConnecting.collectAsState()
     val scope = rememberCoroutineScope()
 
     // Shortcut to always-up-to-date currency code
@@ -265,7 +267,11 @@ fun MainApp(viewModel: MainViewModel) {
                         downloadError = downloadError,
                         onImportModelFile = { uri -> viewModel.importModelFile(uri) },
                         modelImportMessage = modelImportMessage,
-                        isGalleryInstalled = viewModel.isGalleryInstalled()
+                        isGalleryInstalled = viewModel.isGalleryInstalled(),
+                        ollamaModels = ollamaModels,
+                        ollamaConnecting = ollamaConnecting,
+                        onConnectOllama = { host -> viewModel.connectOllama(host) },
+                        onSelectOllamaModel = { name -> viewModel.selectOllamaModel(name) }
                     )
                 }
             }

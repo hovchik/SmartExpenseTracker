@@ -79,6 +79,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .map { list -> list.count { !it.isRead } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
+    /** Available Ollama models on the connected server. */
+    private val _ollamaModels = MutableStateFlow<List<com.smartexpense.tracker.service.ai.OllamaService.OllamaModel>>(emptyList())
+    val ollamaModels: StateFlow<List<com.smartexpense.tracker.service.ai.OllamaService.OllamaModel>> = _ollamaModels.asStateFlow()
+
+    private val _ollamaConnecting = MutableStateFlow(false)
+    val ollamaConnecting: StateFlow<Boolean> = _ollamaConnecting.asStateFlow()
+
     init {
         viewModelScope.launch {
             repository.initialize()
@@ -89,6 +96,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (settings.localAiEnabled && settings.mediapipeModelPath.isNotEmpty()) {
                 withContext(Dispatchers.IO) {
                     localAiService.mediaPipeLlm.loadModel(settings.mediapipeModelPath)
+                }
+            }
+            // Restore Ollama settings if configured
+            if (settings.ollamaHost.isNotEmpty()) {
+                localAiService.ollamaService.host = settings.ollamaHost
+            }
+            if (settings.ollamaModel.isNotEmpty()) {
+                localAiService.ollamaService.selectModel(settings.ollamaModel)
+                if (settings.localAiEnabled && settings.aiEnginePreference == com.smartexpense.tracker.data.model.AiEnginePreference.OLLAMA) {
+                    withContext(Dispatchers.IO) { localAiService.ollamaService.checkConnection() }
                 }
             }
             // Run initial AI availability check
@@ -235,6 +252,66 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _localAiStatus.value = localAiService.statusMessage()
             _localAiSuggestion.value = localAiService.alternativeSuggestion()
             _engineDescriptions.value = localAiService.engineDescriptions()
+        }
+    }
+
+    // ── Ollama ─────────────────────────────────────────────────────
+
+    /**
+     * Connects to an Ollama server and fetches available models.
+     */
+    fun connectOllama(host: String) {
+        viewModelScope.launch {
+            _ollamaConnecting.value = true
+            _localAiStatus.value = "Connecting to Ollama\u2026"
+            localAiService.ollamaService.host = host
+
+            val ok = withContext(Dispatchers.IO) { localAiService.ollamaService.checkConnection() }
+            if (ok) {
+                val models = withContext(Dispatchers.IO) { localAiService.ollamaService.listModels() }
+                _ollamaModels.value = models
+                // Save host
+                val settings = repository.appData.value.settings
+                repository.updateSettings(settings.copy(ollamaHost = host))
+            } else {
+                _ollamaModels.value = emptyList()
+            }
+            _ollamaConnecting.value = false
+            _localAiStatus.value = localAiService.statusMessage()
+            _engineDescriptions.value = localAiService.engineDescriptions()
+        }
+    }
+
+    /**
+     * Selects an Ollama model and activates the Ollama engine.
+     */
+    fun selectOllamaModel(modelName: String) {
+        viewModelScope.launch {
+            localAiService.ollamaService.selectModel(modelName)
+            val settings = repository.appData.value.settings
+            repository.updateSettings(settings.copy(
+                ollamaModel = modelName,
+                aiEnginePreference = AiEnginePreference.OLLAMA,
+                localAiEnabled = true
+            ))
+            withContext(Dispatchers.IO) {
+                localAiService.recheckAvailability(AiEnginePreference.OLLAMA)
+            }
+            _localAiStatus.value = localAiService.statusMessage()
+            _localAiSuggestion.value = localAiService.alternativeSuggestion()
+            _engineDescriptions.value = localAiService.engineDescriptions()
+        }
+    }
+
+    /**
+     * Refreshes the Ollama model list from the current server.
+     */
+    fun refreshOllamaModels() {
+        viewModelScope.launch {
+            _ollamaConnecting.value = true
+            val models = withContext(Dispatchers.IO) { localAiService.ollamaService.listModels() }
+            _ollamaModels.value = models
+            _ollamaConnecting.value = false
         }
     }
 

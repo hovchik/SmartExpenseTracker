@@ -205,8 +205,10 @@ enum class AiEnginePreference {
     RULE_BASED,
     /** Gemini Nano via Google AICore or Samsung Galaxy AI. */
     GEMINI_NANO,
-    /** MediaPipe LLM Inference with a downloaded Gemma model. */
-    MEDIAPIPE_LLM
+    /** MediaPipe LLM Inference with a downloaded model. */
+    MEDIAPIPE_LLM,
+    /** Ollama – on-device or local-network LLM server. */
+    OLLAMA
 }
 
 /**
@@ -239,6 +241,10 @@ data class AppSettings(
     val mediapipeModelPath: String = "",
     /** HuggingFace API token for downloading gated models (e.g. Gemma). */
     val huggingFaceToken: String = "",
+    /** Ollama server base URL (e.g. "http://localhost:11434"). */
+    val ollamaHost: String = "http://localhost:11434",
+    /** Selected Ollama model name (e.g. "llama3.2:1b", "gemma2:2b"). */
+    val ollamaModel: String = "",
     /** Source for currency exchange rates. */
     val rateSource: RateSource = RateSource.OPEN_API,
     /** Keywords used when scanning for banking/payment apps on the device. */

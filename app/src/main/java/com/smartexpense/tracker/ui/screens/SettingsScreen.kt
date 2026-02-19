@@ -100,7 +100,12 @@ fun SettingsScreen(
     // ── Model file import ──
     onImportModelFile: (Uri) -> Unit = {},
     modelImportMessage: String? = null,
-    isGalleryInstalled: Boolean = false
+    isGalleryInstalled: Boolean = false,
+    // ── Ollama ──
+    ollamaModels: List<com.smartexpense.tracker.service.ai.OllamaService.OllamaModel> = emptyList(),
+    ollamaConnecting: Boolean = false,
+    onConnectOllama: (String) -> Unit = {},
+    onSelectOllamaModel: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     var showClearDialog by remember { mutableStateOf(false) }
@@ -1670,7 +1675,8 @@ fun SettingsScreen(
 
                         val engines = listOf(
                             AiEnginePreference.AUTO to "Auto-detect",
-                            AiEnginePreference.MEDIAPIPE_LLM to "MediaPipe LLM (Gemma)",
+                            AiEnginePreference.OLLAMA to "Ollama",
+                            AiEnginePreference.MEDIAPIPE_LLM to "MediaPipe LLM",
                             AiEnginePreference.GEMINI_NANO to "Gemini Nano / Galaxy AI",
                             AiEnginePreference.RULE_BASED to "Rule-based (no model)"
                         )
@@ -1700,9 +1706,138 @@ fun SettingsScreen(
                         }
                     }
 
-                    // ── MediaPipe model management ──
-                    if (settings.aiEnginePreference == AiEnginePreference.MEDIAPIPE_LLM ||
+                    // ── Ollama configuration ──
+                    if (settings.aiEnginePreference == AiEnginePreference.OLLAMA ||
                         settings.aiEnginePreference == AiEnginePreference.AUTO) {
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.Dns, null, modifier = Modifier.size(18.dp),
+                                    tint = PurpleAccent)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Ollama Server", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            // Server address input
+                            var ollamaHostText by remember(settings.ollamaHost) {
+                                mutableStateOf(settings.ollamaHost)
+                            }
+
+                            OutlinedTextField(
+                                value = ollamaHostText,
+                                onValueChange = { ollamaHostText = it.trim() },
+                                label = { Text("Server address") },
+                                placeholder = { Text("http://localhost:11434", fontSize = 12.sp) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Button(
+                                onClick = { onConnectOllama(ollamaHostText) },
+                                shape = RoundedCornerShape(10.dp),
+                                enabled = !ollamaConnecting && ollamaHostText.isNotBlank(),
+                                colors = ButtonDefaults.buttonColors(containerColor = BluePrimary),
+                                modifier = Modifier.fillMaxWidth().height(40.dp)
+                            ) {
+                                if (ollamaConnecting) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp), strokeWidth = 2.dp,
+                                        color = Color.White
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Connecting\u2026", fontSize = 13.sp)
+                                } else {
+                                    Icon(Icons.Filled.Wifi, null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Connect & Load Models", fontSize = 13.sp)
+                                }
+                            }
+
+                            // Ollama models list
+                            if (ollamaModels.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text("Available models:", fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                ollamaModels.forEach { model ->
+                                    val isActive = settings.ollamaModel == model.name
+                                    OutlinedCard(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 3.dp)
+                                            .clickable { onSelectOllamaModel(model.name) },
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = if (isActive) BorderStroke(1.5.dp, GreenPrimary)
+                                                 else CardDefaults.outlinedCardBorder()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                if (isActive) Icons.Filled.CheckCircle else Icons.Filled.SmartToy,
+                                                null, modifier = Modifier.size(18.dp),
+                                                tint = if (isActive) GreenPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(model.name, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                                val details = listOfNotNull(
+                                                    model.parameterSize.takeIf { it.isNotEmpty() },
+                                                    model.quantization.takeIf { it.isNotEmpty() },
+                                                    model.sizeLabel
+                                                ).joinToString(" \u00B7 ")
+                                                if (details.isNotEmpty()) {
+                                                    Text(details, fontSize = 10.sp,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                }
+                                            }
+                                            if (isActive) {
+                                                Surface(shape = RoundedCornerShape(4.dp), color = GreenPrimary.copy(alpha = 0.15f)) {
+                                                    Text("Active", fontSize = 10.sp, color = GreenPrimary,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Getting started info
+                            if (ollamaModels.isEmpty() && !ollamaConnecting) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = BluePrimary.copy(alpha = 0.07f)
+                                    )
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Text("Getting started with Ollama", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            "1. Install Ollama on your device or computer\n" +
+                                            "2. Run: ollama pull llama3.2:1b (or any model)\n" +
+                                            "3. Enter the server address above and tap Connect",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            lineHeight = 16.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // ── MediaPipe model management (simplified) ──
+                    if (settings.aiEnginePreference == AiEnginePreference.MEDIAPIPE_LLM) {
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1718,70 +1853,9 @@ fun SettingsScreen(
                                     modifier = Modifier.padding(vertical = 6.dp)) {
                                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                                     Spacer(modifier = Modifier.width(10.dp))
-                                    Text("Loading model…", style = MaterialTheme.typography.bodySmall)
+                                    Text("Loading model\u2026", style = MaterialTheme.typography.bodySmall)
                                 }
                             }
-
-                            // ── How to get a model (step-by-step guide) ──
-                            Card(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = BluePrimary.copy(alpha = 0.07f)
-                                )
-                            ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Text("How to get a model", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        "1. Install Google AI Edge Gallery from Play Store\n" +
-                                        "2. Open Gallery and download a Gemma model\n" +
-                                        "3. Come back here and tap \"Import model file\" or \"Scan for models\"",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        lineHeight = 16.sp
-                                    )
-
-                                    Spacer(modifier = Modifier.height(10.dp))
-
-                                    // Gallery install / open button
-                                    if (isGalleryInstalled) {
-                                        OutlinedButton(
-                                            onClick = {
-                                                val intent = context.packageManager.getLaunchIntentForPackage(
-                                                    com.smartexpense.tracker.service.ai.MediaPipeLlmService.GALLERY_PACKAGE
-                                                )
-                                                if (intent != null) context.startActivity(intent)
-                                            },
-                                            shape = RoundedCornerShape(8.dp),
-                                            modifier = Modifier.fillMaxWidth().height(36.dp)
-                                        ) {
-                                            Icon(Icons.Filled.OpenInNew, null, modifier = Modifier.size(16.dp))
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text("Open AI Edge Gallery", fontSize = 12.sp)
-                                        }
-                                    } else {
-                                        Button(
-                                            onClick = {
-                                                val intent = Intent(
-                                                    Intent.ACTION_VIEW,
-                                                    Uri.parse(com.smartexpense.tracker.service.ai.MediaPipeLlmService.GALLERY_PLAY_STORE_URL)
-                                                )
-                                                context.startActivity(intent)
-                                            },
-                                            shape = RoundedCornerShape(8.dp),
-                                            colors = ButtonDefaults.buttonColors(containerColor = BluePrimary),
-                                            modifier = Modifier.fillMaxWidth().height(36.dp)
-                                        ) {
-                                            Icon(Icons.Filled.Shop, null, modifier = Modifier.size(16.dp))
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text("Install AI Edge Gallery", fontSize = 12.sp)
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
 
                             // ── Import model file (SAF file picker) ──
                             val modelFileLauncher = rememberLauncherForActivityResult(
@@ -1791,7 +1865,7 @@ fun SettingsScreen(
                             Button(
                                 onClick = { modelFileLauncher.launch(arrayOf("*/*")) },
                                 shape = RoundedCornerShape(10.dp),
-                                enabled = !isLoadingModel && !isDownloadingModel,
+                                enabled = !isLoadingModel,
                                 modifier = Modifier.fillMaxWidth().height(40.dp)
                             ) {
                                 Icon(Icons.Filled.FolderOpen, null, modifier = Modifier.size(18.dp))
@@ -1812,7 +1886,7 @@ fun SettingsScreen(
                             OutlinedButton(
                                 onClick = onDiscoverModels,
                                 shape = RoundedCornerShape(10.dp),
-                                enabled = !isLoadingModel && !isDownloadingModel,
+                                enabled = !isLoadingModel,
                                 modifier = Modifier.fillMaxWidth().height(40.dp)
                             ) {
                                 Icon(Icons.Filled.Search, null, modifier = Modifier.size(16.dp))
@@ -1820,12 +1894,8 @@ fun SettingsScreen(
                                 Text("Scan for models on device", fontSize = 13.sp)
                             }
 
-                            // ── Discovered models list ──
                             if (discoveredModels.isNotEmpty()) {
                                 Spacer(modifier = Modifier.height(10.dp))
-                                Text("Models found on device:", fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Spacer(modifier = Modifier.height(4.dp))
                                 discoveredModels.forEach { (name, path) ->
                                     val isActive = settings.mediapipeModelPath == path
                                     OutlinedCard(
@@ -1855,214 +1925,6 @@ fun SettingsScreen(
                                             if (isActive) {
                                                 Text("Active", fontSize = 11.sp, color = GreenPrimary,
                                                     fontWeight = FontWeight.Bold)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // ── Advanced: Direct download with HuggingFace token ──
-                            Spacer(modifier = Modifier.height(12.dp))
-                            HorizontalDivider()
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            var advancedExpanded by remember { mutableStateOf(false) }
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { advancedExpanded = !advancedExpanded }
-                                    .padding(vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Filled.Tune, null, modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Advanced: Direct download", fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.weight(1f))
-                                val advRotation by animateFloatAsState(
-                                    targetValue = if (advancedExpanded) 180f else 0f,
-                                    label = "adv_chevron"
-                                )
-                                Icon(Icons.Filled.KeyboardArrowDown, null,
-                                    modifier = Modifier.size(18.dp).rotate(advRotation),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-
-                            AnimatedVisibility(
-                                visible = advancedExpanded,
-                                enter = expandVertically(),
-                                exit = shrinkVertically()
-                            ) {
-                                Column {
-                                    Text(
-                                        "Download directly from HuggingFace. Gemma models are gated and require a free HuggingFace account and token.",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        lineHeight = 14.sp
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    var hfTokenText by remember(settings.huggingFaceToken) {
-                                        mutableStateOf(settings.huggingFaceToken)
-                                    }
-                                    var hfTokenVisible by remember { mutableStateOf(false) }
-
-                                    OutlinedTextField(
-                                        value = hfTokenText,
-                                        onValueChange = { hfTokenText = it },
-                                        label = { Text("HuggingFace Token (hf_...)") },
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(10.dp),
-                                        visualTransformation = if (hfTokenVisible)
-                                            androidx.compose.ui.text.input.VisualTransformation.None
-                                        else
-                                            androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                                        trailingIcon = {
-                                            Row {
-                                                IconButton(onClick = { hfTokenVisible = !hfTokenVisible },
-                                                    modifier = Modifier.size(36.dp)) {
-                                                    Icon(
-                                                        if (hfTokenVisible) Icons.Filled.VisibilityOff
-                                                        else Icons.Filled.Visibility,
-                                                        "Toggle visibility", modifier = Modifier.size(18.dp)
-                                                    )
-                                                }
-                                                if (hfTokenText != settings.huggingFaceToken) {
-                                                    IconButton(onClick = {
-                                                        onUpdateSettings(settings.copy(huggingFaceToken = hfTokenText))
-                                                    }, modifier = Modifier.size(36.dp)) {
-                                                        Icon(Icons.Filled.Check, "Save token",
-                                                            tint = GreenPrimary, modifier = Modifier.size(18.dp))
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    )
-
-                                    // ── Model catalog (downloadable) ──
-                                    if (modelCatalog.isNotEmpty()) {
-                                        Spacer(modifier = Modifier.height(10.dp))
-
-                                        modelCatalog.forEach { model ->
-                                            val downloaded = isModelDownloaded(model)
-                                            val isActive = settings.mediapipeModelPath.endsWith(model.fileName)
-                                            OutlinedCard(
-                                                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                                                shape = RoundedCornerShape(10.dp),
-                                                border = if (isActive) BorderStroke(1.5.dp, GreenPrimary)
-                                                         else CardDefaults.outlinedCardBorder()
-                                            ) {
-                                                Column(modifier = Modifier.padding(12.dp)) {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Icon(
-                                                            if (isActive) Icons.Filled.CheckCircle
-                                                            else if (downloaded) Icons.Filled.SmartToy
-                                                            else Icons.Filled.CloudDownload,
-                                                            null, modifier = Modifier.size(20.dp),
-                                                            tint = if (isActive) GreenPrimary
-                                                                   else if (downloaded) PurpleAccent
-                                                                   else BluePrimary
-                                                        )
-                                                        Spacer(modifier = Modifier.width(10.dp))
-                                                        Column(modifier = Modifier.weight(1f)) {
-                                                            Text(model.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                                                            Text("${model.quantization} · ${model.sizeLabel}",
-                                                                fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                        }
-                                                        if (isActive) {
-                                                            Surface(shape = RoundedCornerShape(4.dp), color = GreenPrimary.copy(alpha = 0.15f)) {
-                                                                Text("Active", fontSize = 10.sp, color = GreenPrimary,
-                                                                    fontWeight = FontWeight.Bold,
-                                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
-                                                            }
-                                                        }
-                                                    }
-                                                    Spacer(modifier = Modifier.height(4.dp))
-                                                    Text(model.description, fontSize = 11.sp,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        lineHeight = 15.sp)
-                                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                                    // Download progress bar
-                                                    if (isDownloadingModel) {
-                                                        LinearProgressIndicator(
-                                                            progress = { downloadProgress },
-                                                            modifier = Modifier.fillMaxWidth().height(6.dp),
-                                                            color = BluePrimary,
-                                                            trackColor = BluePrimary.copy(alpha = 0.15f)
-                                                        )
-                                                        Spacer(modifier = Modifier.height(4.dp))
-                                                        Text(
-                                                            "Downloading… ${(downloadProgress * 100).toInt()}%",
-                                                            fontSize = 11.sp, color = BluePrimary
-                                                        )
-                                                    } else if (downloadError != null && !downloaded) {
-                                                        Text(downloadError, fontSize = 11.sp, color = RedExpense)
-                                                        Spacer(modifier = Modifier.height(4.dp))
-                                                    }
-
-                                                    // Action buttons
-                                                    if (!isDownloadingModel) {
-                                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                            if (!downloaded) {
-                                                                Button(
-                                                                    onClick = { onDownloadCatalogModel(model) },
-                                                                    shape = RoundedCornerShape(8.dp),
-                                                                    enabled = !isLoadingModel && settings.huggingFaceToken.isNotBlank(),
-                                                                    colors = ButtonDefaults.buttonColors(containerColor = BluePrimary),
-                                                                    modifier = Modifier.height(34.dp)
-                                                                ) {
-                                                                    Icon(Icons.Filled.CloudDownload, null, modifier = Modifier.size(16.dp))
-                                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                                    Text("Download", fontSize = 12.sp)
-                                                                }
-                                                            } else if (!isActive) {
-                                                                Button(
-                                                                    onClick = { onLoadModel(
-                                                                        File(context.filesDir, "models/${model.fileName}").absolutePath
-                                                                    ) },
-                                                                    shape = RoundedCornerShape(8.dp),
-                                                                    enabled = !isLoadingModel,
-                                                                    modifier = Modifier.height(34.dp)
-                                                                ) {
-                                                                    Text("Load", fontSize = 12.sp)
-                                                                }
-                                                                OutlinedButton(
-                                                                    onClick = { onDeleteCatalogModel(model) },
-                                                                    shape = RoundedCornerShape(8.dp),
-                                                                    modifier = Modifier.height(34.dp)
-                                                                ) {
-                                                                    Icon(Icons.Filled.Delete, null, modifier = Modifier.size(14.dp),
-                                                                        tint = RedExpense)
-                                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                                    Text("Delete", fontSize = 12.sp, color = RedExpense)
-                                                                }
-                                                            } else {
-                                                                // Active — show delete only
-                                                                OutlinedButton(
-                                                                    onClick = { onDeleteCatalogModel(model) },
-                                                                    shape = RoundedCornerShape(8.dp),
-                                                                    modifier = Modifier.height(34.dp)
-                                                                ) {
-                                                                    Icon(Icons.Filled.Delete, null, modifier = Modifier.size(14.dp),
-                                                                        tint = RedExpense)
-                                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                                    Text("Remove model", fontSize = 12.sp, color = RedExpense)
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-
-                                                    if (!downloaded && settings.huggingFaceToken.isBlank()) {
-                                                        Spacer(modifier = Modifier.height(4.dp))
-                                                        Text("Enter a HuggingFace token above to enable download",
-                                                            fontSize = 10.sp, color = OrangeWarning)
-                                                    }
-                                                }
                                             }
                                         }
                                     }
@@ -2156,9 +2018,9 @@ fun SettingsScreen(
                 Icon(Icons.Filled.AutoAwesome, null, tint = PurpleAccent, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    "All AI processing runs entirely on-device — no data is sent to the cloud. " +
-                        "Install Google AI Edge Gallery from the Play Store to download Gemma models for " +
-                        "the best on-device AI experience. The app falls back to rule-based analysis automatically.",
+                    "Connect to an Ollama server for powerful on-device AI. " +
+                        "Install Ollama on your phone or local computer, pull a model (e.g. llama3.2:1b), " +
+                        "and connect above. The app falls back to rule-based analysis automatically.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     lineHeight = 17.sp
