@@ -11,6 +11,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -35,6 +36,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartexpense.tracker.data.model.AppSettings
+import com.smartexpense.tracker.data.model.AiEnginePreference
 import com.smartexpense.tracker.data.model.Category
 import com.smartexpense.tracker.data.model.SUPPORTED_CURRENCIES
 import com.smartexpense.tracker.data.model.ThemeMode
@@ -74,7 +76,14 @@ fun SettingsScreen(
     /** All user-installed apps on the device. */
     allInstalledApps: List<com.smartexpense.tracker.ui.viewmodel.MainViewModel.InstalledApp> = emptyList(),
     onLoadAllInstalledApps: () -> Unit = {},
-    onUpdateScanKeywords: (List<String>) -> Unit = {}
+    onUpdateScanKeywords: (List<String>) -> Unit = {},
+    // ── AI engine selection ──
+    engineDescriptions: Map<AiEnginePreference, String> = emptyMap(),
+    onSetAiEngine: (AiEnginePreference) -> Unit = {},
+    discoveredModels: List<Pair<String, String>> = emptyList(),
+    onDiscoverModels: () -> Unit = {},
+    onLoadModel: (String) -> Unit = {},
+    isLoadingModel: Boolean = false
 ) {
     val context = LocalContext.current
     var showClearDialog by remember { mutableStateOf(false) }
@@ -1414,7 +1423,7 @@ fun SettingsScreen(
                 SettingsToggleItem(
                     icon = Icons.Filled.Psychology,
                     title = "On-Device AI",
-                    subtitle = "Enhanced AI for smarter categorisation & financial insights. Works on Samsung Galaxy S24+, Pixel 8+ and other compatible devices.",
+                    subtitle = "Enhanced AI for smarter categorisation & financial insights. All processing happens on-device.",
                     checked = settings.localAiEnabled,
                     onCheckedChange = { enabled ->
                         onUpdateSettings(settings.copy(localAiEnabled = enabled))
@@ -1422,10 +1431,127 @@ fun SettingsScreen(
                     }
                 )
 
-                // Status row — only shown when the toggle is on
+                // Engine selector and status — shown when toggle is on
                 if (settings.localAiEnabled) {
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
+                    // ── Engine selector ──
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                        Text("AI Engine", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        val engines = listOf(
+                            AiEnginePreference.AUTO to "Auto-detect",
+                            AiEnginePreference.MEDIAPIPE_LLM to "MediaPipe LLM (Gemma)",
+                            AiEnginePreference.GEMINI_NANO to "Gemini Nano / Galaxy AI",
+                            AiEnginePreference.RULE_BASED to "Rule-based (no model)"
+                        )
+                        engines.forEach { (pref, label) ->
+                            val desc = engineDescriptions[pref] ?: ""
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { onSetAiEngine(pref) }
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = settings.aiEnginePreference == pref,
+                                    onClick = { onSetAiEngine(pref) }
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                    if (desc.isNotEmpty()) {
+                                        Text(desc, fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // ── MediaPipe model management ──
+                    if (settings.aiEnginePreference == AiEnginePreference.MEDIAPIPE_LLM ||
+                        settings.aiEnginePreference == AiEnginePreference.AUTO) {
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.Memory, null, modifier = Modifier.size(18.dp),
+                                    tint = PurpleAccent)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Model", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            if (isLoadingModel) {
+                                Row(verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(vertical = 6.dp)) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text("Loading model…", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+
+                            if (discoveredModels.isNotEmpty()) {
+                                Text("Available models:", fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                discoveredModels.forEach { (name, path) ->
+                                    val isActive = settings.mediapipeModelPath == path
+                                    OutlinedCard(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 3.dp)
+                                            .clickable(enabled = !isLoadingModel) { onLoadModel(path) },
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = if (isActive) BorderStroke(1.5.dp, GreenPrimary)
+                                                 else CardDefaults.outlinedCardBorder()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                if (isActive) Icons.Filled.CheckCircle else Icons.Filled.SmartToy,
+                                                null, modifier = Modifier.size(18.dp),
+                                                tint = if (isActive) GreenPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(name, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                                Text(path.substringAfterLast("/"), fontSize = 10.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                            if (isActive) {
+                                                Text("Active", fontSize = 11.sp, color = GreenPrimary,
+                                                    fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+                            } else if (!isLoadingModel) {
+                                Text("No model files found on device.",
+                                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = onDiscoverModels,
+                                shape = RoundedCornerShape(10.dp),
+                                enabled = !isLoadingModel
+                            ) {
+                                Icon(Icons.Filled.Search, null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Scan for models", fontSize = 13.sp)
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                    // ── Status row ──
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1433,96 +1559,60 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val isActive = localAiStatus != null &&
-                            (localAiStatus.contains("Samsung") ||
-                             localAiStatus.contains("Google") ||
-                             localAiStatus.contains("AICore") ||
-                             localAiStatus.contains("Gemini"))
+                            (localAiStatus.contains("active", ignoreCase = true) ||
+                             localAiStatus.contains("detected", ignoreCase = true))
                         when {
                             localAiStatus == null -> {
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                                 Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    "Detecting AI capabilities…",
+                                Text("Detecting AI capabilities…",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             isActive -> {
-                                Icon(
-                                    Icons.Filled.CheckCircle,
-                                    contentDescription = null,
-                                    tint = GreenPrimary,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Icon(Icons.Filled.CheckCircle, null, tint = GreenPrimary,
+                                    modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    localAiStatus,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = GreenPrimary
-                                )
+                                Text(localAiStatus, style = MaterialTheme.typography.bodySmall,
+                                    color = GreenPrimary)
                             }
                             else -> {
-                                Icon(
-                                    Icons.Filled.Info,
-                                    contentDescription = null,
-                                    tint = OrangeWarning,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Icon(Icons.Filled.Info, null, tint = OrangeWarning,
+                                    modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    localAiStatus,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Text(localAiStatus, style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
 
-                    // Alternative AI suggestion card
+                    // Suggestion card
                     if (localAiSuggestion != null) {
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.Top
                         ) {
-                            Icon(
-                                Icons.Filled.Lightbulb,
-                                contentDescription = null,
-                                tint = OrangeWarning,
-                                modifier = Modifier.size(18.dp)
-                            )
+                            Icon(Icons.Filled.Lightbulb, null, tint = OrangeWarning,
+                                modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
-                                Text(
-                                    "Tip: Better AI available",
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.sp,
-                                    color = OrangeWarning
-                                )
+                                Text("Tip", fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp, color = OrangeWarning)
                                 Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    localAiSuggestion,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Text(localAiSuggestion, style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
 
                     // Re-check button
-                    if (localAiStatus != null && !localAiStatus.startsWith("Detecting")) {
+                    if (localAiStatus != null && !localAiStatus.contains("Checking") &&
+                        !localAiStatus.contains("Switching") && !localAiStatus.contains("Loading")) {
                         Row(modifier = Modifier.padding(start = 16.dp, bottom = 10.dp)) {
-                            OutlinedButton(
-                                onClick = onCheckLocalAi,
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Icon(
-                                    Icons.Filled.Refresh,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                            OutlinedButton(onClick = onCheckLocalAi, shape = RoundedCornerShape(10.dp)) {
+                                Icon(Icons.Filled.Refresh, null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("Re-detect", fontSize = 13.sp)
                             }
@@ -1534,29 +1624,19 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Info card about what local AI does
+        // Info card
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = PurpleAccent.copy(alpha = 0.07f)
-            )
+            colors = CardDefaults.cardColors(containerColor = PurpleAccent.copy(alpha = 0.07f))
         ) {
-            Row(
-                modifier = Modifier.padding(12.dp),
-                verticalAlignment = Alignment.Top
-            ) {
-                Icon(
-                    Icons.Filled.AutoAwesome,
-                    contentDescription = null,
-                    tint = PurpleAccent,
-                    modifier = Modifier.size(18.dp)
-                )
+            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
+                Icon(Icons.Filled.AutoAwesome, null, tint = PurpleAccent, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    "When enabled, Gemini Nano runs entirely on-device — no data " +
-                        "is sent to the cloud. The app falls back to rule-based AI " +
-                        "automatically when the model is not available.",
+                    "All AI processing runs entirely on-device — no data is sent to the cloud. " +
+                        "Install Google AI Edge Gallery from the Play Store to download Gemma models for " +
+                        "the best on-device AI experience. The app falls back to rule-based analysis automatically.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     lineHeight = 17.sp

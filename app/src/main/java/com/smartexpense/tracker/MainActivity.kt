@@ -53,6 +53,9 @@ fun MainApp(viewModel: MainViewModel) {
     val isScanningBankingApps by viewModel.isScanningBankingApps.collectAsState()
     val allInstalledApps by viewModel.allInstalledApps.collectAsState()
     val ocrParsedData by viewModel.ocrParsedData.collectAsState()
+    val engineDescriptions by viewModel.engineDescriptions.collectAsState()
+    val discoveredModels by viewModel.discoveredModels.collectAsState()
+    val isLoadingModel by viewModel.isLoadingModel.collectAsState()
     val scope = rememberCoroutineScope()
 
     // Shortcut to always-up-to-date currency code
@@ -240,7 +243,13 @@ fun MainApp(viewModel: MainViewModel) {
                         onRemoveBankingApp = { pkg -> viewModel.removeBankingApp(pkg) },
                         allInstalledApps = allInstalledApps,
                         onLoadAllInstalledApps = { viewModel.loadAllInstalledApps() },
-                        onUpdateScanKeywords = { keywords -> viewModel.updateScanKeywords(keywords) }
+                        onUpdateScanKeywords = { keywords -> viewModel.updateScanKeywords(keywords) },
+                        engineDescriptions = engineDescriptions,
+                        onSetAiEngine = { pref -> viewModel.setAiEnginePreference(pref) },
+                        discoveredModels = discoveredModels,
+                        onDiscoverModels = { viewModel.discoverModels() },
+                        onLoadModel = { path -> viewModel.loadMediaPipeModel(path) },
+                        isLoadingModel = isLoadingModel
                     )
                 }
             }

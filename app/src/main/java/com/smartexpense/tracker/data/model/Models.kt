@@ -195,6 +195,20 @@ enum class ThemeMode {
     DARK     // Always dark
 }
 
+/**
+ * Which on-device AI engine to use for categorization and insights.
+ */
+enum class AiEnginePreference {
+    /** Automatically detect the best available engine. */
+    AUTO,
+    /** Pure rule-based engine (always available, no model download). */
+    RULE_BASED,
+    /** Gemini Nano via Google AICore or Samsung Galaxy AI. */
+    GEMINI_NANO,
+    /** MediaPipe LLM Inference with a downloaded Gemma model. */
+    MEDIAPIPE_LLM
+}
+
 data class AppSettings(
     /** Legacy single-char symbol kept for backward-compat. Use currencyCode instead. */
     val currency: String = "֏",
@@ -205,11 +219,14 @@ data class AppSettings(
     val smsParsingEnabled: Boolean = false,
     val autoCategorizationEnabled: Boolean = true,
     /**
-     * When true, the app will attempt to use Gemini Nano (on-device AI via Android AICore)
-     * for categorization and report insights. Falls back silently to rule-based logic on
-     * devices that do not support it (requires Pixel 8+ or Samsung Galaxy S24+ with Android 14+).
+     * When true, the app will attempt to use the selected AI engine
+     * for categorization and report insights.
      */
     val localAiEnabled: Boolean = false,
+    /** Which on-device AI engine to use. Defaults to AUTO (best available). */
+    val aiEnginePreference: AiEnginePreference = AiEnginePreference.AUTO,
+    /** Path to a MediaPipe-compatible model file (e.g. Gemma .task file). */
+    val mediapipeModelPath: String = "",
     /** Keywords used when scanning for banking/payment apps on the device. */
     val scanKeywords: List<String> = listOf("bank", "payment", "wallet"),
     val bankingAppPackages: List<String> = listOf(

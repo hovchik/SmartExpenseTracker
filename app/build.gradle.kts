@@ -87,6 +87,9 @@ dependencies {
     // ML Kit Barcode scanning — for QR codes on receipts
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
 
+    // MediaPipe LLM Inference — on-device Gemma/LLM for AI categorization & insights
+    implementation("com.google.mediapipe:tasks-genai:0.10.27")
+
     // Gson for JSON storage
     implementation("com.google.code.gson:gson:2.10.1")
 

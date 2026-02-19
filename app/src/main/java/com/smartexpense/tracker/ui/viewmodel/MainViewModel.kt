@@ -81,7 +81,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         viewModelScope.launch {
             repository.initialize()
-            _themeMode.value = repository.appData.value.settings.themeMode
+            val settings = repository.appData.value.settings
+            _themeMode.value = settings.themeMode
+
+            // Auto-load saved MediaPipe model if configured
+            if (settings.localAiEnabled && settings.mediapipeModelPath.isNotEmpty()) {
+                withContext(Dispatchers.IO) {
+                    localAiService.mediaPipeLlm.loadModel(settings.mediapipeModelPath)
+                }
+            }
+            // Run initial AI availability check
+            if (settings.localAiEnabled) {
+                withContext(Dispatchers.IO) {
+                    localAiService.checkAvailability(settings.aiEnginePreference)
+                }
+                _localAiStatus.value = localAiService.statusMessage()
+                _engineDescriptions.value = localAiService.engineDescriptions()
+            }
+
             refreshSuggestions()
             repository.appData.collect { data ->
                 _themeMode.value = data.settings.themeMode
@@ -173,18 +190,90 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setSelectedTab(index: Int) { _selectedTab.value = index }
     fun setReportPeriod(period: ReportPeriod) { _reportPeriod.value = period }
 
-    // ─── Local AI (Gemini Nano) ────────────────────────────────────
+    // ─── Local AI Engine ────────────────────────────────────────────
+
+    /** Descriptions for each engine option, updated after availability check. */
+    private val _engineDescriptions = MutableStateFlow<Map<AiEnginePreference, String>>(emptyMap())
+    val engineDescriptions: StateFlow<Map<AiEnginePreference, String>> = _engineDescriptions.asStateFlow()
+
+    /** Discovered model files for MediaPipe LLM. */
+    private val _discoveredModels = MutableStateFlow<List<Pair<String, String>>>(emptyList())
+    val discoveredModels: StateFlow<List<Pair<String, String>>> = _discoveredModels.asStateFlow()
+
+    /** Whether a MediaPipe model is currently being loaded. */
+    private val _isLoadingModel = MutableStateFlow(false)
+    val isLoadingModel: StateFlow<Boolean> = _isLoadingModel.asStateFlow()
 
     /**
-     * Checks Gemini Nano availability on a background thread and updates [localAiStatus].
-     * Safe to call multiple times; result is cached after the first check.
+     * Checks AI availability on a background thread and updates status.
+     * Respects the user's [AiEnginePreference] from settings.
      */
     fun checkLocalAiAvailability() {
         viewModelScope.launch {
             _localAiStatus.value = "Checking availability…"
-            withContext(Dispatchers.IO) { localAiService.checkAvailability() }
+            val preference = repository.appData.value.settings.aiEnginePreference
+            withContext(Dispatchers.IO) { localAiService.checkAvailability(preference) }
             _localAiStatus.value = localAiService.statusMessage()
             _localAiSuggestion.value = localAiService.alternativeSuggestion()
+            _engineDescriptions.value = localAiService.engineDescriptions()
+        }
+    }
+
+    /**
+     * Changes the AI engine preference and re-checks availability.
+     */
+    fun setAiEnginePreference(preference: AiEnginePreference) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            repository.updateSettings(settings.copy(
+                aiEnginePreference = preference,
+                localAiEnabled = preference != AiEnginePreference.RULE_BASED
+            ))
+            _localAiStatus.value = "Switching engine…"
+            withContext(Dispatchers.IO) { localAiService.recheckAvailability(preference) }
+            _localAiStatus.value = localAiService.statusMessage()
+            _localAiSuggestion.value = localAiService.alternativeSuggestion()
+            _engineDescriptions.value = localAiService.engineDescriptions()
+        }
+    }
+
+    /**
+     * Scans for available MediaPipe model files on the device.
+     */
+    fun discoverModels() {
+        viewModelScope.launch {
+            val models = withContext(Dispatchers.IO) {
+                localAiService.mediaPipeLlm.discoverModels()
+            }
+            _discoveredModels.value = models
+        }
+    }
+
+    /**
+     * Loads a MediaPipe model from the given path and updates engine status.
+     */
+    fun loadMediaPipeModel(modelPath: String) {
+        viewModelScope.launch {
+            _isLoadingModel.value = true
+            _localAiStatus.value = "Loading model…"
+            val success = localAiService.mediaPipeLlm.loadModel(modelPath)
+            _isLoadingModel.value = false
+
+            if (success) {
+                // Save the model path and switch engine
+                val settings = repository.appData.value.settings
+                repository.updateSettings(settings.copy(
+                    mediapipeModelPath = modelPath,
+                    aiEnginePreference = AiEnginePreference.MEDIAPIPE_LLM,
+                    localAiEnabled = true
+                ))
+                withContext(Dispatchers.IO) {
+                    localAiService.recheckAvailability(AiEnginePreference.MEDIAPIPE_LLM)
+                }
+            }
+            _localAiStatus.value = localAiService.statusMessage()
+            _localAiSuggestion.value = localAiService.alternativeSuggestion()
+            _engineDescriptions.value = localAiService.engineDescriptions()
         }
     }
 
