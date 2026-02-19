@@ -161,4 +161,18 @@
 
 如果要保留当前数据，请先导出。</string>
     <string name="import_replace">导入并替换</string>
+
+    <!-- Notification Keywords -->
+    <string name="section_notification_keywords">通知关键词</string>
+    <string name="notification_keywords">关键词</string>
+    <string name="notification_keywords_description">自定义用于识别通知中收入和支出的关键词</string>
+    <string name="income_keywords">收入关键词</string>
+    <string name="income_keywords_hint">表示资金入账的词语</string>
+    <string name="expense_keywords">支出关键词</string>
+    <string name="expense_keywords_hint">表示资金支出的词语</string>
+    <string name="add_keyword">添加关键词</string>
+    <string name="add_keyword_hint">输入新关键词</string>
+    <string name="add">添加</string>
+    <string name="reset_to_defaults">恢复默认值</string>
+    <string name="keywords_reset">关键词已重置</string>
 </resources>

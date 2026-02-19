@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartexpense.tracker.R
 import com.smartexpense.tracker.data.model.AppSettings
+import com.smartexpense.tracker.data.model.DEFAULT_EXPENSE_KEYWORDS
+import com.smartexpense.tracker.data.model.DEFAULT_INCOME_KEYWORDS
 import com.smartexpense.tracker.data.model.SUPPORTED_CURRENCIES
 import com.smartexpense.tracker.data.model.ThemeMode
 import com.smartexpense.tracker.data.model.currencyInfoFor
@@ -502,6 +504,34 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // ─── Notification Keywords Section ──────────────────────────
+        Text(
+            stringResource(R.string.section_notification_keywords),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        NotificationKeywordsCard(
+            incomeKeywords = settings.notificationIncomeKeywords,
+            expenseKeywords = settings.notificationExpenseKeywords,
+            onUpdateIncomeKeywords = { keywords ->
+                onUpdateSettings(settings.copy(notificationIncomeKeywords = keywords))
+            },
+            onUpdateExpenseKeywords = { keywords ->
+                onUpdateSettings(settings.copy(notificationExpenseKeywords = keywords))
+            },
+            onResetDefaults = {
+                onUpdateSettings(settings.copy(
+                    notificationIncomeKeywords = DEFAULT_INCOME_KEYWORDS,
+                    notificationExpenseKeywords = DEFAULT_EXPENSE_KEYWORDS
+                ))
+                Toast.makeText(context, context.getString(R.string.keywords_reset), Toast.LENGTH_SHORT).show()
+            }
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
         // ─── Import & Export Section ───────────────────────────────
         Text(
             stringResource(R.string.section_import_export),
@@ -761,6 +791,154 @@ private fun SettingsClickItem(
         if (onClick != null) {
             Icon(Icons.Filled.ChevronRight, contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+// ─── Notification Keywords Customization ────────────────────────────
+
+@Composable
+private fun NotificationKeywordsCard(
+    incomeKeywords: List<String>,
+    expenseKeywords: List<String>,
+    onUpdateIncomeKeywords: (List<String>) -> Unit,
+    onUpdateExpenseKeywords: (List<String>) -> Unit,
+    onResetDefaults: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.Tune, contentDescription = null,
+                    tint = OrangeWarning, modifier = Modifier.size(24.dp))
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.notification_keywords),
+                        fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                    Text(stringResource(R.string.notification_keywords_description),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Income keywords
+            KeywordSection(
+                title = stringResource(R.string.income_keywords),
+                hint = stringResource(R.string.income_keywords_hint),
+                keywords = incomeKeywords,
+                chipColor = GreenIncome,
+                onAdd = { keyword -> onUpdateIncomeKeywords(incomeKeywords + keyword) },
+                onRemove = { keyword -> onUpdateIncomeKeywords(incomeKeywords - keyword) }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Expense keywords
+            KeywordSection(
+                title = stringResource(R.string.expense_keywords),
+                hint = stringResource(R.string.expense_keywords_hint),
+                keywords = expenseKeywords,
+                chipColor = RedExpense,
+                onAdd = { keyword -> onUpdateExpenseKeywords(expenseKeywords + keyword) },
+                onRemove = { keyword -> onUpdateExpenseKeywords(expenseKeywords - keyword) }
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Reset to defaults
+            TextButton(
+                onClick = onResetDefaults,
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Icon(Icons.Filled.RestartAlt, contentDescription = null,
+                    modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(stringResource(R.string.reset_to_defaults), fontSize = 13.sp)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun KeywordSection(
+    title: String,
+    hint: String,
+    keywords: List<String>,
+    chipColor: Color,
+    onAdd: (String) -> Unit,
+    onRemove: (String) -> Unit
+) {
+    var newKeyword by remember { mutableStateOf("") }
+
+    Text(title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+    Text(hint, style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    // Keyword chips
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        keywords.forEach { keyword ->
+            InputChip(
+                selected = false,
+                onClick = { onRemove(keyword) },
+                label = { Text(keyword, fontSize = 12.sp) },
+                trailingIcon = {
+                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.remove),
+                        modifier = Modifier.size(14.dp))
+                },
+                colors = InputChipDefaults.inputChipColors(
+                    containerColor = chipColor.copy(alpha = 0.1f)
+                ),
+                shape = RoundedCornerShape(8.dp)
+            )
+        }
+    }
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    // Add new keyword input
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OutlinedTextField(
+            value = newKeyword,
+            onValueChange = { newKeyword = it },
+            placeholder = { Text(stringResource(R.string.add_keyword_hint), fontSize = 13.sp) },
+            singleLine = true,
+            modifier = Modifier.weight(1f).height(50.dp),
+            shape = RoundedCornerShape(10.dp),
+            textStyle = MaterialTheme.typography.bodySmall
+        )
+        FilledTonalButton(
+            onClick = {
+                val trimmed = newKeyword.trim()
+                if (trimmed.isNotEmpty() && trimmed !in keywords) {
+                    onAdd(trimmed)
+                    newKeyword = ""
+                }
+            },
+            enabled = newKeyword.trim().isNotEmpty(),
+            shape = RoundedCornerShape(10.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp)
+        ) {
+            Text(stringResource(R.string.add), fontSize = 13.sp)
         }
     }
 }

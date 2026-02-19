@@ -159,4 +159,18 @@
     <string name="import_data_question">\u00bfImportar datos?</string>
     <string name="import_warning">Esto reemplazara todos los datos actuales con el contenido del archivo seleccionado. Sus transacciones y ajustes existentes seran sobrescritos.\n\nAsegurese de exportar sus datos actuales primero si desea conservarlos.</string>
     <string name="import_replace">Importar y reemplazar</string>
+
+    <!-- Notification Keywords -->
+    <string name="section_notification_keywords">PALABRAS CLAVE DE NOTIFICACIONES</string>
+    <string name="notification_keywords">Palabras clave</string>
+    <string name="notification_keywords_description">Personalice las palabras clave para detectar ingresos y gastos en notificaciones</string>
+    <string name="income_keywords">Palabras clave de ingresos</string>
+    <string name="income_keywords_hint">Palabras que indican dinero entrante</string>
+    <string name="expense_keywords">Palabras clave de gastos</string>
+    <string name="expense_keywords_hint">Palabras que indican dinero saliente</string>
+    <string name="add_keyword">Agregar palabra</string>
+    <string name="add_keyword_hint">Ingrese una nueva palabra clave</string>
+    <string name="add">Agregar</string>
+    <string name="reset_to_defaults">Restablecer valores predeterminados</string>
+    <string name="keywords_reset">Palabras clave restablecidas</string>
 </resources>

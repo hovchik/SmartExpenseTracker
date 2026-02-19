@@ -161,4 +161,18 @@
 
 Նախ արտահանեք ձեր առկա տվյալները, եթե ցանկանում եք դրանք պահպանել։</string>
     <string name="import_replace">Ներմուծել և փոխարինել</string>
+
+    <!-- Notification Keywords -->
+    <string name="section_notification_keywords">ԾԱՆՈՒՈՒՄԱՆ ԲԱՆԱԼԻ ԲԱՌԵՌ</string>
+    <string name="notification_keywords">Բանալի բառեր</string>
+    <string name="notification_keywords_description">Հարմարեցրեք բանալի բառերը եկամուտների և ծախսերի հայտնաբերման համար</string>
+    <string name="income_keywords">Եկամուտի բանալի բառեր</string>
+    <string name="income_keywords_hint">Բառեր, որոնք ցույց են տալիս մտնելու դրամ</string>
+    <string name="expense_keywords">Ծախսի բանալի բառեր</string>
+    <string name="expense_keywords_hint">Բառեր, որոնք ցույց են տալիս ելքի դրամ</string>
+    <string name="add_keyword">Ավելացնել բառ</string>
+    <string name="add_keyword_hint">Մուտքագրեք նոր բանալի բառ</string>
+    <string name="add">Ավելացնել</string>
+    <string name="reset_to_defaults">Վերականգնել լիարժեքին</string>
+    <string name="keywords_reset">Բանալի բառերը վերականգնվեց</string>
 </resources>

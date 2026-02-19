@@ -159,4 +159,18 @@
     <string name="import_data_question">Import Data?</string>
     <string name="import_warning">This will replace all current data with the contents of the selected file. Your existing transactions and settings will be overwritten.\n\nMake sure to export your current data first if you want to keep it.</string>
     <string name="import_replace">Import &amp; Replace</string>
+
+    <!-- Notification Keywords -->
+    <string name="section_notification_keywords">NOTIFICATION KEYWORDS</string>
+    <string name="notification_keywords">Notification Keywords</string>
+    <string name="notification_keywords_description">Customize keywords used to detect income and expense notifications</string>
+    <string name="income_keywords">Income Keywords</string>
+    <string name="income_keywords_hint">Words that indicate incoming money</string>
+    <string name="expense_keywords">Expense Keywords</string>
+    <string name="expense_keywords_hint">Words that indicate outgoing money</string>
+    <string name="add_keyword">Add Keyword</string>
+    <string name="add_keyword_hint">Enter a new keyword</string>
+    <string name="add">Add</string>
+    <string name="reset_to_defaults">Reset to Defaults</string>
+    <string name="keywords_reset">Keywords reset to defaults</string>
 </resources>

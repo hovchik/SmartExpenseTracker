@@ -159,4 +159,18 @@
     <string name="import_data_question">Импортировать данные?</string>
     <string name="import_warning">Все текущие данные будут заменены содержимым выбранного файла. Ваши существующие транзакции и настройки будут перезаписаны.\n\nСначала экспортируйте текущие данные, если хотите их сохранить.</string>
     <string name="import_replace">Импортировать и заменить</string>
+
+    <!-- Notification Keywords -->
+    <string name="section_notification_keywords">КЛЮЧЕВЫЕ СЛОВА УВЕДОМЛЕНИЙ</string>
+    <string name="notification_keywords">Ключевые слова</string>
+    <string name="notification_keywords_description">Настройте ключевые слова для распознавания доходов и расходов в уведомлениях</string>
+    <string name="income_keywords">Ключевые слова дохода</string>
+    <string name="income_keywords_hint">Слова, указывающие на поступление средств</string>
+    <string name="expense_keywords">Ключевые слова расхода</string>
+    <string name="expense_keywords_hint">Слова, указывающие на списание средств</string>
+    <string name="add_keyword">Добавить слово</string>
+    <string name="add_keyword_hint">Введите новое ключевое слово</string>
+    <string name="add">Добавить</string>
+    <string name="reset_to_defaults">Сбросить по умолчанию</string>
+    <string name="keywords_reset">Ключевые слова сброшены</string>
 </resources>

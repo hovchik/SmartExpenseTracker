@@ -167,6 +167,27 @@ enum class ThemeMode {
     DARK     // Always dark
 }
 
+/** Default income keywords including Armenian terms. */
+val DEFAULT_INCOME_KEYWORDS: List<String> = listOf(
+    // English
+    "credited", "received", "deposit", "refund", "cashback",
+    "salary", "income", "reward", "reversed", "transfer to your", "added to",
+    // Armenian
+    "\u0574\u0578\u0582\u057F\u0584",          // income/deposit
+    "\u056C\u056B\u0581\u0584\u0561\u057E\u0578\u0580\u0578\u0582\u0574", // top-up
+    "\u0570\u0561\u0574\u0561\u056C\u0580\u0578\u0582\u0574"  // replenishment
+)
+
+/** Default expense keywords including Armenian terms. */
+val DEFAULT_EXPENSE_KEYWORDS: List<String> = listOf(
+    // English
+    "purchase", "debited", "spent", "paid", "charged", "withdrawal",
+    "sent", "debit", "withdrawn", "payment of", "used at",
+    "atm cash", "atm", "mail order", "pos", "e-commerce", "online purchase",
+    // Armenian
+    "\u0565\u056C\u0584"  // expense/withdrawal
+)
+
 data class AppSettings(
     /** Legacy single-char symbol kept for backward-compat. Use currencyCode instead. */
     val currency: String = "$",
@@ -190,7 +211,11 @@ data class AppSettings(
         "com.venmo",
         "com.squareup.cash",
         "com.zellepay.zelle"
-    )
+    ),
+    /** User-customizable keywords that indicate an income notification. */
+    val notificationIncomeKeywords: List<String> = DEFAULT_INCOME_KEYWORDS,
+    /** User-customizable keywords that indicate an expense notification. */
+    val notificationExpenseKeywords: List<String> = DEFAULT_EXPENSE_KEYWORDS
 )
 
 fun defaultCategories(): List<Category> = listOf(
