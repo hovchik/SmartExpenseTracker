@@ -56,6 +56,9 @@ fun MainApp(viewModel: MainViewModel) {
     val engineDescriptions by viewModel.engineDescriptions.collectAsState()
     val discoveredModels by viewModel.discoveredModels.collectAsState()
     val isLoadingModel by viewModel.isLoadingModel.collectAsState()
+    val isDownloadingModel by viewModel.isDownloadingModel.collectAsState()
+    val downloadProgress by viewModel.downloadProgress.collectAsState()
+    val downloadError by viewModel.downloadError.collectAsState()
     val scope = rememberCoroutineScope()
 
     // Shortcut to always-up-to-date currency code
@@ -249,7 +252,14 @@ fun MainApp(viewModel: MainViewModel) {
                         discoveredModels = discoveredModels,
                         onDiscoverModels = { viewModel.discoverModels() },
                         onLoadModel = { path -> viewModel.loadMediaPipeModel(path) },
-                        isLoadingModel = isLoadingModel
+                        isLoadingModel = isLoadingModel,
+                        modelCatalog = viewModel.modelCatalog,
+                        onDownloadCatalogModel = { model -> viewModel.downloadCatalogModel(model) },
+                        onDeleteCatalogModel = { model -> viewModel.deleteCatalogModel(model) },
+                        isModelDownloaded = { model -> viewModel.isModelDownloaded(model) },
+                        isDownloadingModel = isDownloadingModel,
+                        downloadProgress = downloadProgress,
+                        downloadError = downloadError
                     )
                 }
             }

@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartexpense.tracker.data.model.AppSettings
 import com.smartexpense.tracker.data.model.AiEnginePreference
+import java.io.File
 import com.smartexpense.tracker.data.model.Category
 import com.smartexpense.tracker.data.model.SUPPORTED_CURRENCIES
 import com.smartexpense.tracker.data.model.ThemeMode
@@ -83,7 +84,15 @@ fun SettingsScreen(
     discoveredModels: List<Pair<String, String>> = emptyList(),
     onDiscoverModels: () -> Unit = {},
     onLoadModel: (String) -> Unit = {},
-    isLoadingModel: Boolean = false
+    isLoadingModel: Boolean = false,
+    // ── Model catalog & download ──
+    modelCatalog: List<com.smartexpense.tracker.service.ai.MediaPipeLlmService.CatalogModel> = emptyList(),
+    onDownloadCatalogModel: (com.smartexpense.tracker.service.ai.MediaPipeLlmService.CatalogModel) -> Unit = {},
+    onDeleteCatalogModel: (com.smartexpense.tracker.service.ai.MediaPipeLlmService.CatalogModel) -> Unit = {},
+    isModelDownloaded: (com.smartexpense.tracker.service.ai.MediaPipeLlmService.CatalogModel) -> Boolean = { false },
+    isDownloadingModel: Boolean = false,
+    downloadProgress: Float = 0f,
+    downloadError: String? = null
 ) {
     val context = LocalContext.current
     var showClearDialog by remember { mutableStateOf(false) }
@@ -1536,11 +1545,138 @@ fun SettingsScreen(
                                     fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
 
+                            // ── Model catalog (downloadable) ──
+                            if (modelCatalog.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                HorizontalDivider()
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Filled.CloudDownload, null, modifier = Modifier.size(18.dp),
+                                        tint = BluePrimary)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Available Models", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                modelCatalog.forEach { model ->
+                                    val downloaded = isModelDownloaded(model)
+                                    val isActive = settings.mediapipeModelPath.endsWith(model.fileName)
+                                    OutlinedCard(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                                        shape = RoundedCornerShape(10.dp),
+                                        border = if (isActive) BorderStroke(1.5.dp, GreenPrimary)
+                                                 else CardDefaults.outlinedCardBorder()
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    if (isActive) Icons.Filled.CheckCircle
+                                                    else if (downloaded) Icons.Filled.SmartToy
+                                                    else Icons.Filled.CloudDownload,
+                                                    null, modifier = Modifier.size(20.dp),
+                                                    tint = if (isActive) GreenPrimary
+                                                           else if (downloaded) PurpleAccent
+                                                           else BluePrimary
+                                                )
+                                                Spacer(modifier = Modifier.width(10.dp))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(model.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                                    Text("${model.quantization} · ${model.sizeLabel}",
+                                                        fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                }
+                                                if (isActive) {
+                                                    Surface(shape = RoundedCornerShape(4.dp), color = GreenPrimary.copy(alpha = 0.15f)) {
+                                                        Text("Active", fontSize = 10.sp, color = GreenPrimary,
+                                                            fontWeight = FontWeight.Bold,
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                                    }
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(model.description, fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                lineHeight = 15.sp)
+                                            Spacer(modifier = Modifier.height(8.dp))
+
+                                            // Download progress bar
+                                            if (isDownloadingModel) {
+                                                LinearProgressIndicator(
+                                                    progress = { downloadProgress },
+                                                    modifier = Modifier.fillMaxWidth().height(6.dp),
+                                                    color = BluePrimary,
+                                                    trackColor = BluePrimary.copy(alpha = 0.15f)
+                                                )
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    "Downloading… ${(downloadProgress * 100).toInt()}%",
+                                                    fontSize = 11.sp, color = BluePrimary
+                                                )
+                                            } else if (downloadError != null && !downloaded) {
+                                                Text(downloadError, fontSize = 11.sp, color = RedExpense)
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                            }
+
+                                            // Action buttons
+                                            if (!isDownloadingModel) {
+                                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    if (!downloaded) {
+                                                        Button(
+                                                            onClick = { onDownloadCatalogModel(model) },
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            enabled = !isLoadingModel,
+                                                            colors = ButtonDefaults.buttonColors(containerColor = BluePrimary),
+                                                            modifier = Modifier.height(34.dp)
+                                                        ) {
+                                                            Icon(Icons.Filled.CloudDownload, null, modifier = Modifier.size(16.dp))
+                                                            Spacer(modifier = Modifier.width(6.dp))
+                                                            Text("Download", fontSize = 12.sp)
+                                                        }
+                                                    } else if (!isActive) {
+                                                        Button(
+                                                            onClick = { onLoadModel(
+                                                                File(context.filesDir, "models/${model.fileName}").absolutePath
+                                                            ) },
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            enabled = !isLoadingModel,
+                                                            modifier = Modifier.height(34.dp)
+                                                        ) {
+                                                            Text("Load", fontSize = 12.sp)
+                                                        }
+                                                        OutlinedButton(
+                                                            onClick = { onDeleteCatalogModel(model) },
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            modifier = Modifier.height(34.dp)
+                                                        ) {
+                                                            Icon(Icons.Filled.Delete, null, modifier = Modifier.size(14.dp),
+                                                                tint = RedExpense)
+                                                            Spacer(modifier = Modifier.width(4.dp))
+                                                            Text("Delete", fontSize = 12.sp, color = RedExpense)
+                                                        }
+                                                    } else {
+                                                        // Active — show delete only
+                                                        OutlinedButton(
+                                                            onClick = { onDeleteCatalogModel(model) },
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            modifier = Modifier.height(34.dp)
+                                                        ) {
+                                                            Icon(Icons.Filled.Delete, null, modifier = Modifier.size(14.dp),
+                                                                tint = RedExpense)
+                                                            Spacer(modifier = Modifier.width(4.dp))
+                                                            Text("Remove model", fontSize = 12.sp, color = RedExpense)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             Spacer(modifier = Modifier.height(8.dp))
                             OutlinedButton(
                                 onClick = onDiscoverModels,
                                 shape = RoundedCornerShape(10.dp),
-                                enabled = !isLoadingModel
+                                enabled = !isLoadingModel && !isDownloadingModel
                             ) {
                                 Icon(Icons.Filled.Search, null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))

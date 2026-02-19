@@ -5,6 +5,8 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
  * On-device LLM inference via MediaPipe LLM Inference API.
@@ -15,7 +17,7 @@ import java.io.File
  * Users can obtain models from:
  *   1. Google AI Edge Gallery app (Play Store)
  *   2. Hugging Face (download + push via adb)
- *   3. Direct download within app to internal storage
+ *   3. In-app download from the model catalog
  */
 class MediaPipeLlmService(private val context: Context) {
 
@@ -36,8 +38,59 @@ class MediaPipeLlmService(private val context: Context) {
         const val GALLERY_PACKAGE = "com.google.ai.edge.gallery"
     }
 
+    // ── Model catalog ────────────────────────────────────────────────
+
+    /**
+     * A downloadable model entry in the built-in catalog.
+     */
+    data class CatalogModel(
+        val id: String,
+        val name: String,
+        val fileName: String,
+        val downloadUrl: String,
+        val sizeBytes: Long,
+        val description: String,
+        val quantization: String
+    ) {
+        /** Human-readable file size. */
+        val sizeLabel: String get() {
+            val mb = sizeBytes / (1024.0 * 1024.0)
+            return if (mb >= 1024) "${String.format("%.1f", mb / 1024)} GB"
+                   else "${String.format("%.0f", mb)} MB"
+        }
+    }
+
+    /** Built-in catalog of recommended models. */
+    val modelCatalog: List<CatalogModel> = listOf(
+        CatalogModel(
+            id = "gemma3-1b-it-int4",
+            name = "Gemma 3 1B IT",
+            fileName = "gemma3-1b-it-int4.task",
+            downloadUrl = "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/gemma3-1b-it-int4.task",
+            sizeBytes = 555L * 1024 * 1024,
+            description = "Google Gemma 3 1B Instruction-Tuned, 4-bit quantized. Best balance of quality and size for on-device use.",
+            quantization = "INT4"
+        )
+    )
+
+    // ── Download state ───────────────────────────────────────────────
+
     @Volatile
-    private var llmInference: Any? = null   // com.google.mediapipe.tasks.genai.llminference.LlmInference
+    var downloadProgress: Float = 0f
+        private set
+
+    @Volatile
+    var isDownloading: Boolean = false
+        private set
+
+    @Volatile
+    var downloadError: String? = null
+        private set
+
+    // ── Inference state ──────────────────────────────────────────────
+
+    @Volatile
+    private var llmInference: Any? = null
 
     @Volatile
     var isReady: Boolean = false
@@ -53,9 +106,8 @@ class MediaPipeLlmService(private val context: Context) {
 
     private val ruleEngine = AiExpenseEngine()
 
-    /**
-     * Checks whether Google AI Edge Gallery app is installed on the device.
-     */
+    // ── Gallery check ────────────────────────────────────────────────
+
     fun isGalleryInstalled(): Boolean = try {
         context.packageManager.getApplicationInfo(GALLERY_PACKAGE, 0)
         true
@@ -63,34 +115,150 @@ class MediaPipeLlmService(private val context: Context) {
         false
     }
 
+    // ── Model directory ──────────────────────────────────────────────
+
+    /** App-private directory for downloaded models. */
+    fun modelsDir(): File = File(context.filesDir, "models").also { it.mkdirs() }
+
     /**
-     * Scans well-known directories and app internal storage for model files.
-     * Returns a list of (name, absolutePath) pairs.
+     * Returns the local path for a catalog model (whether it exists or not).
      */
+    fun catalogModelPath(model: CatalogModel): String =
+        File(modelsDir(), model.fileName).absolutePath
+
+    /**
+     * Checks if a catalog model is already downloaded.
+     */
+    fun isModelDownloaded(model: CatalogModel): Boolean {
+        val file = File(modelsDir(), model.fileName)
+        return file.exists() && file.length() > 1024 * 1024 // > 1MB as sanity check
+    }
+
+    // ── Download ─────────────────────────────────────────────────────
+
+    /**
+     * Downloads a model from the catalog to internal storage.
+     * Reports progress via [downloadProgress] (0.0–1.0).
+     * Returns the file path on success, null on failure.
+     */
+    suspend fun downloadModel(
+        model: CatalogModel,
+        onProgress: ((Float) -> Unit)? = null
+    ): String? = withContext(Dispatchers.IO) {
+        if (isDownloading) {
+            downloadError = "A download is already in progress"
+            return@withContext null
+        }
+
+        isDownloading = true
+        downloadProgress = 0f
+        downloadError = null
+        val destFile = File(modelsDir(), model.fileName)
+        val tempFile = File(modelsDir(), "${model.fileName}.tmp")
+
+        try {
+            Log.d(TAG, "Starting download: ${model.name} (${model.sizeLabel}) → ${destFile.absolutePath}")
+
+            val connection = URL(model.downloadUrl).openConnection() as HttpURLConnection
+            connection.connectTimeout = 30_000
+            connection.readTimeout = 60_000
+            connection.setRequestProperty("User-Agent", "SmartExpenseTracker/1.0")
+            // Support resuming partial downloads
+            if (tempFile.exists() && tempFile.length() > 0) {
+                connection.setRequestProperty("Range", "bytes=${tempFile.length()}-")
+            }
+            connection.connect()
+
+            val responseCode = connection.responseCode
+            if (responseCode !in listOf(200, 206)) {
+                downloadError = "Download failed: HTTP $responseCode"
+                Log.e(TAG, "Download failed: HTTP $responseCode for ${model.downloadUrl}")
+                connection.disconnect()
+                isDownloading = false
+                return@withContext null
+            }
+
+            val contentLength = connection.contentLengthLong.let {
+                if (it > 0) it else model.sizeBytes
+            }
+            val isResume = responseCode == 206
+            val totalSize = if (isResume) tempFile.length() + contentLength else contentLength
+
+            val outputStream = if (isResume) tempFile.outputStream().buffered().also {
+                // Seek not needed — we append
+            } else tempFile.outputStream().buffered()
+            val inputStream = connection.inputStream.buffered()
+
+            val buffer = ByteArray(8192)
+            var bytesWritten = if (isResume) tempFile.length() else 0L
+
+            outputStream.use { out ->
+                inputStream.use { input ->
+                    var bytesRead: Int
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        out.write(buffer, 0, bytesRead)
+                        bytesWritten += bytesRead
+                        val progress = (bytesWritten.toFloat() / totalSize.toFloat()).coerceIn(0f, 1f)
+                        downloadProgress = progress
+                        onProgress?.invoke(progress)
+                    }
+                }
+            }
+
+            connection.disconnect()
+
+            // Rename temp to final
+            if (destFile.exists()) destFile.delete()
+            if (!tempFile.renameTo(destFile)) {
+                // Fallback: copy
+                tempFile.copyTo(destFile, overwrite = true)
+                tempFile.delete()
+            }
+
+            Log.d(TAG, "Download complete: ${destFile.absolutePath} (${destFile.length() / 1024 / 1024} MB)")
+            downloadProgress = 1f
+            isDownloading = false
+            destFile.absolutePath
+        } catch (e: Exception) {
+            downloadError = "Download failed: ${e.message}"
+            Log.e(TAG, "Download failed", e)
+            isDownloading = false
+            null
+        }
+    }
+
+    /**
+     * Deletes a downloaded model file.
+     */
+    fun deleteModel(model: CatalogModel): Boolean {
+        val file = File(modelsDir(), model.fileName)
+        val temp = File(modelsDir(), "${model.fileName}.tmp")
+        temp.delete()
+        return file.delete()
+    }
+
+    // ── Model discovery ──────────────────────────────────────────────
+
     fun discoverModels(): List<Pair<String, String>> {
         val models = mutableListOf<Pair<String, String>>()
 
-        // Check app-private models dir
-        val appModelsDir = File(context.filesDir, "models")
-        if (appModelsDir.exists()) {
-            scanDir(appModelsDir, models)
-        }
+        // App-private models dir
+        val appModelsDir = modelsDir()
+        if (appModelsDir.exists()) scanDir(appModelsDir, models)
 
-        // Check well-known external locations
+        // External locations
         for (dir in MODEL_SEARCH_DIRS) {
             val f = File(dir)
-            if (f.exists() && f.isDirectory) {
-                scanDir(f, models)
-            }
+            if (f.exists() && f.isDirectory) scanDir(f, models)
         }
 
-        // Deduplicate by path
         return models.distinctBy { it.second }
     }
 
     private fun scanDir(dir: File, out: MutableList<Pair<String, String>>) {
         dir.listFiles()?.forEach { file ->
-            if (file.isFile && MODEL_EXTENSIONS.any { file.name.endsWith(it, ignoreCase = true) }) {
+            if (file.isFile && MODEL_EXTENSIONS.any { file.name.endsWith(it, ignoreCase = true) }
+                && file.length() > 1024 * 1024) { // > 1MB
                 val name = file.nameWithoutExtension
                     .replace("_", " ")
                     .replace("-", " ")
@@ -100,13 +268,10 @@ class MediaPipeLlmService(private val context: Context) {
         }
     }
 
-    /**
-     * Loads a model from the given path.
-     * Must be called on a background thread.
-     */
+    // ── Model loading ────────────────────────────────────────────────
+
     suspend fun loadModel(modelPath: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            // Release previous model if any
             releaseModel()
 
             val file = File(modelPath)
@@ -118,8 +283,6 @@ class MediaPipeLlmService(private val context: Context) {
 
             Log.d(TAG, "Loading model from: $modelPath (${file.length() / 1024 / 1024} MB)")
 
-            // Use reflection to avoid hard compile-time dependency failures on
-            // devices where the native libs might not load.
             val optionsBuilderClass = Class.forName(
                 "com.google.mediapipe.tasks.genai.llminference.LlmInference\$LlmInferenceOptions"
             ).getDeclaredMethod("builder")
@@ -155,15 +318,10 @@ class MediaPipeLlmService(private val context: Context) {
         }
     }
 
-    /**
-     * Releases the loaded model and frees resources.
-     */
     fun releaseModel() {
         try {
             llmInference?.let { inference ->
-                try {
-                    inference.javaClass.getMethod("close").invoke(inference)
-                } catch (_: Exception) {}
+                try { inference.javaClass.getMethod("close").invoke(inference) } catch (_: Exception) {}
             }
         } catch (_: Exception) {}
         llmInference = null
@@ -171,10 +329,8 @@ class MediaPipeLlmService(private val context: Context) {
         modelName = ""
     }
 
-    /**
-     * Sends a prompt to the loaded model and returns the generated text.
-     * Returns null if the model is not loaded or inference fails.
-     */
+    // ── Inference ────────────────────────────────────────────────────
+
     suspend fun generateResponse(prompt: String): String? = withContext(Dispatchers.IO) {
         val inference = llmInference ?: return@withContext null
         try {
@@ -187,19 +343,13 @@ class MediaPipeLlmService(private val context: Context) {
         }
     }
 
-    /**
-     * Uses the on-device LLM to categorize a transaction description.
-     * Falls back to rule-based if LLM fails or is not loaded.
-     */
     suspend fun categorize(
         description: String,
         availableCategories: List<String>,
         isExpense: Boolean = true,
         userCategoryNames: List<String> = emptyList()
     ): String {
-        if (!isReady) {
-            return ruleEngine.categorize(description, isExpense, userCategoryNames)
-        }
+        if (!isReady) return ruleEngine.categorize(description, isExpense, userCategoryNames)
 
         val categoriesList = availableCategories.joinToString(", ")
         val prompt = """Categorize this transaction into exactly one category.
@@ -210,24 +360,16 @@ Reply with ONLY the category name, nothing else."""
 
         val response = generateResponse(prompt)
         if (response != null) {
-            // Find the best matching category from the response
             val cleaned = response.trim().removeSurrounding("\"")
             val exactMatch = availableCategories.find { it.equals(cleaned, ignoreCase = true) }
             if (exactMatch != null) return exactMatch
-
-            // Fuzzy: check if response contains a category name
             val containsMatch = availableCategories.find { cleaned.contains(it, ignoreCase = true) }
             if (containsMatch != null) return containsMatch
         }
 
-        // Fallback to rule-based
         return ruleEngine.categorize(description, isExpense, userCategoryNames)
     }
 
-    /**
-     * Uses the on-device LLM to generate a financial insight.
-     * Falls back to null if LLM is not loaded.
-     */
     suspend fun generateInsight(
         totalExpenses: Double,
         totalIncome: Double,
@@ -248,9 +390,6 @@ Keep it concise and helpful."""
         return generateResponse(prompt)
     }
 
-    /**
-     * Returns a human-readable status string.
-     */
     fun statusMessage(): String = when {
         isReady -> "MediaPipe LLM active — $modelName"
         errorMessage != null -> "MediaPipe LLM error: $errorMessage"

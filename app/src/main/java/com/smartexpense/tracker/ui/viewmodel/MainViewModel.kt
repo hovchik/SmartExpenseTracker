@@ -277,6 +277,78 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ── Model catalog & download ─────────────────────────────────
+
+    /** The built-in model catalog from MediaPipeLlmService. */
+    val modelCatalog: List<MediaPipeLlmService.CatalogModel>
+        get() = localAiService.mediaPipeLlm.modelCatalog
+
+    /** Download progress (0.0–1.0) for the active model download. */
+    private val _downloadProgress = MutableStateFlow(0f)
+    val downloadProgress: StateFlow<Float> = _downloadProgress.asStateFlow()
+
+    /** Whether a model download is currently in progress. */
+    private val _isDownloadingModel = MutableStateFlow(false)
+    val isDownloadingModel: StateFlow<Boolean> = _isDownloadingModel.asStateFlow()
+
+    /** Error message from the last download attempt, if any. */
+    private val _downloadError = MutableStateFlow<String?>(null)
+    val downloadError: StateFlow<String?> = _downloadError.asStateFlow()
+
+    /**
+     * Checks if a catalog model is already downloaded to local storage.
+     */
+    fun isModelDownloaded(model: MediaPipeLlmService.CatalogModel): Boolean =
+        localAiService.mediaPipeLlm.isModelDownloaded(model)
+
+    /**
+     * Downloads a model from the catalog, then auto-loads it.
+     */
+    fun downloadCatalogModel(model: MediaPipeLlmService.CatalogModel) {
+        viewModelScope.launch {
+            _isDownloadingModel.value = true
+            _downloadProgress.value = 0f
+            _downloadError.value = null
+            _localAiStatus.value = "Downloading ${model.name}…"
+
+            val path = localAiService.mediaPipeLlm.downloadModel(model) { progress ->
+                _downloadProgress.value = progress
+            }
+
+            _isDownloadingModel.value = false
+
+            if (path != null) {
+                // Auto-load the downloaded model
+                loadMediaPipeModel(path)
+                // Re-discover models to include the new file
+                discoverModels()
+            } else {
+                _downloadError.value = localAiService.mediaPipeLlm.downloadError
+                _localAiStatus.value = localAiService.mediaPipeLlm.downloadError
+                    ?: "Download failed"
+            }
+        }
+    }
+
+    /**
+     * Deletes a downloaded catalog model from local storage.
+     */
+    fun deleteCatalogModel(model: MediaPipeLlmService.CatalogModel) {
+        val currentPath = localAiService.mediaPipeLlm.catalogModelPath(model)
+        // If this model is currently loaded, release it
+        if (repository.appData.value.settings.mediapipeModelPath == currentPath) {
+            localAiService.mediaPipeLlm.releaseModel()
+            viewModelScope.launch {
+                val settings = repository.appData.value.settings
+                repository.updateSettings(settings.copy(mediapipeModelPath = ""))
+                _localAiStatus.value = localAiService.statusMessage()
+                _engineDescriptions.value = localAiService.engineDescriptions()
+            }
+        }
+        localAiService.mediaPipeLlm.deleteModel(model)
+        discoverModels()
+    }
+
     /**
      * Returns a category using on-device AI when enabled, otherwise falls back to rules.
      * When AI suggests a category that doesn't exist yet, it is auto-created.
