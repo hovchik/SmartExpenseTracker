@@ -26,7 +26,11 @@ data class Transaction(
     val tags: List<String> = emptyList(),
     val notes: String = "",
     val merchantName: String = "",
-    val isRecurring: Boolean = false
+    val isRecurring: Boolean = false,
+    /** GPS latitude captured at transaction time; null if unavailable. */
+    val latitude: Double? = null,
+    /** GPS longitude captured at transaction time; null if unavailable. */
+    val longitude: Double? = null
 )
 
 enum class TransactionType {

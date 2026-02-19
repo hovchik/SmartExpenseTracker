@@ -15,6 +15,7 @@ import com.smartexpense.tracker.service.currency.CurrencyConverterService
 import com.smartexpense.tracker.service.notification.ExpenseNotificationHelper
 import com.smartexpense.tracker.service.scheduler.SalarySchedulerWorker
 import com.smartexpense.tracker.util.DateUtils
+import com.smartexpense.tracker.util.LocationProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -535,12 +536,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val finalCategory = category ?: smartCategorize(description)
             val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+            val loc = currentLocation()
             val added = repository.addTransaction(Transaction(
                 amount = amount, description = description, category = finalCategory,
                 type = type, source = source, merchantName = merchantName, notes = notes,
-                timestamp = timestamp, dateTime = dtFormatter.format(Date(timestamp))
+                timestamp = timestamp, dateTime = dtFormatter.format(Date(timestamp)),
+                latitude = loc?.latitude, longitude = loc?.longitude
             ))
-            if (added) refreshSuggestions()
+            if (added) {
+                autoCreateStoreIfNeeded(merchantName, loc?.latitude, loc?.longitude)
+                refreshSuggestions()
+            }
         }
     }
 
@@ -569,6 +575,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteStoreLocation(id: String) {
         viewModelScope.launch { repository.deleteStoreLocation(id) }
     }
+
+    /**
+     * Automatically creates a [StoreLocation] for [merchantName] at the given
+     * coordinates if one doesn't already exist for that merchant.
+     */
+    private suspend fun autoCreateStoreIfNeeded(
+        merchantName: String,
+        latitude: Double?,
+        longitude: Double?
+    ) {
+        if (merchantName.isBlank() || latitude == null || longitude == null) return
+        val existing = repository.appData.value.storeLocations
+        if (existing.any { it.merchantName.equals(merchantName, ignoreCase = true) }) return
+        repository.addStoreLocation(
+            StoreLocation(
+                merchantName = merchantName,
+                latitude = latitude,
+                longitude = longitude
+            )
+        )
+    }
+
+    /** Returns the current device location, or null. */
+    private fun currentLocation(): LocationProvider.LatLng? =
+        LocationProvider.getLastKnownLocation(getApplication())
 
     /**
      * Parses OCR/QR receipt data and stores it in [ocrParsedData] for the user to review
@@ -662,6 +693,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 repository.ensureCategoryExists(category)
 
+                val loc = currentLocation()
                 val now = System.currentTimeMillis()
                 val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
                 repository.addTransaction(Transaction(
@@ -673,8 +705,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     merchantName = merchantName,
                     timestamp = now,
                     dateTime = dtFormatter.format(Date(now)),
-                    notes = listOf(itemsNote, sourceNote, aiNote).filter { it.isNotBlank() }.joinToString("\n")
+                    notes = listOf(itemsNote, sourceNote, aiNote).filter { it.isNotBlank() }.joinToString("\n"),
+                    latitude = loc?.latitude,
+                    longitude = loc?.longitude
                 ))
+                autoCreateStoreIfNeeded(merchantName, loc?.latitude, loc?.longitude)
 
                 val resultMsg = buildString {
                     append("Found: $merchantName — $currencySymbol${String.format("%.2f", amount)}")
