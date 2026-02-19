@@ -209,6 +209,16 @@ enum class AiEnginePreference {
     MEDIAPIPE_LLM
 }
 
+/**
+ * Source for fetching currency exchange rates.
+ */
+enum class RateSource {
+    /** Open Exchange Rate APIs (open.er-api.com / exchangerate-api.com). */
+    OPEN_API,
+    /** rate.am – Armenian bank exchange rates (AMD-centric). */
+    RATE_AM
+}
+
 data class AppSettings(
     /** Legacy single-char symbol kept for backward-compat. Use currencyCode instead. */
     val currency: String = "֏",
@@ -229,6 +239,8 @@ data class AppSettings(
     val mediapipeModelPath: String = "",
     /** HuggingFace API token for downloading gated models (e.g. Gemma). */
     val huggingFaceToken: String = "",
+    /** Source for currency exchange rates. */
+    val rateSource: RateSource = RateSource.OPEN_API,
     /** Keywords used when scanning for banking/payment apps on the device. */
     val scanKeywords: List<String> = listOf("bank", "payment", "wallet"),
     val bankingAppPackages: List<String> = listOf(

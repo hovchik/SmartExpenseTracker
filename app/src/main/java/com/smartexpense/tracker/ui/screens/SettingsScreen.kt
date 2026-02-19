@@ -42,6 +42,7 @@ import com.smartexpense.tracker.data.model.Category
 import com.smartexpense.tracker.data.model.SUPPORTED_CURRENCIES
 import com.smartexpense.tracker.data.model.ThemeMode
 import com.smartexpense.tracker.data.model.currencyInfoFor
+import com.smartexpense.tracker.service.currency.CurrencyConverterService
 import com.smartexpense.tracker.ui.theme.*
 
 @Composable
@@ -339,6 +340,66 @@ fun SettingsScreen(
                 HorizontalDivider()
                 Spacer(modifier = Modifier.height(12.dp))
 
+                // ── Exchange Rate Source ──────────────────────────
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.TravelExplore, contentDescription = null,
+                        tint = GreenPrimary, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Exchange Rate Source", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Text(
+                            when (settings.rateSource) {
+                                com.smartexpense.tracker.data.model.RateSource.RATE_AM ->
+                                    "rate.am \u2013 Armenian bank rates"
+                                else ->
+                                    "Open API \u2013 global exchange rates"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    com.smartexpense.tracker.data.model.RateSource.entries.forEach { source ->
+                        val selected = settings.rateSource == source
+                        FilterChip(
+                            selected = selected,
+                            onClick = {
+                                if (!selected) {
+                                    CurrencyConverterService.invalidateCache()
+                                    onUpdateSettings(settings.copy(rateSource = source))
+                                    onFetchRates()
+                                }
+                            },
+                            label = {
+                                Text(
+                                    when (source) {
+                                        com.smartexpense.tracker.data.model.RateSource.OPEN_API -> "Open API"
+                                        com.smartexpense.tracker.data.model.RateSource.RATE_AM -> "rate.am"
+                                    },
+                                    fontSize = 13.sp
+                                )
+                            },
+                            leadingIcon = if (selected) {
+                                { Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            } else null
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(12.dp))
+
                 // ── Currency Converter ─────────────────────────────
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.SwapHoriz, contentDescription = null,
@@ -504,7 +565,12 @@ fun SettingsScreen(
                             }
                         }
                         Text(
-                            "Rates from open.er-api.com · refreshed hourly",
+                            when (settings.rateSource) {
+                                com.smartexpense.tracker.data.model.RateSource.RATE_AM ->
+                                    "Rates from rate.am \u00B7 Armenian bank averages \u00B7 refreshed hourly"
+                                else ->
+                                    "Rates from open.er-api.com \u00B7 refreshed hourly"
+                            },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 4.dp)

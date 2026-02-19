@@ -80,6 +80,15 @@ class MediaPipeLlmService(private val context: Context) {
             sizeBytes = 555L * 1024 * 1024,
             description = "Google Gemma 3 1B Instruction-Tuned, 4-bit quantized. Best balance of quality and size for on-device use.",
             quantization = "INT4"
+        ),
+        CatalogModel(
+            id = "qwen25-1.5b-instruct-q8",
+            name = "Qwen 2.5 1.5B Instruct",
+            fileName = "Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv1280.task",
+            downloadUrl = "https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct/resolve/main/Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv1280.task",
+            sizeBytes = 1598L * 1024 * 1024,
+            description = "Qwen 2.5 1.5B Instruction-Tuned, 8-bit quantized. Strong multilingual model with excellent coding and math capabilities.",
+            quantization = "INT8"
         )
     )
 

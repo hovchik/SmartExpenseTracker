@@ -696,8 +696,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun fetchExchangeRates() {
         viewModelScope.launch {
+            val settings = repository.appData.value.settings
             val rates = withContext(Dispatchers.IO) {
-                CurrencyConverterService.getRates("USD")
+                when (settings.rateSource) {
+                    com.smartexpense.tracker.data.model.RateSource.RATE_AM ->
+                        CurrencyConverterService.getRatesFromRateAm()
+                            ?: CurrencyConverterService.getRates("USD")  // fallback to API
+                    else ->
+                        CurrencyConverterService.getRates("USD")
+                }
             }
             if (rates != null) {
                 // Merge in USD itself so the converter can handle USD→X conversions
