@@ -92,17 +92,36 @@ fun ScanReceiptScreen(
         fun onAllDone() {
             if (remaining.get() > 0) return
 
-            // Pick the longest non-empty result
-            val best = results.entries
+            // Armenian script (U+0530–U+058F) is not supported by any ML Kit model.
+            // Instead of picking only the longest result, merge all non-empty results so that:
+            //   - Numeric amounts captured by the Latin recognizer are always included.
+            //   - Any partial text from other recognizers supplements it.
+            // Deduplication: only add a recognizer's block if it contributes lines not
+            // already present in the merged output (simple line-set check).
+            val nonEmpty = results.entries
                 .filter { it.value.isNotBlank() }
-                .maxByOrNull { it.value.length }
+                .sortedByDescending { it.value.length }   // Latin first (usually longest)
+
+            val mergedLines = mutableListOf<String>()
+            val seenLines = mutableSetOf<String>()
+            for ((name, text) in nonEmpty) {
+                var addedFromThis = 0
+                for (line in text.lines()) {
+                    val trimmed = line.trim()
+                    if (trimmed.isNotEmpty() && seenLines.add(trimmed.lowercase())) {
+                        mergedLines.add(trimmed)
+                        addedFromThis++
+                    }
+                }
+                Log.d("OCR", "$name recognizer: ${text.length} chars, $addedFromThis new lines merged")
+            }
+            val merged = mergedLines.joinToString("\n")
 
             isProcessing = false
 
-            if (best != null && best.value.isNotEmpty()) {
-                ocrText = best.value
-                Log.d("OCR", "Best result from ${best.key}: ${best.value.length} chars")
-                onOcrResult(best.value)
+            if (merged.isNotEmpty()) {
+                ocrText = merged
+                onOcrResult(merged)
             } else {
                 errorMsg = context.getString(R.string.no_text_detected)
             }

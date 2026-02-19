@@ -16,6 +16,90 @@ class AiExpenseEngine {
 
     // ─── Smart Categorization ──────────────────────────────────────
 
+    /**
+     * Known merchant → category mappings. Checked first for precise classification.
+     * Merchant names are lowercase; matched as substring against the description.
+     */
+    private val merchantCategoryMap: Map<String, String> = mapOf(
+        // ── Ride-hailing / Taxi ──
+        "yandex.go" to "Transportation", "yandex go" to "Transportation",
+        "yandex taxi" to "Transportation", "yango" to "Transportation",
+        "uber" to "Transportation", "lyft" to "Transportation",
+        "bolt" to "Transportation", "gett" to "Transportation",
+        "grab" to "Transportation", "didi" to "Transportation",
+        "ola" to "Transportation", "rapido" to "Transportation",
+        "cabify" to "Transportation", "freenow" to "Transportation",
+        "indriver" to "Transportation", "maxim taxi" to "Transportation",
+        "gg taxi" to "Transportation",
+        // ── Fuel / Gas ──
+        "shell" to "Transportation", "chevron" to "Transportation",
+        "bp " to "Transportation", "exxon" to "Transportation",
+        "lukoil" to "Transportation", "gazprom" to "Transportation",
+        "petrol" to "Transportation",
+        // ── Airlines / Travel ──
+        "airline" to "Transportation", "airways" to "Transportation",
+        "flyone" to "Transportation", "ryanair" to "Transportation",
+        "wizzair" to "Transportation", "booking.com" to "Transportation",
+        "airbnb" to "Rent & Housing", "irctc" to "Transportation",
+        // ── Food delivery ──
+        "uber eats" to "Food & Dining", "doordash" to "Food & Dining",
+        "grubhub" to "Food & Dining", "deliveroo" to "Food & Dining",
+        "glovo" to "Food & Dining", "wolt" to "Food & Dining",
+        "swiggy" to "Food & Dining", "zomato" to "Food & Dining",
+        "yandex eda" to "Food & Dining", "yandex.eda" to "Food & Dining",
+        // ── Restaurants / Coffee ──
+        "mcdonald" to "Food & Dining", "starbucks" to "Food & Dining",
+        "chipotle" to "Food & Dining", "subway" to "Food & Dining",
+        "kfc" to "Food & Dining", "domino" to "Food & Dining",
+        "pizza hut" to "Food & Dining", "burger king" to "Food & Dining",
+        "dunkin" to "Food & Dining", "taco bell" to "Food & Dining",
+        "panda express" to "Food & Dining", "wendy" to "Food & Dining",
+        "popeyes" to "Food & Dining", "chick-fil-a" to "Food & Dining",
+        "five guys" to "Food & Dining", "panera" to "Food & Dining",
+        // ── Grocery chains ──
+        "walmart" to "Groceries", "target" to "Groceries",
+        "costco" to "Groceries", "kroger" to "Groceries",
+        "whole foods" to "Groceries", "trader joe" to "Groceries",
+        "safeway" to "Groceries", "aldi" to "Groceries",
+        "publix" to "Groceries", "bigbasket" to "Groceries",
+        "blinkit" to "Groceries", "dmart" to "Groceries",
+        // ── E-commerce / Shopping ──
+        "amazon" to "Shopping", "ebay" to "Shopping",
+        "etsy" to "Shopping", "aliexpress" to "Shopping",
+        "flipkart" to "Shopping", "myntra" to "Shopping",
+        "wildberries" to "Shopping", "ozon" to "Shopping",
+        "best buy" to "Shopping", "apple store" to "Shopping",
+        "nike" to "Shopping", "zara" to "Shopping",
+        "h&m" to "Shopping", "nordstrom" to "Shopping",
+        "macy" to "Shopping", "ikea" to "Rent & Housing",
+        // ── Streaming / Entertainment ──
+        "netflix" to "Entertainment", "spotify" to "Entertainment",
+        "hulu" to "Entertainment", "disney+" to "Entertainment",
+        "disney plus" to "Entertainment", "hbo max" to "Entertainment",
+        "apple tv" to "Entertainment", "prime video" to "Entertainment",
+        "youtube premium" to "Entertainment", "hotstar" to "Entertainment",
+        "steam" to "Entertainment", "playstation" to "Entertainment",
+        "xbox" to "Entertainment", "nintendo" to "Entertainment",
+        "epic games" to "Entertainment",
+        // ── Telecom / Utilities ──
+        "at&t" to "Bills & Utilities", "verizon" to "Bills & Utilities",
+        "t-mobile" to "Bills & Utilities", "comcast" to "Bills & Utilities",
+        "jio" to "Bills & Utilities", "airtel" to "Bills & Utilities",
+        "vodafone" to "Bills & Utilities", "bsnl" to "Bills & Utilities",
+        "beeline" to "Bills & Utilities", "ucom" to "Bills & Utilities",
+        "viva-mts" to "Bills & Utilities", "team telecom" to "Bills & Utilities",
+        // ── Health / Pharmacy ──
+        "cvs" to "Healthcare", "walgreens" to "Healthcare",
+        "apollo" to "Healthcare", "medplus" to "Healthcare",
+        // ── Education ──
+        "udemy" to "Education", "coursera" to "Education",
+        "skillshare" to "Education", "linkedin learning" to "Education",
+        // ── Yandex services ──
+        "yandex.market" to "Shopping", "yandex market" to "Shopping",
+        "yandex.lavka" to "Groceries", "yandex lavka" to "Groceries",
+        "yandex.plus" to "Entertainment", "yandex plus" to "Entertainment"
+    )
+
     private val categoryKeywords = mapOf(
         "Food & Dining" to listOf(
             "restaurant", "cafe", "coffee", "pizza", "burger", "sushi", "doordash",
@@ -29,10 +113,10 @@ class AiExpenseEngine {
             "fresh", "organic", "produce", "bigbasket", "blinkit", "dmart"
         ),
         "Transportation" to listOf(
-            "uber", "lyft", "taxi", "gas", "fuel", "parking", "toll", "metro",
-            "bus", "train", "airline", "flight", "car wash", "auto", "mechanic",
+            "taxi", "cab", "ride", "gas", "fuel", "parking", "toll", "metro",
+            "bus", "train", "airline", "flight", "car wash", "mechanic",
             "oil change", "tire", "transit", "shell", "chevron", "bp", "exxon",
-            "ola", "rapido", "irctc"
+            "rapido", "irctc"
         ),
         "Shopping" to listOf(
             "amazon", "ebay", "etsy", "mall", "store", "shop", "clothing",
@@ -78,18 +162,67 @@ class AiExpenseEngine {
         )
     )
 
-    fun categorize(description: String): String {
+    /**
+     * Categorise a transaction description.
+     * @param isExpense Pass false for income transactions — prevents income-only categories
+     *   (Salary, Freelance, Investment) from matching POS / expense descriptions that happen
+     *   to contain keywords like "pay" or "salary" (e.g. "payment at Paytm").
+     */
+    fun categorize(description: String, isExpense: Boolean = true): String {
         val lowerDesc = description.lowercase()
-        var bestMatch = "Other"
+        val incomeOnlyCategories = setOf("Salary", "Freelance", "Investment")
+
+        // Pass 0 – known merchant lookup (highest precision)
+        for ((merchant, category) in merchantCategoryMap) {
+            if (isExpense && category in incomeOnlyCategories) continue
+            if (lowerDesc.contains(merchant)) return category
+        }
+
+        // Pass 1 – exact substring match, scored by keyword length (longer = more specific)
+        var bestMatch: String? = null
         var bestScore = 0
         for ((category, keywords) in categoryKeywords) {
+            if (isExpense && category in incomeOnlyCategories) continue
             var score = 0
             for (keyword in keywords) {
                 if (lowerDesc.contains(keyword)) score += keyword.length
             }
             if (score > bestScore) { bestScore = score; bestMatch = category }
         }
-        return bestMatch
+        if (bestMatch != null) return bestMatch
+
+        // Pass 2 – word-token overlap: tokenise description, check prefix matches
+        val tokens = lowerDesc.split(Regex("""[\s\-_/.,;:]+""")).filter { it.length >= 3 }
+        var fallbackMatch: String? = null
+        var fallbackScore = 0
+        for ((category, keywords) in categoryKeywords) {
+            // Skip income-only categories for fallback (unlikely for POS merchants)
+            if (category in listOf("Salary", "Freelance", "Investment")) continue
+            var score = 0
+            for (token in tokens) {
+                for (keyword in keywords) {
+                    val minLen = minOf(token.length, keyword.length, 5)
+                    if (minLen >= 3 && (token.startsWith(keyword.take(minLen)) ||
+                                        keyword.startsWith(token.take(minLen)))) {
+                        score += minLen
+                    }
+                }
+            }
+            if (score > fallbackScore) { fallbackScore = score; fallbackMatch = category }
+        }
+        if (fallbackMatch != null && fallbackScore >= 3) return fallbackMatch
+
+        // Pass 3 – structural heuristics for unrecognised merchants
+        return when {
+            // Armenian/CIS/regional store-type name patterns
+            lowerDesc.any { it.code in 0x0530..0x058F } -> "Shopping" // Armenian Unicode block
+            lowerDesc.matches(Regex(""".*\b(llc|ltd|inc|corp|gmbh|srl|sas|ojsc|cjsc)\b.*""")) -> "Shopping"
+            lowerDesc.contains("market") || lowerDesc.contains("shop") ||
+                lowerDesc.contains("store") || lowerDesc.contains("mart") -> "Shopping"
+            lowerDesc.contains("fee") || lowerDesc.contains("charge") ||
+                lowerDesc.contains("bill") -> "Bills & Utilities"
+            else -> "Shopping"   // POS/card transactions with unknown merchant → Shopping beats Other
+        }
     }
 
     fun detectTransactionType(description: String, amount: Double): TransactionType {
@@ -285,7 +418,8 @@ class AiExpenseEngine {
         transactions: List<Transaction>,
         period: ReportPeriod,
         startDate: Long,
-        endDate: Long
+        endDate: Long,
+        currencyCode: String = "USD"
     ): ExpenseReport {
         val periodTransactions = transactions.filter { it.timestamp in startDate..endDate }
         val expenses = periodTransactions.filter { it.type == TransactionType.EXPENSE }
@@ -336,7 +470,7 @@ class AiExpenseEngine {
             .mapValues { it.value.size }
 
         // Spending trend (insight text)
-        val insight = buildInsight(totalExpenses, totalIncome, comparison, categoryBreakdown, topMerchants)
+        val insight = buildInsight(totalExpenses, totalIncome, comparison, categoryBreakdown, topMerchants, currencyCode)
 
         // Group period transactions by date string ("yyyy-MM-dd") for date-based browsing
         val dateFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
@@ -366,8 +500,10 @@ class AiExpenseEngine {
 
     private fun buildInsight(
         expenses: Double, income: Double, comparison: Double,
-        categories: Map<String, Double>, merchants: Map<String, Double>
+        categories: Map<String, Double>, merchants: Map<String, Double>,
+        currencyCode: String = "USD"
     ): String {
+        val sym = currencyInfoFor(currencyCode).symbol
         val parts = mutableListOf<String>()
 
         // Spending direction
@@ -392,7 +528,7 @@ class AiExpenseEngine {
         // Top merchant
         val topMerch = merchants.entries.maxByOrNull { it.value }
         if (topMerch != null) {
-            parts.add("Most spent at: ${topMerch.key} (\$${String.format("%.2f", topMerch.value)}).")
+            parts.add("Most spent at: ${topMerch.key} ($sym${String.format("%.2f", topMerch.value)}).")
         }
 
         return parts.joinToString(" ")
@@ -417,6 +553,20 @@ class AiExpenseEngine {
      * (from Settings) that override the built-in income/expense word lists.
      * When non-empty, these are checked **first** before falling back to defaults.
      */
+    /**
+     * Keywords that identify a pre-authorisation hold (not a real debit).
+     * Pre-auth messages should be silently discarded — the actual charge
+     * arrives in a separate "approved" / "completion" message.
+     */
+    private val preAuthKeywords = listOf(
+        "pre-auth", "pre auth", "preauth", "pre-authorization", "pre authorization",
+        "preauthorization", "authorisation hold", "authorization hold", "auth hold",
+        "card authorised", "card authorized",
+        "temporary hold", "temp hold", "pending authorization", "pending authorisation",
+        // Armenian POS terminal pre-auth strings
+        "Նախաէttv", "авторизация", "предавторизация"
+    )
+
     fun parseFinancialMessage(
         message: String,
         customIncomeKeywords: List<String> = emptyList(),
@@ -424,6 +574,12 @@ class AiExpenseEngine {
     ): ParsedTransaction? {
         try {
             val lowerMsg = message.lowercase()
+
+            // Reject pre-auth / authorisation-hold messages — they are not real transactions
+            if (preAuthKeywords.any { lowerMsg.contains(it.lowercase()) }) {
+                return null
+            }
+
             val oneLine = message.replace(Regex("""\s*\n\s*"""), " ").trim()
 
             // ── TRY SPECIFIC BANK FORMATS FIRST ─────────────
@@ -480,6 +636,8 @@ class AiExpenseEngine {
 
             // Ordered from most specific to least specific
             val amountPatterns = listOf(
+                // "12 000.00 AMD" — amount with space-thousands-separator followed by currency
+                Regex("""([0-9][0-9\s,]*\.[0-9]{1,2})\s+([A-Z]{3})\b"""),
                 // "17063.12 AMD" or "21.70 USD" — amount followed by 3-letter currency
                 Regex("""([\d,]+\.\d{1,2})\s+([A-Z]{3})"""),
                 // "AMD 17,063.12" or "INR 500" — currency before amount
@@ -518,6 +676,22 @@ class AiExpenseEngine {
             }
 
             if (amount == null || amount <= 0) return null
+
+            // Infer ISO currency code from well-known symbols if not already captured
+            if (currency.isEmpty()) {
+                currency = when {
+                    message.contains("$")   -> "USD"
+                    message.contains("€")   -> "EUR"
+                    message.contains("£")   -> "GBP"
+                    message.contains("֏")   -> "AMD"
+                    message.contains("₹") || message.lowercase().contains("rs.") -> "INR"
+                    message.contains("₽")   -> "RUB"
+                    message.contains("₺")   -> "TRY"
+                    message.contains("₩")   -> "KRW"
+                    message.contains("¥")   -> "JPY"
+                    else -> ""
+                }
+            }
 
             // ── EXPENSE VS INCOME ───────────────────────
 
@@ -638,11 +812,15 @@ class AiExpenseEngine {
         try {
             val lines = ocrText.lines().map { it.trim() }.filter { it.isNotEmpty() }
 
-            // Merchant name — first non-numeric, non-date, substantive line
+            // Merchant name — first non-numeric, non-date, substantive line.
+            // Excludes POS terminal boilerplate lines (TID, MID, Tarihi, AUTH*, card numbers).
+            // Note: Armenian script characters may appear garbled after OCR (ML Kit has no Armenian
+            // model); we still keep any line that contains enough non-digit characters to be a name.
             val merchantName = lines.firstOrNull { line ->
                 line.length > 2 &&
                 !line.matches(Regex("""^[\d\s/\-:.]+$""")) &&
-                !line.matches(Regex("""(?i)^(receipt|invoice|bill|date|time|tel|phone|fax|www).*"""))
+                !line.matches(Regex("""(?i)^(receipt|invoice|bill|date|time|tel|phone|fax|www|tid|mid|tarihi|sale|authcode|auth code|approved|visa|mastercard|\*+.*).*""")) &&
+                !line.matches(Regex("""^\*[\d\*\s]+$"""))  // masked card numbers
             }?.take(50) ?: "Unknown Store"
 
             // ── Build currency-specific amount patterns ───────────────
@@ -707,9 +885,16 @@ class AiExpenseEngine {
             // Priority-1: currency-specific total markers
             val currencyTotalPatterns: List<Regex> = when (currencyCode.uppercase()) {
                 "AMD" -> listOf(
-                    // "ԸՆԴԱՄԵՆԸ" = "total" in Armenian; also "TOTAL", "AMD", "֏"
-                    Regex("""(?:ԸՆԴԱՄԵՆԸ|ընդամենը|total|grand\s*total)[:\s]*(?:֏|AMD|դրամ)?\s*([\d,\s]+\.?\d*)""", RegexOption.IGNORE_CASE),
-                    Regex("""(?:֏|AMD|դրամ)\s*([\d,\s]+\.?\d*)""", RegexOption.IGNORE_CASE)
+                    // Armenian POS terminal receipts: "Գumарi: 12 000.00 AMD"
+                    // "Գumар" / "Гumari" = Armenian for "sum/amount"
+                    // Handles space-as-thousands-separator: "12 000.00"
+                    Regex("""(?:Գumар[ий]?|Гumari?|gumar[i]?)[:\s]+([0-9][0-9\s,]*\.?[0-9]*)\s*(?:AMD|֏|դрам)""", RegexOption.IGNORE_CASE),
+                    // "ԸՆДAMENHH" = "total" in Armenian; also "TOTAL", "AMD", "֏"
+                    Regex("""(?:ԸՆДАМENNH|ընдамennh|total|grand\s*total)[:\s]*(?:֏|AMD|դрам)?\s*([0-9][0-9\s,]*\.?[0-9]*)""", RegexOption.IGNORE_CASE),
+                    // POS receipt: number immediately before AMD/֏ — "12 000.00 AMD"
+                    Regex("""([0-9][0-9\s,]*\.[0-9]{1,2})\s*(?:AMD|֏|դрам)""", RegexOption.IGNORE_CASE),
+                    // AMD/֏ before number — "AMD 12000.00" / "֏ 12,000"
+                    Regex("""(?:֏|AMD|դрам)[:\s]+([0-9][0-9\s,]*\.?[0-9]*)""", RegexOption.IGNORE_CASE)
                 )
                 "RUB" -> listOf(
                     Regex("""(?:ИТОГО|итого|total)[:\s]*(?:₽|руб\.?)?\s*([\d,\s]+\.?\d*)""", RegexOption.IGNORE_CASE),
@@ -750,15 +935,35 @@ class AiExpenseEngine {
                 total = if (sum > max * 1.5) sum else max
             }
 
-            // Date
+            // AMD-specific fallback: Armenian POS receipts often lose all script text through OCR
+            // (ML Kit has no Armenian model). If no total was found yet, scan every line for a
+            // bare decimal number that looks like an AMD amount (> 100 AMD is plausible minimum).
+            if (total == null && currencyCode.uppercase() == "AMD") {
+                val amountCandidates = lines.mapNotNull { line ->
+                    // Match "12 000.00", "12000.00", "12000", "12,000.00" — typical AMD receipt amounts
+                    val m = Regex("""([0-9][0-9\s,]*\.?[0-9]{0,2})""").findAll(line)
+                        .mapNotNull { it.groupValues[1].replace(Regex("""[\s,]"""), "").toDoubleOrNull() }
+                        .filter { it >= 100 }   // AMD amounts are almost always ≥ 100
+                        .maxOrNull()
+                    m
+                }
+                total = amountCandidates.maxOrNull()
+            }
+
+            // Date — also recognises "Tarihi: DD/MM/YY" found on Armenian/Turkish POS terminals
             val datePatterns = listOf(
+                Regex("""(?:tarihi|date|dated?)[:\s]*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})""", RegexOption.IGNORE_CASE),
                 Regex("""\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}"""),
                 Regex("""\d{4}[/\-]\d{1,2}[/\-]\d{1,2}""")
             )
             var date: String? = null
             for (p in datePatterns) {
-                date = p.find(ocrText)?.value
-                if (date != null) break
+                val m = p.find(ocrText)
+                if (m != null) {
+                    // If there's a capturing group (label pattern), use group 1; else full match
+                    date = if (m.groupValues.size > 1 && m.groupValues[1].isNotEmpty()) m.groupValues[1] else m.value
+                    break
+                }
             }
 
             return ParsedReceipt(totalAmount = total, items = items, merchantName = merchantName, date = date)

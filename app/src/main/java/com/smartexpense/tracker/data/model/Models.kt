@@ -147,6 +147,33 @@ enum class ReportPeriod {
 }
 
 /**
+ * Type of in-app notification shown in the bell panel.
+ */
+enum class InAppNotificationType {
+    TRANSACTION_DETECTED,  // SMS or notification auto-detected a transaction
+    CATEGORY_CREATED,      // A new category was auto-created during parsing
+    SMS_PARSED,            // Explicit SMS scan found transactions
+    BUDGET_ALERT           // Spending nearing budget limit
+}
+
+/**
+ * In-app notification shown in the bell panel (top-right corner).
+ * Persisted in JSON so it survives app restarts.
+ */
+data class InAppNotification(
+    val id: String = UUID.randomUUID().toString(),
+    val title: String,
+    val message: String,
+    val type: InAppNotificationType,
+    val timestamp: Long = System.currentTimeMillis(),
+    val isRead: Boolean = false,
+    /** Transaction this notification is related to (if any). */
+    val relatedTransactionId: String? = null,
+    /** Category name that was auto-created (for CATEGORY_CREATED type). */
+    val suggestedCategoryName: String? = null
+)
+
+/**
  * App-wide data container stored as JSON.
  */
 data class AppData(
@@ -154,6 +181,7 @@ data class AppData(
     val categories: List<Category> = defaultCategories(),
     val budgets: List<Budget> = emptyList(),
     val suggestions: List<AiSuggestion> = emptyList(),
+    val inAppNotifications: List<InAppNotification> = emptyList(),
     val settings: AppSettings = AppSettings(),
     val lastUpdated: Long = System.currentTimeMillis()
 )
@@ -199,6 +227,12 @@ data class AppSettings(
     val notificationListenerEnabled: Boolean = false,
     val smsParsingEnabled: Boolean = false,
     val autoCategorizationEnabled: Boolean = true,
+    /**
+     * When true, the app will attempt to use Gemini Nano (on-device AI via Android AICore)
+     * for categorization and report insights. Falls back silently to rule-based logic on
+     * devices that do not support it (requires Pixel 8+ or Samsung Galaxy S24+ with Android 14+).
+     */
+    val localAiEnabled: Boolean = false,
     val bankingAppPackages: List<String> = listOf(
         "com.chase.sig.android",
         "com.wf.wellsfargomobile",
@@ -215,7 +249,18 @@ data class AppSettings(
     /** User-customizable keywords that indicate an income notification. */
     val notificationIncomeKeywords: List<String> = DEFAULT_INCOME_KEYWORDS,
     /** User-customizable keywords that indicate an expense notification. */
-    val notificationExpenseKeywords: List<String> = DEFAULT_EXPENSE_KEYWORDS
+    val notificationExpenseKeywords: List<String> = DEFAULT_EXPENSE_KEYWORDS,
+    // ── Monthly expense threshold ───────────────────────────────────
+    /** 0 = disabled. When monthly expenses exceed this, a system notification is posted. */
+    val monthlyExpenseLimit: Double = 0.0,
+    /** Tracks which month (yyyy-MM) was last alerted so we don't spam per transaction. */
+    val lastThresholdAlertMonth: String = "",
+    // ── Salary scheduler ───────────────────────────────────────────
+    val scheduledSalaryEnabled: Boolean = false,
+    val scheduledSalaryAmount: Double = 0.0,
+    /** Day-of-month (1–31) to add the salary transaction automatically each month. */
+    val scheduledSalaryDayOfMonth: Int = 1,
+    val scheduledSalaryDescription: String = "Monthly Salary"
 )
 
 fun defaultCategories(): List<Category> = listOf(

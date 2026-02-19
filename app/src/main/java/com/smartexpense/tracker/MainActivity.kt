@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -57,7 +58,14 @@ fun MainApp(viewModel: MainViewModel) {
     val importExportMessage by viewModel.importExportMessage.collectAsState()
     val smsScanState by viewModel.smsScanState.collectAsState()
     val exchangeRates by viewModel.exchangeRates.collectAsState()
+    val inAppNotifications by viewModel.inAppNotifications.collectAsState()
+    val unreadCount by viewModel.unreadNotificationCount.collectAsState()
+    val localAiStatus by viewModel.localAiStatus.collectAsState()
+    val localAiSuggestion by viewModel.localAiSuggestion.collectAsState()
     val scope = rememberCoroutineScope()
+
+    // Shortcut to always-up-to-date currency code
+    val currencyCode = uiState.settings.currencyCode
 
     var currentScreen by remember { mutableStateOf("dashboard") }
 
@@ -71,34 +79,77 @@ fun MainApp(viewModel: MainViewModel) {
     // Get the activity reference for language changes
     val activity = androidx.compose.ui.platform.LocalContext.current as? MainActivity
 
+    // Intercept system back button: always go to Dashboard instead of closing the app.
+    BackHandler(enabled = currentScreen != "dashboard") {
+        when (currentScreen) {
+            "sms_scan" -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
+            else       -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+        }
+    }
+
+    // Hide the top bar on full-screen sub-screens
+    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan")
+
     Scaffold(
+        topBar = {
+            if (showTopBar) {
+                TopAppBar(
+                    title = {
+                        Text(
+                            when (currentScreen) {
+                                "dashboard"    -> "Smart Expense"
+                                "reports"      -> "Reports"
+                                "transactions" -> "Transactions"
+                                "settings"     -> "Settings"
+                                else           -> "Smart Expense"
+                            },
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    actions = {
+                        NotificationBell(
+                            notifications  = inAppNotifications,
+                            unreadCount    = unreadCount,
+                            onMarkRead     = { viewModel.markNotificationRead(it) },
+                            onMarkAllRead  = { viewModel.markAllNotificationsRead() },
+                            onClearAll     = { viewModel.clearAllInAppNotifications() }
+                        )
+                    }
+                )
+            }
+        },
         bottomBar = {
             if (currentScreen != "add" && currentScreen != "scan" && currentScreen != "sms_scan") {
                 NavigationBar(tonalElevation = 2.dp) {
+                    // Home
                     NavigationBarItem(
                         selected = selectedTab == 0,
                         onClick = { viewModel.setSelectedTab(0); currentScreen = "dashboard" },
                         icon = { Icon(if (selectedTab == 0) Icons.Filled.Home else Icons.Outlined.Home, navHome) },
                         label = { Text(navHome) }
                     )
+                    // Reports
                     NavigationBarItem(
                         selected = selectedTab == 1,
                         onClick = { viewModel.setSelectedTab(1); currentScreen = "reports" },
-                        icon = { Icon(if (selectedTab == 1) Icons.Filled.Receipt else Icons.Outlined.Receipt, navReports) },
+                        icon = { Icon(if (selectedTab == 1) Icons.Filled.BarChart else Icons.Outlined.BarChart, navReports) },
                         label = { Text(navReports) }
                     )
+                    // Add (FAB-style centre item)
                     NavigationBarItem(
                         selected = false,
                         onClick = { currentScreen = "add" },
                         icon = { Icon(Icons.Filled.AddCircle, navAdd, modifier = Modifier.size(32.dp)) },
                         label = { Text(navAdd, fontWeight = FontWeight.Bold) }
                     )
+                    // Transactions
                     NavigationBarItem(
                         selected = selectedTab == 2,
-                        onClick = { viewModel.setSelectedTab(2); currentScreen = "scan" },
-                        icon = { Icon(if (selectedTab == 2) Icons.Filled.CameraAlt else Icons.Outlined.CameraAlt, navScan) },
+                        onClick = { viewModel.setSelectedTab(2); currentScreen = "transactions" },
+                        icon = { Icon(if (selectedTab == 2) Icons.Filled.Receipt else Icons.Outlined.Receipt, navScan) },
                         label = { Text(navScan) }
                     )
+                    // Settings
                     NavigationBarItem(
                         selected = selectedTab == 3,
                         onClick = { viewModel.setSelectedTab(3); currentScreen = "settings" },
@@ -116,22 +167,34 @@ fun MainApp(viewModel: MainViewModel) {
                         uiState = uiState,
                         weeklyChartData = viewModel.getWeeklyChartData(),
                         onDismissSuggestion = { viewModel.dismissSuggestion(it) },
-                        onDeleteTransaction = { viewModel.deleteTransaction(it) }
+                        onDeleteTransaction = { viewModel.deleteTransaction(it) },
+                        currencyCode = currencyCode
                     )
                     "reports" -> ReportsScreen(
                         generateReport = { viewModel.generateReport(it) },
+                        generateMonthlyReport = { year, month ->
+                            viewModel.generateReportForMonth(year, month)
+                        },
                         currentPeriod = reportPeriod,
                         onPeriodChange = { viewModel.setReportPeriod(it) },
-                        currencyCode = uiState.settings.currencyCode
+                        allTransactions = uiState.allTransactions,
+                        currencyCode = currencyCode
                     )
                     "add" -> AddTransactionScreen(
                         categories = uiState.categories,
-                        onAdd = { amount, desc, category, type, source, merchant ->
+                        onAdd = { amount, desc, category, type, source, merchant, notes, timestamp ->
                             viewModel.addTransaction(amount = amount, description = desc,
-                                category = category, type = type, source = source, merchantName = merchant)
+                                category = category, type = type, source = source,
+                                merchantName = merchant, notes = notes, timestamp = timestamp)
                         },
                         onScanReceipt = { currentScreen = "scan" },
-                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) },
+                        currencyCode = currencyCode
+                    )
+                    "transactions" -> TransactionsScreen(
+                        allTransactions = uiState.allTransactions,
+                        currencyCode = currencyCode,
+                        onDeleteTransaction = { viewModel.deleteTransaction(it) }
                     )
                     "scan" -> ScanReceiptScreen(
                         onOcrResult = { text -> viewModel.processOcrText(text) },
@@ -144,7 +207,8 @@ fun MainApp(viewModel: MainViewModel) {
                         onConfirmAll = { viewModel.confirmSmsScanResults() },
                         onDiscard = { id -> viewModel.discardSmsScanResult(id) },
                         onReset = { viewModel.resetSmsScanState() },
-                        onNavigateBack = { currentScreen = "settings"; viewModel.setSelectedTab(3) }
+                        onNavigateBack = { currentScreen = "settings"; viewModel.setSelectedTab(3) },
+                        currencyCode = currencyCode
                     )
                     "settings" -> SettingsScreen(
                         settings = uiState.settings,
@@ -160,6 +224,16 @@ fun MainApp(viewModel: MainViewModel) {
                         onFetchRates = { viewModel.fetchExchangeRates() },
                         onLanguageChanged = { langCode ->
                             activity?.applyLanguage(langCode)
+                        },
+                        localAiStatus = localAiStatus,
+                        localAiSuggestion = localAiSuggestion,
+                        onCheckLocalAi = { viewModel.checkLocalAiAvailability() },
+                        categories = uiState.categories,
+                        onAddCategory = { name -> viewModel.addCategory(name) },
+                        onDeleteCategory = { id -> viewModel.deleteCategory(id) },
+                        onSetMonthlyLimit = { limit -> viewModel.setMonthlyExpenseLimit(limit) },
+                        onConfigureSalary = { enabled, amount, day, desc ->
+                            viewModel.configureSalaryScheduler(enabled, amount, day, desc)
                         }
                     )
                 }

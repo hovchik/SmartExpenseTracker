@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "com.smartexpense.tracker"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.smartexpense.tracker"
-        minSdk = 26
-        targetSdk = 34
+        minSdk = 31   // Android 12 – minimum for Google AICore (Gemini Nano)
+        targetSdk = 36 // Android 16 (S24 Ultra target)
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -91,6 +91,9 @@ dependencies {
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    // WorkManager for salary scheduling
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
 
     // Testing
     testImplementation("junit:junit:4.13.2")

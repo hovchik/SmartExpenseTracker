@@ -23,15 +23,21 @@ import com.smartexpense.tracker.data.model.Category
 import com.smartexpense.tracker.data.model.TransactionSource
 import com.smartexpense.tracker.data.model.TransactionType
 import com.smartexpense.tracker.ui.theme.*
+import com.smartexpense.tracker.util.CurrencyUtils
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTransactionScreen(
     categories: List<Category>,
-    onAdd: (Double, String, String, TransactionType, TransactionSource, String) -> Unit,
+    onAdd: (Double, String, String, TransactionType, TransactionSource, String, String, Long) -> Unit,
     onScanReceipt: () -> Unit,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    currencyCode: String = "USD"
 ) {
+    val currencySymbol = CurrencyUtils.symbolFor(currencyCode)
     var amount by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("") }
@@ -39,6 +45,30 @@ fun AddTransactionScreen(
     var merchantName by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var showError by remember { mutableStateOf(false) }
+
+    // Date/time selection
+    var selectedDateMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    val dateDisplayFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
+    val displayDate = dateDisplayFormatter.format(Date(selectedDateMillis))
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDateMillis)
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { selectedDateMillis = it }
+                    showDatePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -110,7 +140,7 @@ fun AddTransactionScreen(
                 }
             },
             label = { Text(stringResource(R.string.amount)) },
-            leadingIcon = { Text("$", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+            leadingIcon = { Text(currencySymbol, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
@@ -129,6 +159,25 @@ fun AddTransactionScreen(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
             isError = showError && description.isEmpty(),
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Date field (tap to open picker)
+        OutlinedTextField(
+            value = displayDate,
+            onValueChange = {},
+            label = { Text("Date") },
+            leadingIcon = { Icon(Icons.Filled.CalendarToday, contentDescription = null) },
+            trailingIcon = {
+                IconButton(onClick = { showDatePicker = true }) {
+                    Icon(Icons.Filled.EditCalendar, contentDescription = "Pick date")
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            readOnly = true,
             singleLine = true
         )
 
@@ -210,7 +259,9 @@ fun AddTransactionScreen(
                         selectedCategory.ifEmpty { "Other" },
                         if (isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                         TransactionSource.MANUAL,
-                        merchantName
+                        merchantName,
+                        notes,
+                        selectedDateMillis
                     )
                     onNavigateBack()
                 } else {

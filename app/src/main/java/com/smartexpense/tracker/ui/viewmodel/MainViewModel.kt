@@ -6,9 +6,13 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.smartexpense.tracker.SmartExpenseApp
 import com.smartexpense.tracker.data.model.*
+import com.smartexpense.tracker.data.model.currencyInfoFor
 import com.smartexpense.tracker.data.repository.ExpenseRepository
 import com.smartexpense.tracker.service.ai.AiExpenseEngine
+import com.smartexpense.tracker.service.ai.LocalAiService
 import com.smartexpense.tracker.service.currency.CurrencyConverterService
+import com.smartexpense.tracker.service.notification.ExpenseNotificationHelper
+import com.smartexpense.tracker.service.scheduler.SalarySchedulerWorker
 import com.smartexpense.tracker.util.DateUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -17,6 +21,7 @@ import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -24,6 +29,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val repository: ExpenseRepository = (application as SmartExpenseApp).repository
     val aiEngine = AiExpenseEngine()
+
+    /** On-device Gemini Nano service – null responses mean "not available / not enabled". */
+    private val localAiService = LocalAiService(application.applicationContext)
+
+    /** Human-readable AI backend status shown in Settings (null = not yet checked). */
+    private val _localAiStatus = MutableStateFlow<String?>(null)
+    val localAiStatus: StateFlow<String?> = _localAiStatus.asStateFlow()
+
+    /** Suggestion for enabling a better AI engine; null when none is needed. */
+    private val _localAiSuggestion = MutableStateFlow<String?>(null)
+    val localAiSuggestion: StateFlow<String?> = _localAiSuggestion.asStateFlow()
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
@@ -47,6 +63,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _exchangeRates = MutableStateFlow<Map<String, Double>>(emptyMap())
     val exchangeRates: StateFlow<Map<String, Double>> = _exchangeRates.asStateFlow()
 
+    /** In-app notifications (bell panel). */
+    private val _inAppNotifications = MutableStateFlow<List<InAppNotification>>(emptyList())
+    val inAppNotifications: StateFlow<List<InAppNotification>> = _inAppNotifications.asStateFlow()
+
+    val unreadNotificationCount: StateFlow<Int> = _inAppNotifications
+        .map { list -> list.count { !it.isRead } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
     init {
         viewModelScope.launch {
             repository.initialize()
@@ -54,6 +78,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             refreshSuggestions()
             repository.appData.collect { data ->
                 _themeMode.value = data.settings.themeMode
+                _inAppNotifications.value = data.inAppNotifications
                 updateUiState(data)
             }
         }
@@ -81,7 +106,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfWeek..endOfWeek }
             .sumOf { it.amount }
 
-        val recentTransactions = data.transactions.sortedByDescending { it.timestamp }.take(20)
+        val allTransactionsSorted = data.transactions.sortedByDescending { it.timestamp }
+        val recentTransactions = allTransactionsSorted.take(20)
         val categoryBreakdown = data.transactions
             .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfMonth..endOfMonth }
             .groupBy { it.category }
@@ -100,30 +126,105 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             todayExpenses = todayExpenses, weeklyExpenses = weeklyExpenses,
             netBalance = monthlyIncome - monthlyExpenses,
             recentTransactions = recentTransactions, categoryBreakdown = categoryBreakdown,
+            allTransactions = allTransactionsSorted,
             categories = data.categories,
             suggestions = data.suggestions.filter { !it.isDismissed },
             transactionCount = data.transactions.size, settings = data.settings,
             transactionsByDate = transactionsByDate
         )
+
+        // ── Monthly expense threshold check ───────────────────────
+        val limit = data.settings.monthlyExpenseLimit
+        if (limit > 0 && monthlyExpenses > limit) {
+            val currentMonth = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.US)
+                .format(java.util.Date(now))
+            if (data.settings.lastThresholdAlertMonth != currentMonth) {
+                val currencySymbol = data.settings.currency.ifEmpty { "$" }
+                ExpenseNotificationHelper.postBudgetExceededNotification(
+                    context = getApplication(),
+                    spent = monthlyExpenses,
+                    limit = limit,
+                    currencySymbol = currencySymbol
+                )
+                viewModelScope.launch {
+                    repository.updateSettings(
+                        data.settings.copy(lastThresholdAlertMonth = currentMonth)
+                    )
+                    repository.addInAppNotification(
+                        InAppNotification(
+                            title = "Monthly limit exceeded",
+                            message = "You've spent $currencySymbol${String.format("%.2f", monthlyExpenses)}" +
+                                " — over your $currencySymbol${String.format("%.2f", limit)} limit.",
+                            type = InAppNotificationType.BUDGET_ALERT
+                        )
+                    )
+                }
+            }
+        }
     }
 
     fun setSelectedTab(index: Int) { _selectedTab.value = index }
     fun setReportPeriod(period: ReportPeriod) { _reportPeriod.value = period }
 
+    // ─── Local AI (Gemini Nano) ────────────────────────────────────
+
+    /**
+     * Checks Gemini Nano availability on a background thread and updates [localAiStatus].
+     * Safe to call multiple times; result is cached after the first check.
+     */
+    fun checkLocalAiAvailability() {
+        viewModelScope.launch {
+            _localAiStatus.value = "Checking availability…"
+            withContext(Dispatchers.IO) { localAiService.checkAvailability() }
+            _localAiStatus.value = localAiService.statusMessage()
+            _localAiSuggestion.value = localAiService.alternativeSuggestion()
+        }
+    }
+
+    /**
+     * Returns a category using on-device AI when enabled, otherwise falls back to rules.
+     * When AI suggests a category that doesn't exist yet, it is auto-created.
+     */
+    private suspend fun smartCategorize(description: String, isExpense: Boolean = true): String {
+        val settings = repository.appData.value.settings
+        if (settings.localAiEnabled) {
+            val categoryNames = repository.appData.value.categories.map { it.name }
+            val aiCategory = localAiService.categorize(description, categoryNames, isExpense)
+            if (aiCategory != null) {
+                repository.ensureCategoryExists(aiCategory)
+                return aiCategory
+            }
+        }
+        val category = aiEngine.categorize(description, isExpense)
+        repository.ensureCategoryExists(category)
+        return category
+    }
+
     fun addTransaction(
         amount: Double, description: String, category: String? = null,
         type: TransactionType = TransactionType.EXPENSE,
         source: TransactionSource = TransactionSource.MANUAL,
-        merchantName: String = "", notes: String = ""
+        merchantName: String = "", notes: String = "",
+        timestamp: Long = System.currentTimeMillis()
     ) {
         viewModelScope.launch {
-            val finalCategory = category ?: aiEngine.categorize(description)
             val now = System.currentTimeMillis()
+            // Dedup: skip if an identical manual transaction was saved within 5 seconds
+            // (guards against accidental double-tap on the Save button)
+            val isDuplicate = repository.appData.value.transactions.any { t ->
+                t.source == source &&
+                t.amount == amount &&
+                t.description.equals(description, ignoreCase = true) &&
+                kotlin.math.abs(t.timestamp - now) < 5_000
+            }
+            if (isDuplicate) return@launch
+
+            val finalCategory = category ?: smartCategorize(description)
             val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
             repository.addTransaction(Transaction(
                 amount = amount, description = description, category = finalCategory,
                 type = type, source = source, merchantName = merchantName, notes = notes,
-                timestamp = now, dateTime = dtFormatter.format(Date(now))
+                timestamp = timestamp, dateTime = dtFormatter.format(Date(timestamp))
             ))
             refreshSuggestions()
         }
@@ -134,28 +235,57 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun processOcrText(ocrText: String) {
         viewModelScope.launch {
             try {
-                val currencyCode = repository.appData.value.settings.currencyCode
+                val settings = repository.appData.value.settings
+                val currencyCode = settings.currencyCode
                 val parsed = aiEngine.parseReceiptText(ocrText, currencyCode)
                 val amount = parsed.totalAmount ?: parsed.items.sumOf { it.second }
                 val currencySymbol = currencyInfoFor(currencyCode).symbol
+
                 if (amount > 0) {
-                    val category = aiEngine.categorize(parsed.merchantName)
+                    // Use Gemini Nano for categorisation when local AI is enabled
+                    val category = smartCategorize(
+                        "${parsed.merchantName} ${parsed.items.joinToString(" ") { it.first }}"
+                    )
+
+                    // Build notes: include items list and, if local AI is on, an AI summary
+                    val itemsNote = if (parsed.items.isNotEmpty())
+                        "Items: ${parsed.items.joinToString(", ") { "${it.first}: $currencySymbol${String.format("%.2f", it.second)}" }}"
+                    else ""
+
+                    val aiNote: String = if (settings.localAiEnabled) {
+                        val topCat = category
+                        val insight = withContext(Dispatchers.IO) {
+                            localAiService.generateInsight(
+                                totalExpenses = amount,
+                                totalIncome = 0.0,
+                                topCategory = topCat,
+                                topCategoryAmount = amount,
+                                transactionCount = 1,
+                                currencyCode = currencyCode
+                            )
+                        }
+                        if (insight != null) "\nAI: $insight" else ""
+                    } else ""
+
                     val now = System.currentTimeMillis()
                     val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
                     repository.addTransaction(Transaction(
                         amount = amount,
                         description = "Receipt: ${parsed.merchantName}",
-                        category = category, type = TransactionType.EXPENSE,
+                        category = category,
+                        type = TransactionType.EXPENSE,
                         source = TransactionSource.OCR_SCAN,
                         merchantName = parsed.merchantName,
-                        timestamp = now, dateTime = dtFormatter.format(Date(now)),
-                        notes = if (parsed.items.isNotEmpty())
-                            "Items: ${parsed.items.joinToString(", ") { "${it.first}: $currencySymbol${String.format("%.2f", it.second)}" }}"
-                        else ""
+                        timestamp = now,
+                        dateTime = dtFormatter.format(Date(now)),
+                        notes = listOf(itemsNote, aiNote).filter { it.isNotBlank() }.joinToString("\n")
                     ))
-                    _uiState.value = _uiState.value.copy(
-                        lastOcrResult = "Found: ${parsed.merchantName} - $currencySymbol${String.format("%.2f", amount)}"
-                    )
+
+                    val resultMsg = buildString {
+                        append("Found: ${parsed.merchantName} — $currencySymbol${String.format("%.2f", amount)}")
+                        if (category.isNotEmpty()) append(" · $category")
+                    }
+                    _uiState.value = _uiState.value.copy(lastOcrResult = resultMsg)
                 } else {
                     _uiState.value = _uiState.value.copy(
                         lastOcrResult = "Could not extract amount from receipt."
@@ -184,7 +314,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ReportPeriod.WEEKLY -> DateUtils.getStartOfWeek(now) to DateUtils.getEndOfWeek(now)
             ReportPeriod.MONTHLY -> DateUtils.getStartOfMonth(now) to DateUtils.getEndOfMonth(now)
         }
-        return aiEngine.generateReport(repository.appData.value.transactions, period, start, end)
+        val currencyCode = repository.appData.value.settings.currencyCode
+        return aiEngine.generateReport(repository.appData.value.transactions, period, start, end, currencyCode)
+    }
+
+    /**
+     * Generates a report for any arbitrary month/year (0-based month, matching [Calendar.MONTH]).
+     * Called by the month selector in ReportsScreen.
+     */
+    fun generateReportForMonth(year: Int, month: Int): ExpenseReport {
+        val startCal = Calendar.getInstance().apply {
+            set(Calendar.YEAR, year)
+            set(Calendar.MONTH, month)
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val endCal = Calendar.getInstance().apply {
+            set(Calendar.YEAR, year)
+            set(Calendar.MONTH, month)
+            set(Calendar.DAY_OF_MONTH, startCal.getActualMaximum(Calendar.DAY_OF_MONTH))
+            set(Calendar.HOUR_OF_DAY, 23)
+            set(Calendar.MINUTE, 59)
+            set(Calendar.SECOND, 59)
+            set(Calendar.MILLISECOND, 999)
+        }
+        val currencyCode = repository.appData.value.settings.currencyCode
+        return aiEngine.generateReport(
+            repository.appData.value.transactions,
+            ReportPeriod.MONTHLY,
+            startCal.timeInMillis,
+            endCal.timeInMillis,
+            currencyCode
+        )
     }
 
     fun getWeeklyChartData(): List<Pair<String, Double>> {
@@ -199,6 +363,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun addCategory(name: String) { viewModelScope.launch { repository.addCategory(Category(name = name)) } }
+    fun deleteCategory(id: String) { viewModelScope.launch { repository.deleteCategory(id) } }
 
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch {
@@ -211,6 +376,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository.updateSettings(settings)
             // Invalidate cached rates when base currency changes
             CurrencyConverterService.invalidateCache()
+        }
+    }
+
+    fun setMonthlyExpenseLimit(limit: Double) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            // Reset last-alert month so the new limit can fire immediately if already exceeded
+            repository.updateSettings(settings.copy(monthlyExpenseLimit = limit, lastThresholdAlertMonth = ""))
+        }
+    }
+
+    // ─── Salary Scheduler ─────────────────────────────────────────
+
+    fun configureSalaryScheduler(
+        enabled: Boolean,
+        amount: Double,
+        dayOfMonth: Int,
+        description: String
+    ) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            repository.updateSettings(
+                settings.copy(
+                    scheduledSalaryEnabled = enabled,
+                    scheduledSalaryAmount = amount,
+                    scheduledSalaryDayOfMonth = dayOfMonth.coerceIn(1, 31),
+                    scheduledSalaryDescription = description.ifBlank { "Monthly Salary" }
+                )
+            )
+            val appContext = getApplication<android.app.Application>().applicationContext
+            if (enabled && amount > 0) {
+                SalarySchedulerWorker.schedule(appContext)
+            } else {
+                SalarySchedulerWorker.cancel(appContext)
+            }
         }
     }
 
@@ -321,7 +521,56 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun confirmSmsScanResults() {
         viewModelScope.launch {
             val pending = _smsScanState.value.pendingTransactions
-            for (tx in pending) repository.addTransaction(tx)
+            val settings = repository.appData.value.settings
+            val appCurrency = settings.currencyCode
+            val currencySymbol = settings.currency.ifEmpty { "$" }
+
+            for (tx in pending) {
+                // Currency conversion: if parsed currency ≠ app currency, convert amount
+                val parsedCurrency = tx.notes.lines()
+                    .find { it.startsWith("parsedCurrency:") }?.removePrefix("parsedCurrency:") ?: ""
+
+                val (finalAmount, conversionNote) = if (
+                    parsedCurrency.isNotEmpty() && parsedCurrency != appCurrency
+                ) {
+                    val converted = withContext(Dispatchers.IO) {
+                        com.smartexpense.tracker.service.currency.CurrencyConverterService.convert(
+                            tx.amount, parsedCurrency, appCurrency
+                        )
+                    }
+                    if (converted != null) {
+                        val rate = converted / tx.amount
+                        val fromSym = currencyInfoFor(parsedCurrency).symbol
+                        converted to "Original: $fromSym${String.format("%.2f", tx.amount)} $parsedCurrency · 1 $parsedCurrency = ${String.format("%.4f", rate)} $appCurrency"
+                    } else {
+                        tx.amount to ""
+                    }
+                } else {
+                    tx.amount to ""
+                }
+
+                // Remove parsedCurrency marker, append conversion note if present
+                val cleanNotes = tx.notes.lines()
+                    .filter { !it.startsWith("parsedCurrency:") }
+                    .joinToString("\n")
+                    .let { base -> if (conversionNote.isNotEmpty()) "$base\n$conversionNote".trim() else base.trim() }
+
+                val finalTx = tx.copy(amount = finalAmount, notes = cleanNotes)
+
+                // Auto-create category if not in the existing list
+                repository.ensureCategoryExists(finalTx.category)
+                repository.addTransaction(finalTx)
+                // In-app notification for each confirmed SMS transaction
+                repository.addInAppNotification(
+                    InAppNotification(
+                        title = "SMS transaction added",
+                        message = "${finalTx.description}: $currencySymbol${String.format("%.2f", finalAmount)}" +
+                            if (finalTx.merchantName.isNotEmpty()) " at ${finalTx.merchantName}" else "",
+                        type = InAppNotificationType.SMS_PARSED,
+                        relatedTransactionId = finalTx.id
+                    )
+                )
+            }
             _smsScanState.value = _smsScanState.value.copy(
                 pendingTransactions = emptyList(), savedCount = pending.size
             )
@@ -338,6 +587,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun resetSmsScanState() { _smsScanState.value = SmsScanState() }
+
+    // ─── In-App Notification Management ───────────────────────────
+
+    fun markNotificationRead(id: String) {
+        viewModelScope.launch { repository.markNotificationRead(id) }
+    }
+
+    fun markAllNotificationsRead() {
+        viewModelScope.launch { repository.markAllNotificationsRead() }
+    }
+
+    fun clearAllInAppNotifications() {
+        viewModelScope.launch { repository.clearNotifications() }
+    }
 }
 
 data class SmsScanState(
@@ -355,6 +618,8 @@ data class UiState(
     val todayExpenses: Double = 0.0, val weeklyExpenses: Double = 0.0,
     val netBalance: Double = 0.0,
     val recentTransactions: List<Transaction> = emptyList(),
+    /** All transactions sorted newest-first (used by TransactionsScreen). */
+    val allTransactions: List<Transaction> = emptyList(),
     /** Recent transactions grouped by date string, e.g. "2026-02-17" → [Transaction, …]. */
     val transactionsByDate: Map<String, List<Transaction>> = emptyMap(),
     val categoryBreakdown: Map<String, Double> = emptyMap(),

@@ -1,21 +1,32 @@
 package com.smartexpense.tracker.service.notification
 
 import android.app.Notification
+import android.content.pm.PackageManager
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import com.smartexpense.tracker.SmartExpenseApp
 import com.smartexpense.tracker.data.model.AppSettings
+import com.smartexpense.tracker.data.model.InAppNotification
+import com.smartexpense.tracker.data.model.InAppNotificationType
 import com.smartexpense.tracker.data.model.Transaction
 import com.smartexpense.tracker.data.model.TransactionSource
 import com.smartexpense.tracker.data.model.TransactionType
+import com.smartexpense.tracker.data.model.currencyInfoFor
 import com.smartexpense.tracker.service.ai.AiExpenseEngine
+import com.smartexpense.tracker.service.currency.CurrencyConverterService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
  * Listens to banking app notifications to automatically log transactions.
+ * Monitors:
+ *  1. Explicit banking app package names (whitelist).
+ *  2. ANY app whose label/package contains a banking keyword (e.g. "bank", "arca",
+ *     "payment", "finance") – covers locally-installed Armenian/CIS/regional banks
+ *     that are not hard-coded in the whitelist.
+ *
  * User must grant Notification Access permission in Android Settings.
  *
  * Supports Armenian banking notifications: keywords like
@@ -28,9 +39,16 @@ class BankingNotificationListener : NotificationListenerService() {
 
     companion object {
         private const val TAG = "BankingNotifListener"
+
+        /** Keywords matched against the app label (human-readable name) and package name. */
+        val BANKING_APP_NAME_KEYWORDS = listOf(
+            "bank", "arca", "pay", "wallet", "finance", "credit", "loan",
+            "money", "cash", "transfer", "saving", "invest", "revolut",
+            "wise", "zelle", "venmo", "paypal"
+        )
     }
 
-    // Banking/payment app package names to monitor
+    // Explicit banking/payment app package whitelist
     private val monitoredPackages = setOf(
         // US Banks
         "com.chase.sig.android",
@@ -47,19 +65,33 @@ class BankingNotificationListener : NotificationListenerService() {
         "com.venmo",
         "com.squareup.cash",
         "com.zellepay.zelle",
-        "com.google.android.apps.nbu.paisa.user", // Google Pay
-        "com.google.android.apps.walletnfcrel",     // Google Wallet
+        "com.google.android.apps.nbu.paisa.user",
+        "com.google.android.apps.walletnfcrel",
         // Indian Banks
-        "com.sbi.lotusintouch",       // SBI
-        "com.csam.icici.bank.imobile", // ICICI
-        "com.axis.mobile",            // Axis
-        "com.msf.kbank.mobile",       // Kotak
-        "com.hdfc.retail.banking",     // HDFC
+        "com.sbi.lotusintouch",
+        "com.csam.icici.bank.imobile",
+        "com.axis.mobile",
+        "com.msf.kbank.mobile",
+        "com.hdfc.retail.banking",
         // Indian UPI / Payment
         "net.one97.paytm",
         "com.phonepe.app",
-        "in.amazon.mShop.android.shopping", // Amazon
-        "com.google.android.apps.nbu.paisa.user" // GPay
+        // Armenian / CIS banks
+        "am.ameriabank.mobilebanking",
+        "am.ardshinbank.mobile",
+        "am.inecobank.mobilebank",
+        "am.conversebank.mobile",
+        "am.acbabank.mobile",
+        "am.evocabank.mobile",
+        "am.idbank.mobile",
+        "am.unibank.mobile",
+        "am.vtb.mobile",
+        "am.arcapay",
+        "am.arca",
+        // Additional Armenian apps
+        "com.sflpro.inecomobile",
+        "com.banqr.ameriabank",
+        "am.imwallet.android"
     )
 
     // Financial keywords to filter non-transaction notifications
@@ -83,17 +115,31 @@ class BankingNotificationListener : NotificationListenerService() {
         "\u20BD" // ₽ symbol
     )
 
+    /** Returns the human-readable app label for a package, or null on failure. */
+    private fun appLabel(packageName: String): String? = try {
+        packageManager.getApplicationInfo(packageName, 0)
+            .let { packageManager.getApplicationLabel(it).toString() }
+    } catch (_: PackageManager.NameNotFoundException) { null }
+
+    /** True if the notification source looks like a banking/financial app. */
+    private fun isBankingSource(packageName: String): Boolean {
+        if (packageName in monitoredPackages) return true
+        val label = appLabel(packageName)?.lowercase() ?: ""
+        val pkg   = packageName.lowercase()
+        return BANKING_APP_NAME_KEYWORDS.any { kw -> label.contains(kw) || pkg.contains(kw) }
+    }
+
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         try {
             val packageName = sbn.packageName ?: return
-            if (packageName !in monitoredPackages) return
+            if (!isBankingSource(packageName)) return
 
             val notification = sbn.notification ?: return
             val extras = notification.extras ?: return
 
-            val title = try { extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() } catch (_: Throwable) { null } ?: ""
-            val text = try { extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() } catch (_: Throwable) { null } ?: ""
-            val bigText = try { extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString() } catch (_: Throwable) { null } ?: ""
+            val title   = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
+            val text    = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
+            val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString() ?: ""
 
             val fullText = "$title $text $bigText".trim()
             if (fullText.length < 5) return
@@ -115,44 +161,83 @@ class BankingNotificationListener : NotificationListenerService() {
                 customExpenseKeywords = settings.notificationExpenseKeywords
             ) ?: return
 
-            Log.d(TAG, "Financial notification from $packageName: \$${parsed.amount}")
+            val appName = appLabel(packageName) ?: packageName
 
-            val transaction = Transaction(
-                amount = parsed.amount,
-                description = parsed.description,
-                category = aiEngine.categorize(parsed.description),
-                type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
-                source = TransactionSource.NOTIFICATION,
-                merchantName = parsed.merchantName,
-                notes = "Auto-detected from $packageName"
-            )
+            Log.d(TAG, "Financial notification from $appName ($packageName): ${parsed.amount}")
 
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    // Use shared app repository
-                    val app = applicationContext as? SmartExpenseApp
-                    if (app != null) {
-                        // Dedup: skip if same amount from notification within 2 minutes
-                        val now = System.currentTimeMillis()
-                        val existing = app.repository.appData.value.transactions
-                        val isDuplicate = existing.any { t ->
-                            t.source == TransactionSource.NOTIFICATION &&
-                            t.amount == parsed.amount &&
-                            kotlin.math.abs(t.timestamp - now) < 120_000
-                        }
-                        if (!isDuplicate) {
-                            app.repository.addTransaction(transaction)
-                            Log.d(TAG, "Saved notification transaction: \$${parsed.amount}")
+                    val app = applicationContext as? SmartExpenseApp ?: return@launch
+                    val repo = app.repository
+                    val now = System.currentTimeMillis()
+
+                    // Dedup: skip if same amount from notification within 2 minutes
+                    val isDuplicate = repo.appData.value.transactions.any { t ->
+                        t.source == TransactionSource.NOTIFICATION &&
+                        t.amount == parsed.amount &&
+                        kotlin.math.abs(t.timestamp - now) < 120_000
+                    }
+                    if (isDuplicate) {
+                        Log.d(TAG, "Skipped duplicate: ${parsed.amount}")
+                        return@launch
+                    }
+
+                    val settings = repo.appData.value.settings
+                    val appCurrency = settings.currencyCode
+
+                    // ── Currency conversion ──────────────────────────────────
+                    // If the notification reports a different currency, convert to app's currency.
+                    val (finalAmount, conversionNote) = if (
+                        parsed.currency.isNotEmpty() && parsed.currency != appCurrency
+                    ) {
+                        val converted = CurrencyConverterService.convert(
+                            parsed.amount, parsed.currency, appCurrency
+                        )
+                        if (converted != null) {
+                            val rate = converted / parsed.amount
+                            val fromSym = currencyInfoFor(parsed.currency).symbol
+                            converted to "Original: $fromSym${String.format("%.2f", parsed.amount)} ${parsed.currency} · 1 ${parsed.currency} = ${String.format("%.4f", rate)} $appCurrency"
                         } else {
-                            Log.d(TAG, "Skipped duplicate notification: \$${parsed.amount}")
+                            parsed.amount to ""
                         }
                     } else {
-                        // Fallback
-                        val storage = com.smartexpense.tracker.data.json.JsonStorageManager(applicationContext)
-                        val repo = com.smartexpense.tracker.data.repository.ExpenseRepository(storage)
-                        repo.initialize()
-                        repo.addTransaction(transaction)
+                        parsed.amount to ""
                     }
+
+                    val notes = listOf("Auto-detected from $appName", conversionNote)
+                        .filter { it.isNotBlank() }.joinToString("\n")
+
+                    val category = aiEngine.categorize(parsed.description, parsed.isExpense)
+
+                    // Auto-create category if it doesn't exist yet
+                    repo.ensureCategoryExists(category)
+
+                    val transaction = Transaction(
+                        amount = finalAmount,
+                        description = parsed.description,
+                        category = category,
+                        type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
+                        source = TransactionSource.NOTIFICATION,
+                        merchantName = parsed.merchantName,
+                        notes = notes
+                    )
+                    repo.addTransaction(transaction)
+
+                    // Post an in-app notification
+                    val sym = currencyInfoFor(appCurrency).symbol
+                    val typeLabel = if (parsed.isExpense) "Expense" else "Income"
+                    repo.addInAppNotification(
+                        InAppNotification(
+                            title = "$typeLabel detected – $appName",
+                            message = "${parsed.description}: $sym${String.format("%.2f", finalAmount)}" +
+                                (if (parsed.merchantName.isNotEmpty()) " at ${parsed.merchantName}" else "") +
+                                (if (conversionNote.isNotEmpty()) " (${parsed.amount} ${parsed.currency})" else ""),
+                            type = InAppNotificationType.TRANSACTION_DETECTED,
+                            relatedTransactionId = transaction.id
+                        )
+                    )
+
+                    Log.d(TAG, "Saved notification transaction: $finalAmount $appCurrency")
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to save notification transaction", e)
                 }
