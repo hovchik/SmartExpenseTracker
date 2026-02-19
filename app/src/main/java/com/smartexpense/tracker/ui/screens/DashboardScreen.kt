@@ -313,6 +313,7 @@ fun StatCard(
 @Composable
 fun WeeklySpendingChart(data: List<Pair<String, Double>>, currencyCode: String = "USD") {
     val sym = CurrencyUtils.symbolFor(currencyCode)
+    val todayLabel = remember { DateUtils.formatDay(System.currentTimeMillis()) }
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("This Week", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -334,12 +335,13 @@ fun WeeklySpendingChart(data: List<Pair<String, Double>>, currencyCode: String =
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(modifier = Modifier.height(4.dp))
                         }
+                        val isToday = day == todayLabel
                         val height = if (maxValue > 0) (amount / maxValue * 80).coerceAtLeast(4.0) else 4.0
                         Box(
                             modifier = Modifier
                                 .width(28.dp).height(height.dp)
                                 .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
-                                .background(GreenPrimary.copy(alpha = if (DateUtils.isToday(System.currentTimeMillis())) 1f else 0.5f))
+                                .background(GreenPrimary.copy(alpha = if (isToday) 1f else 0.5f))
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(day, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
