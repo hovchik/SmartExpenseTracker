@@ -50,6 +50,7 @@ fun MainApp(viewModel: MainViewModel) {
     val localAiStatus by viewModel.localAiStatus.collectAsState()
     val localAiSuggestion by viewModel.localAiSuggestion.collectAsState()
     val discoveredBankingApps by viewModel.discoveredBankingApps.collectAsState()
+    val isScanningBankingApps by viewModel.isScanningBankingApps.collectAsState()
     val allInstalledApps by viewModel.allInstalledApps.collectAsState()
     val scope = rememberCoroutineScope()
 
@@ -93,6 +94,7 @@ fun MainApp(viewModel: MainViewModel) {
                             unreadCount    = unreadCount,
                             onMarkRead     = { viewModel.markNotificationRead(it) },
                             onMarkAllRead  = { viewModel.markAllNotificationsRead() },
+                            onDelete       = { viewModel.deleteNotification(it) },
                             onClearAll     = { viewModel.clearAllInAppNotifications() }
                         )
                     }
@@ -221,6 +223,7 @@ fun MainApp(viewModel: MainViewModel) {
                             viewModel.configureSalaryScheduler(enabled, amount, day, desc)
                         },
                         discoveredBankingApps = discoveredBankingApps,
+                        isScanningBankingApps = isScanningBankingApps,
                         onScanBankingApps = { viewModel.scanForBankingApps() },
                         onAddBankingApp = { pkg -> viewModel.addBankingApp(pkg) },
                         onRemoveBankingApp = { pkg -> viewModel.removeBankingApp(pkg) },

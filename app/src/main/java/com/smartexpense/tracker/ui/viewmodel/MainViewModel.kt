@@ -654,6 +654,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _discoveredBankingApps = MutableStateFlow<List<DiscoveredApp>>(emptyList())
     val discoveredBankingApps: StateFlow<List<DiscoveredApp>> = _discoveredBankingApps.asStateFlow()
 
+    private val _isScanningBankingApps = MutableStateFlow(false)
+    val isScanningBankingApps: StateFlow<Boolean> = _isScanningBankingApps.asStateFlow()
+
     /** All user-installed (non-system) applications on the device. */
     data class InstalledApp(
         val packageName: String,
@@ -672,6 +675,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun scanForBankingApps() {
         viewModelScope.launch {
+            _isScanningBankingApps.value = true
             val pm = getApplication<android.app.Application>().packageManager
             val settings = repository.appData.value.settings
             val currentPackages = settings.bankingAppPackages.toSet()
@@ -712,6 +716,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 results.sortedWith(compareBy({ it.isAlreadyMonitored }, { it.appName.lowercase() }))
             }
             _discoveredBankingApps.value = installed
+            _isScanningBankingApps.value = false
         }
     }
 
@@ -790,6 +795,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun markAllNotificationsRead() {
         viewModelScope.launch { repository.markAllNotificationsRead() }
+    }
+
+    fun deleteNotification(id: String) {
+        viewModelScope.launch { repository.deleteNotification(id) }
     }
 
     fun clearAllInAppNotifications() {

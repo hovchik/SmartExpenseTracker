@@ -1,10 +1,6 @@
 package com.smartexpense.tracker.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -21,15 +17,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.smartexpense.tracker.data.model.InAppNotification
 import com.smartexpense.tracker.data.model.InAppNotificationType
 import com.smartexpense.tracker.ui.theme.*
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * Bell icon that shows an unread-count badge.
@@ -41,16 +35,14 @@ fun NotificationBell(
     unreadCount: Int,
     onMarkRead: (String) -> Unit,
     onMarkAllRead: () -> Unit,
+    onDelete: (String) -> Unit,
     onClearAll: () -> Unit
 ) {
     var showPanel by remember { mutableStateOf(false) }
 
     Box {
         // Bell icon button
-        IconButton(onClick = {
-            showPanel = true
-            if (unreadCount > 0) onMarkAllRead()
-        }) {
+        IconButton(onClick = { showPanel = true }) {
             Icon(
                 imageVector = if (unreadCount > 0) Icons.Filled.NotificationsActive else Icons.Filled.Notifications,
                 contentDescription = "Notifications",
@@ -83,7 +75,10 @@ fun NotificationBell(
     if (showPanel) {
         NotificationPanel(
             notifications = notifications,
+            unreadCount = unreadCount,
             onMarkRead = onMarkRead,
+            onMarkAllRead = onMarkAllRead,
+            onDelete = onDelete,
             onClearAll = {
                 onClearAll()
                 showPanel = false
@@ -93,13 +88,27 @@ fun NotificationBell(
     }
 }
 
+private enum class NotifFilter { ALL, UNREAD }
+
 @Composable
 private fun NotificationPanel(
     notifications: List<InAppNotification>,
+    unreadCount: Int,
     onMarkRead: (String) -> Unit,
+    onMarkAllRead: () -> Unit,
+    onDelete: (String) -> Unit,
     onClearAll: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    var filter by remember { mutableStateOf(NotifFilter.ALL) }
+
+    val filtered = remember(notifications, filter) {
+        when (filter) {
+            NotifFilter.ALL -> notifications
+            NotifFilter.UNREAD -> notifications.filter { !it.isRead }
+        }
+    }
+
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(20.dp),
@@ -125,21 +134,63 @@ private fun NotificationPanel(
                         Text("Notifications", style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold)
                     }
-                    Row {
-                        if (notifications.isNotEmpty()) {
-                            TextButton(onClick = onClearAll, contentPadding = PaddingValues(4.dp)) {
-                                Text("Clear all", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Filled.Close, contentDescription = "Close", modifier = Modifier.size(18.dp))
+                    }
+                }
+
+                // Filter tabs + action buttons
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FilterChip(
+                        selected = filter == NotifFilter.ALL,
+                        onClick = { filter = NotifFilter.ALL },
+                        label = { Text("All", fontSize = 12.sp) },
+                        modifier = Modifier.height(32.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    FilterChip(
+                        selected = filter == NotifFilter.UNREAD,
+                        onClick = { filter = NotifFilter.UNREAD },
+                        label = {
+                            Text(
+                                if (unreadCount > 0) "Unread ($unreadCount)" else "Unread",
+                                fontSize = 12.sp
+                            )
+                        },
+                        modifier = Modifier.height(32.dp)
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    if (unreadCount > 0) {
+                        TextButton(
+                            onClick = onMarkAllRead,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Icon(Icons.Filled.DoneAll, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Read all", fontSize = 11.sp)
                         }
-                        IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Filled.Close, contentDescription = "Close", modifier = Modifier.size(18.dp))
+                    }
+                    if (notifications.isNotEmpty()) {
+                        TextButton(
+                            onClick = onClearAll,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text("Clear all", fontSize = 11.sp, color = RedExpense)
                         }
                     }
                 }
 
+                Spacer(modifier = Modifier.height(4.dp))
                 HorizontalDivider()
 
-                if (notifications.isEmpty()) {
+                if (filtered.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(
@@ -149,14 +200,18 @@ private fun NotificationPanel(
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                             )
                             Spacer(modifier = Modifier.height(12.dp))
-                            Text("No notifications yet",
+                            Text(
+                                if (filter == NotifFilter.UNREAD) "No unread notifications" else "No notifications yet",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.Medium)
+                                fontWeight = FontWeight.Medium
+                            )
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text("Transactions detected via SMS or\nbanking apps will appear here.",
+                            Text(
+                                if (filter == NotifFilter.UNREAD) "All caught up!"
+                                else "Transactions detected via SMS or\nbanking apps will appear here.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
@@ -165,8 +220,12 @@ private fun NotificationPanel(
                         contentPadding = PaddingValues(vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        items(notifications, key = { it.id }) { notif ->
-                            NotificationRow(notif, onMarkRead)
+                        items(filtered, key = { it.id }) { notif ->
+                            SwipeToDismissNotification(
+                                notif = notif,
+                                onMarkRead = onMarkRead,
+                                onDelete = onDelete
+                            )
                         }
                     }
                 }
@@ -175,7 +234,52 @@ private fun NotificationPanel(
     }
 }
 
-private val timeFormatter = SimpleDateFormat("MMM d, HH:mm", Locale.US)
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeToDismissNotification(
+    notif: InAppNotification,
+    onMarkRead: (String) -> Unit,
+    onDelete: (String) -> Unit
+) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) {
+                onDelete(notif.id)
+                true
+            } else {
+                false
+            }
+        }
+    )
+
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {
+            val color by animateColorAsState(
+                when (dismissState.targetValue) {
+                    SwipeToDismissBoxValue.EndToStart -> RedExpense
+                    else -> Color.Transparent
+                },
+                label = "swipeBg"
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(color)
+                    .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) {
+                    Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = Color.White)
+                }
+            }
+        },
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = true
+    ) {
+        NotificationRow(notif, onMarkRead)
+    }
+}
 
 @Composable
 private fun NotificationRow(
@@ -185,7 +289,7 @@ private fun NotificationRow(
     val isUnread = !notif.isRead
     val bgColor = if (isUnread)
         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
-    else Color.Transparent
+    else MaterialTheme.colorScheme.surface
 
     Row(
         modifier = Modifier
@@ -238,10 +342,26 @@ private fun NotificationRow(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                timeFormatter.format(Date(notif.timestamp)),
+                relativeTime(notif.timestamp),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
+        }
+    }
+}
+
+private fun relativeTime(timestamp: Long): String {
+    val now = System.currentTimeMillis()
+    val diff = now - timestamp
+    return when {
+        diff < 60_000 -> "Just now"
+        diff < 3_600_000 -> "${diff / 60_000}m ago"
+        diff < 86_400_000 -> "${diff / 3_600_000}h ago"
+        diff < 172_800_000 -> "Yesterday"
+        diff < 604_800_000 -> "${diff / 86_400_000}d ago"
+        else -> {
+            val sdf = java.text.SimpleDateFormat("MMM d", java.util.Locale.US)
+            sdf.format(java.util.Date(timestamp))
         }
     }
 }

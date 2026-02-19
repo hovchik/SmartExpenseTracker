@@ -199,6 +199,15 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         storage.saveData(updated)
     }
 
+    suspend fun deleteNotification(id: String) {
+        val current = _appData.value
+        val updated = current.copy(
+            inAppNotifications = current.inAppNotifications.filter { it.id != id }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
     suspend fun markNotificationRead(id: String) {
         val current = _appData.value
         val updated = current.copy(

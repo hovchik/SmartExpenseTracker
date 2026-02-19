@@ -67,6 +67,7 @@ fun SettingsScreen(
     onConfigureSalary: (enabled: Boolean, amount: Double, dayOfMonth: Int, description: String) -> Unit = { _, _, _, _ -> },
     /** Discovered banking apps from device scan. */
     discoveredBankingApps: List<com.smartexpense.tracker.ui.viewmodel.MainViewModel.DiscoveredApp> = emptyList(),
+    isScanningBankingApps: Boolean = false,
     onScanBankingApps: () -> Unit = {},
     onAddBankingApp: (String) -> Unit = {},
     onRemoveBankingApp: (String) -> Unit = {},
@@ -105,6 +106,7 @@ fun SettingsScreen(
     var currencyExpanded by remember { mutableStateOf(true) }
     var dataSourcesExpanded by remember { mutableStateOf(true) }
     var appScannerExpanded by remember { mutableStateOf(true) }
+    var connectedAppsExpanded by remember { mutableStateOf(false) }
     var budgetExpanded by remember { mutableStateOf(true) }
     var salaryExpanded by remember { mutableStateOf(true) }
     var categoriesExpanded by remember { mutableStateOf(true) }
@@ -566,13 +568,22 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ─── Connected Banking Apps ────────────────────────────
+        // ─── Connected Banking Apps (collapsible) ────────────
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                val chevronRotation by animateFloatAsState(
+                    targetValue = if (connectedAppsExpanded) 180f else 0f,
+                    label = "connectedAppsChevron"
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { connectedAppsExpanded = !connectedAppsExpanded },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(
                         Icons.Filled.AccountBalance,
                         contentDescription = null,
@@ -588,48 +599,67 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    Icon(
+                        Icons.Filled.ExpandMore,
+                        contentDescription = if (connectedAppsExpanded) "Collapse" else "Expand",
+                        modifier = Modifier.size(24.dp).rotate(chevronRotation),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
-                // Always show currently connected apps as editable list
-                if (settings.bankingAppPackages.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    HorizontalDivider()
-                    Spacer(modifier = Modifier.height(6.dp))
-                    settings.bankingAppPackages.forEach { pkg ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Filled.CheckCircle,
-                                contentDescription = null,
-                                tint = GreenPrimary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                pkg,
-                                modifier = Modifier.weight(1f),
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            IconButton(
-                                onClick = { onRemoveBankingApp(pkg) },
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(
-                                    Icons.Filled.Close,
-                                    contentDescription = "Remove $pkg",
-                                    tint = RedExpense,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                AnimatedVisibility(
+                    visible = connectedAppsExpanded,
+                    enter = expandVertically(),
+                    exit = shrinkVertically()
+                ) {
+                    Column {
+                        if (settings.bankingAppPackages.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            HorizontalDivider()
+                            Spacer(modifier = Modifier.height(6.dp))
+                            settings.bankingAppPackages.forEach { pkg ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Filled.CheckCircle,
+                                        contentDescription = null,
+                                        tint = GreenPrimary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        pkg,
+                                        modifier = Modifier.weight(1f),
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    IconButton(
+                                        onClick = { onRemoveBankingApp(pkg) },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Close,
+                                            contentDescription = "Remove $pkg",
+                                            tint = RedExpense,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
                             }
+                        } else {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "No banking apps connected yet. Use the scanner below to find and add apps.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
-
             }
         }
         } // end Column in AnimatedVisibility for Data Sources
@@ -761,11 +791,32 @@ fun SettingsScreen(
                     onClick = onScanBankingApps,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                    enabled = !isScanningBankingApps
                 ) {
-                    Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.size(18.dp))
+                    if (isScanningBankingApps) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White
+                        )
+                    } else {
+                        Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Scan for Banking Apps", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (isScanningBankingApps) "Scanning..." else "Scan for Banking Apps",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                if (isScanningBankingApps) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)),
+                        color = GreenPrimary,
+                        trackColor = GreenPrimary.copy(alpha = 0.15f)
+                    )
                 }
 
                 if (discoveredBankingApps.isNotEmpty()) {
