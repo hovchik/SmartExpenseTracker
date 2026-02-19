@@ -1,12 +1,18 @@
 package com.smartexpense.tracker.ui.components
 
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphicsLayer
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import kotlin.math.roundToInt
 
 /**
  * State holder for drag-and-drop reordering within a LazyColumn.
@@ -85,25 +91,23 @@ fun rememberDragDropListState(
 fun Modifier.dragDropItem(
     state: DragDropListState,
     index: Int
-): Modifier = this
-    .zIndex(if (state.draggedIndex == index) 1f else 0f)
-    .graphicsLayer {
-        if (state.draggedIndex == index) {
-            translationY = state.draggedOffset
-            scaleX = 1.03f
-            scaleY = 1.03f
-            shadowElevation = 16f
-            alpha = 0.92f
+): Modifier {
+    val isDragged = state.draggedIndex == index
+    return this
+        .zIndex(if (isDragged) 1f else 0f)
+        .then(if (isDragged) Modifier.shadow(8.dp) else Modifier)
+        .offset { IntOffset(0, if (isDragged) state.draggedOffset.roundToInt() else 0) }
+        .scale(if (isDragged) 1.03f else 1f)
+        .alpha(if (isDragged) 0.92f else 1f)
+        .pointerInput(index) {
+            detectDragGesturesAfterLongPress(
+                onDragStart = { state.onDragStart(index) },
+                onDrag = { change, offset ->
+                    change.consume()
+                    state.onDrag(offset.y)
+                },
+                onDragEnd = { state.onDragEnd() },
+                onDragCancel = { state.onDragEnd() }
+            )
         }
-    }
-    .pointerInput(index) {
-        detectDragGesturesAfterLongPress(
-            onDragStart = { state.onDragStart(index) },
-            onDrag = { change, offset ->
-                change.consume()
-                state.onDrag(offset.y)
-            },
-            onDragEnd = { state.onDragEnd() },
-            onDragCancel = { state.onDragEnd() }
-        )
-    }
+}
