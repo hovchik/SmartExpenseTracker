@@ -1,4 +1,162 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Smart Expense Tracker</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_reports">Reports</string>
+    <string name="nav_add">Add</string>
+    <string name="nav_scan">Scan</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Common -->
+    <string name="back">Back</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="done">Done</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="remove">Remove</string>
+    <string name="retry">Retry</string>
+    <string name="go_back">Go Back</string>
+    <string name="income">Income</string>
+    <string name="expenses">Expenses</string>
+    <string name="expense">Expense</string>
+    <string name="today">Today</string>
+    <string name="this_week">This Week</string>
+    <string name="this_month">This Month</string>
+    <string name="transactions">Transactions</string>
+    <string name="category">Category</string>
+    <string name="amount">Amount</string>
+    <string name="description">Description</string>
+
+    <!-- Dashboard -->
+    <string name="monthly_balance">Monthly Balance</string>
+    <string name="ai_insights">AI Insights</string>
+    <string name="spending_by_category">Spending by Category</string>
+    <string name="recent_transactions">Recent Transactions</string>
+    <string name="no_transactions_yet">No transactions yet</string>
+    <string name="no_transactions_hint">Add one manually, scan a receipt, or enable SMS/notification tracking</string>
+    <string name="potential_saving_format">Potential saving: %s/month</string>
+
+    <!-- Add Transaction -->
+    <string name="add_transaction">Add Transaction</string>
+    <string name="merchant_optional">Merchant (optional)</string>
+    <string name="notes_optional">Notes (optional)</string>
+    <string name="scan_receipt_instead">Scan Receipt Instead</string>
+    <string name="add_expense">Add Expense</string>
+    <string name="add_income">Add Income</string>
+    <string name="error_valid_amount_description">Please enter a valid amount and description</string>
+
+    <!-- Reports -->
+    <string name="reports">Reports</string>
+    <string name="net_balance">Net Balance</string>
+    <string name="avg_daily">Avg Daily</string>
+    <string name="vs_previous_period">vs Previous Period</string>
+    <string name="transactions_count_format">%d transactions</string>
+    <string name="spending_down">Spending down</string>
+    <string name="spending_up">Spending up</string>
+    <string name="spending_by_day">Spending by Day</string>
+    <string name="top_merchants">Top Merchants</string>
+    <string name="transaction_sources">Transaction Sources</string>
+    <string name="source_manual">Manual</string>
+    <string name="source_ocr">OCR</string>
+    <string name="source_sms">SMS</string>
+    <string name="source_notif">Notif</string>
+    <string name="source_import">Import</string>
+    <string name="top_expenses">Top Expenses</string>
+    <string name="transactions_by_date">Transactions by Date</string>
+    <string name="no_transactions_this_period">No transactions this period</string>
+    <string name="add_expenses_to_see_reports">Add expenses to see reports here</string>
+
+    <!-- Scan Receipt -->
+    <string name="scan_receipt">Scan Receipt</string>
+    <string name="scanning_all_languages">Scanning in all languages…</string>
+    <string name="capture_or_select_receipt">Capture or select a receipt image</string>
+    <string name="supports_scripts">Supports Latin, Chinese, Japanese, Korean, Devanagari scripts</string>
+    <string name="take_photo">Take Photo</string>
+    <string name="choose_from_gallery">Choose from Gallery</string>
+    <string name="transaction_saved">Transaction Saved</string>
+    <string name="scan_result">Scan Result</string>
+    <string name="extracted_text">Extracted Text</string>
+    <string name="tips_best_results">Tips for best results</string>
+    <string name="tip_good_lighting">Ensure good lighting on the receipt</string>
+    <string name="tip_flat_aligned">Keep the receipt flat and aligned</string>
+    <string name="tip_total_visible">Make sure the total amount is visible</string>
+    <string name="tip_any_language">Works with any language or script</string>
+    <string name="camera_permission_required">Camera permission is required</string>
+    <string name="cannot_create_temp_file">Cannot create temp file</string>
+    <string name="error_loading_image_format">Error loading image: %s</string>
+    <string name="no_text_detected">No text detected. Try a clearer photo with good lighting.</string>
+
+    <!-- SMS Scanner -->
+    <string name="sms_scanner">SMS Scanner</string>
+    <string name="scanning_sms_messages">Scanning SMS messages…</string>
+    <string name="looking_for_banking_transactions">Looking for banking transactions</string>
+    <string name="scanned">Scanned</string>
+    <string name="financial">Financial</string>
+    <string name="parsed">Parsed</string>
+    <string name="save_all_transactions_format">Save All %d Transactions</string>
+    <string name="transactions_saved_format">%d transactions saved!</string>
+    <string name="scan_error">Scan Error</string>
+    <string name="no_transactions_found">No Transactions Found</string>
+    <string name="scanned_no_new_found_format">Scanned %d messages but no new banking transactions found.</string>
+    <string name="scan_sms_inbox">Scan SMS Inbox</string>
+    <string name="sms_scan_description">Search your SMS messages for banking and payment notifications. Transactions are detected and categorized automatically.</string>
+    <string name="all_processing_on_device">All processing happens on-device.</string>
+    <string name="start_scanning">Start Scanning</string>
+    <string name="grant_permission_scan">Grant Permission &amp; Scan</string>
+    <string name="sms_permission_required">SMS permission is required to scan messages</string>
+
+    <!-- Settings -->
+    <string name="settings">Settings</string>
+    <string name="section_appearance">APPEARANCE</string>
+    <string name="theme">Theme</string>
+    <string name="theme_description">Choose between Light, Dark, or System default</string>
+    <string name="light">Light</string>
+    <string name="system_default">System</string>
+    <string name="dark">Dark</string>
+    <string name="section_language">LANGUAGE</string>
+    <string name="app_language">App Language</string>
+    <string name="language_description">Select the display language for the app</string>
+    <string name="lang_system">System Default</string>
+    <string name="lang_english">English</string>
+    <string name="lang_russian">Русский</string>
+    <string name="lang_armenian">Հայերեն</string>
+    <string name="lang_chinese">中文</string>
+    <string name="lang_spanish">Español</string>
+    <string name="section_currency">CURRENCY</string>
+    <string name="display_currency">Display Currency</string>
+    <string name="currency_description">Used for formatting and OCR receipt scanning</string>
+    <string name="select_currency">Select currency</string>
+    <string name="currency_converter">Currency Converter</string>
+    <string name="fetching_live_rates">Fetching live rates…</string>
+    <string name="rates_source">Rates from open.er-api.com · refreshed hourly</string>
+    <string name="section_data_sources">DATA SOURCES</string>
+    <string name="sms_transaction_detection">SMS Transaction Detection</string>
+    <string name="sms_detection_description">Automatically parse banking SMS messages</string>
+    <string name="banking_app_notifications">Banking App Notifications</string>
+    <string name="banking_notifications_description">Read notifications from banking apps</string>
+    <string name="ai_auto_categorization">AI Auto-Categorization</string>
+    <string name="ai_categorization_description">Automatically categorize transactions using AI</string>
+    <string name="scan_sms_inbox_for_transactions">Scan SMS Inbox for Transactions</string>
+    <string name="section_import_export">IMPORT &amp; EXPORT</string>
+    <string name="export_data_json">Export Data as JSON</string>
+    <string name="export_description">Save all transactions, categories &amp; settings to a file</string>
+    <string name="import_data_json">Import Data from JSON</string>
+    <string name="import_description">Restore data from a previously exported file</string>
+    <string name="section_storage">STORAGE</string>
+    <string name="local_storage">Local Storage</string>
+    <string name="storage_info_format">Data stored as JSON · File size: %s</string>
+    <string name="clear_all_data">Clear All Data</string>
+    <string name="clear_all_description">Delete all transactions and reset to defaults</string>
+    <string name="section_about">ABOUT</string>
+    <string name="app_name_full">Smart Expense Tracker</string>
+    <string name="version_info">Version 1.0 · AI-Powered Finance Manager</string>
+    <string name="features_list">OCR Receipt Scanning · SMS &amp; Notification Tracking · AI Categorization · Smart Optimization Suggestions · Daily / Weekly / Monthly Reports · Local JSON Storage · Multi-Currency Support · Import &amp; Export · Dark Mode · Multi-Language Support</string>
+    <string name="clear_all_data_question">Clear All Data?</string>
+    <string name="clear_data_warning">This will permanently delete all transactions, categories, budgets, and settings. This action cannot be undone.</string>
+    <string name="clear_everything">Clear Everything</string>
+    <string name="import_data_question">Import Data?</string>
+    <string name="import_warning">This will replace all current data with the contents of the selected file. Your existing transactions and settings will be overwritten.\n\nMake sure to export your current data first if you want to keep it.</string>
+    <string name="import_replace">Import &amp; Replace</string>
 </resources>

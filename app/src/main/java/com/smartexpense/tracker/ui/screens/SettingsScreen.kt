@@ -23,15 +23,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.smartexpense.tracker.R
 import com.smartexpense.tracker.data.model.AppSettings
 import com.smartexpense.tracker.data.model.SUPPORTED_CURRENCIES
 import com.smartexpense.tracker.data.model.ThemeMode
 import com.smartexpense.tracker.data.model.currencyInfoFor
 import com.smartexpense.tracker.ui.theme.*
+import com.smartexpense.tracker.util.LocaleHelper
 
 @Composable
 fun SettingsScreen(
@@ -46,7 +49,8 @@ fun SettingsScreen(
     onScanSms: () -> Unit,
     /** Null = not yet fetched; empty map = fetch failed. */
     exchangeRates: Map<String, Double> = emptyMap(),
-    onFetchRates: () -> Unit = {}
+    onFetchRates: () -> Unit = {},
+    onLanguageChanged: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     var showClearDialog by remember { mutableStateOf(false) }
@@ -55,6 +59,9 @@ fun SettingsScreen(
 
     // Currency selector state
     var showCurrencyDropdown by remember { mutableStateOf(false) }
+
+    // Language selector state
+    var showLanguageDropdown by remember { mutableStateOf(false) }
 
     // Currency converter state
     var convertAmount by remember { mutableStateOf("") }
@@ -67,8 +74,6 @@ fun SettingsScreen(
         val amt = convertAmount.toDoubleOrNull() ?: return@remember null
         if (exchangeRates.isEmpty()) return@remember null
         if (convertFromCode == convertToCode) return@remember "${currencyInfoFor(convertToCode).symbol}${String.format("%.2f", amt)}"
-        // Rates are relative to the fetched base.
-        // We need: toRate / fromRate (all relative to the same base)
         val fromRate = exchangeRates[convertFromCode] ?: return@remember null
         val toRate   = exchangeRates[convertToCode]   ?: return@remember null
         val converted = amt * (toRate / fromRate)
@@ -100,6 +105,17 @@ fun SettingsScreen(
     // Fetch rates lazily when converter section comes into view
     LaunchedEffect(Unit) { onFetchRates() }
 
+    // Language options: code -> label string resource
+    data class LanguageOption(val code: String, val labelResId: Int)
+    val languageOptions = listOf(
+        LanguageOption(LocaleHelper.SYSTEM, R.string.lang_system),
+        LanguageOption("en", R.string.lang_english),
+        LanguageOption("ru", R.string.lang_russian),
+        LanguageOption("hy", R.string.lang_armenian),
+        LanguageOption("zh", R.string.lang_chinese),
+        LanguageOption("es", R.string.lang_spanish)
+    )
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -107,7 +123,7 @@ fun SettingsScreen(
             .padding(16.dp)
     ) {
         Text(
-            "Settings",
+            stringResource(R.string.settings),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
@@ -116,7 +132,7 @@ fun SettingsScreen(
 
         // ─── Appearance Section ────────────────────────────────────
         Text(
-            "APPEARANCE",
+            stringResource(R.string.section_appearance),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp)
@@ -131,20 +147,14 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Filled.Palette,
-                        contentDescription = null,
-                        tint = PurpleAccent,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Icon(Icons.Filled.Palette, contentDescription = null,
+                        tint = PurpleAccent, modifier = Modifier.size(24.dp))
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
-                        Text("Theme", fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                        Text(
-                            "Choose between Light, Dark, or System default",
+                        Text(stringResource(R.string.theme), fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Text(stringResource(R.string.theme_description),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
@@ -161,9 +171,85 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // ─── Language Section ───────────────────────────────────────
+        Text(
+            stringResource(R.string.section_language),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.Language, contentDescription = null,
+                        tint = BluePrimary, modifier = Modifier.size(24.dp))
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.app_language), fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Text(stringResource(R.string.language_description),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+
+                    // Language selector button
+                    Box {
+                        val currentLangLabel = languageOptions
+                            .firstOrNull { it.code == settings.language }?.labelResId
+                            ?: R.string.lang_system
+                        OutlinedButton(
+                            onClick = { showLanguageDropdown = true },
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text(stringResource(currentLangLabel), fontWeight = FontWeight.SemiBold)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(Icons.Filled.ArrowDropDown, contentDescription = null,
+                                modifier = Modifier.size(18.dp))
+                        }
+
+                        DropdownMenu(
+                            expanded = showLanguageDropdown,
+                            onDismissRequest = { showLanguageDropdown = false }
+                        ) {
+                            languageOptions.forEach { option ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(stringResource(option.labelResId),
+                                                fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                                            if (option.code == settings.language) {
+                                                Spacer(modifier = Modifier.weight(1f))
+                                                Icon(Icons.Filled.Check, contentDescription = null,
+                                                    tint = GreenPrimary, modifier = Modifier.size(18.dp))
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        showLanguageDropdown = false
+                                        if (option.code != settings.language) {
+                                            onUpdateSettings(settings.copy(language = option.code))
+                                            onLanguageChanged(option.code)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
         // ─── Currency Section ──────────────────────────────────────
         Text(
-            "CURRENCY",
+            stringResource(R.string.section_currency),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp)
@@ -179,20 +265,14 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Filled.AttachMoney,
-                        contentDescription = null,
-                        tint = GreenPrimary,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Icon(Icons.Filled.AttachMoney, contentDescription = null,
+                        tint = GreenPrimary, modifier = Modifier.size(24.dp))
                     Spacer(modifier = Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Display Currency", fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                        Text(
-                            "Used for formatting and OCR receipt scanning",
+                        Text(stringResource(R.string.display_currency), fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Text(stringResource(R.string.currency_description),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
 
                     // Currency selector button
@@ -204,7 +284,8 @@ fun SettingsScreen(
                         ) {
                             Text("${selInfo.symbol} ${selInfo.code}", fontWeight = FontWeight.SemiBold)
                             Spacer(modifier = Modifier.width(4.dp))
-                            Icon(Icons.Filled.ArrowDropDown, contentDescription = "Select currency", modifier = Modifier.size(18.dp))
+                            Icon(Icons.Filled.ArrowDropDown, contentDescription = stringResource(R.string.select_currency),
+                                modifier = Modifier.size(18.dp))
                         }
 
                         DropdownMenu(
@@ -215,11 +296,7 @@ fun SettingsScreen(
                                 DropdownMenuItem(
                                     text = {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                info.symbol,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.width(30.dp)
-                                            )
+                                            Text(info.symbol, fontWeight = FontWeight.Bold, modifier = Modifier.width(30.dp))
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Column {
                                                 Text(info.code, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
@@ -234,12 +311,7 @@ fun SettingsScreen(
                                         }
                                     },
                                     onClick = {
-                                        onUpdateSettings(
-                                            settings.copy(
-                                                currencyCode = info.code,
-                                                currency = info.symbol
-                                            )
-                                        )
+                                        onUpdateSettings(settings.copy(currencyCode = info.code, currency = info.symbol))
                                         showCurrencyDropdown = false
                                     }
                                 )
@@ -257,7 +329,7 @@ fun SettingsScreen(
                     Icon(Icons.Filled.SwapHoriz, contentDescription = null,
                         tint = BluePrimary, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Currency Converter", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                    Text(stringResource(R.string.currency_converter), fontWeight = FontWeight.Medium, fontSize = 14.sp)
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -267,18 +339,16 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Amount input
                     OutlinedTextField(
                         value = convertAmount,
                         onValueChange = { convertAmount = it.filter { c -> c.isDigit() || c == '.' } },
-                        label = { Text("Amount") },
+                        label = { Text(stringResource(R.string.amount)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                         modifier = Modifier.weight(1.8f),
                         shape = RoundedCornerShape(10.dp)
                     )
 
-                    // From currency
                     Box(modifier = Modifier.weight(1f)) {
                         OutlinedButton(
                             onClick = { showFromDropdown = true },
@@ -301,7 +371,6 @@ fun SettingsScreen(
                     Icon(Icons.Filled.ArrowForward, contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
 
-                    // To currency
                     Box(modifier = Modifier.weight(1f)) {
                         OutlinedButton(
                             onClick = { showToDropdown = true },
@@ -324,13 +393,12 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Result row
                 when {
                     convertAmount.isNotEmpty() && exchangeRates.isEmpty() -> {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Fetching live rates…", style = MaterialTheme.typography.bodySmall,
+                            Text(stringResource(R.string.fetching_live_rates), style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
@@ -354,12 +422,10 @@ fun SettingsScreen(
                                 )
                             }
                         }
-                        Text(
-                            "Rates from open.er-api.com · refreshed hourly",
+                        Text(stringResource(R.string.rates_source),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
+                            modifier = Modifier.padding(top = 4.dp))
                     }
                 }
             }
@@ -369,7 +435,7 @@ fun SettingsScreen(
 
         // ─── Data Sources Section ──────────────────────────────────
         Text(
-            "DATA SOURCES",
+            stringResource(R.string.section_data_sources),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp)
@@ -382,20 +448,18 @@ fun SettingsScreen(
             Column(modifier = Modifier.padding(4.dp)) {
                 SettingsToggleItem(
                     icon = Icons.Filled.Sms,
-                    title = "SMS Transaction Detection",
-                    subtitle = "Automatically parse banking SMS messages",
+                    title = stringResource(R.string.sms_transaction_detection),
+                    subtitle = stringResource(R.string.sms_detection_description),
                     checked = settings.smsParsingEnabled,
-                    onCheckedChange = {
-                        onUpdateSettings(settings.copy(smsParsingEnabled = it))
-                    }
+                    onCheckedChange = { onUpdateSettings(settings.copy(smsParsingEnabled = it)) }
                 )
 
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
                 SettingsToggleItem(
                     icon = Icons.Filled.Notifications,
-                    title = "Banking App Notifications",
-                    subtitle = "Read notifications from banking apps",
+                    title = stringResource(R.string.banking_app_notifications),
+                    subtitle = stringResource(R.string.banking_notifications_description),
                     checked = settings.notificationListenerEnabled,
                     onCheckedChange = { enabled ->
                         if (enabled) {
@@ -415,12 +479,10 @@ fun SettingsScreen(
 
                 SettingsToggleItem(
                     icon = Icons.Filled.AutoAwesome,
-                    title = "AI Auto-Categorization",
-                    subtitle = "Automatically categorize transactions using AI",
+                    title = stringResource(R.string.ai_auto_categorization),
+                    subtitle = stringResource(R.string.ai_categorization_description),
                     checked = settings.autoCategorizationEnabled,
-                    onCheckedChange = {
-                        onUpdateSettings(settings.copy(autoCategorizationEnabled = it))
-                    }
+                    onCheckedChange = { onUpdateSettings(settings.copy(autoCategorizationEnabled = it)) }
                 )
             }
         }
@@ -429,22 +491,20 @@ fun SettingsScreen(
 
         Button(
             onClick = onScanSms,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp),
+            modifier = Modifier.fillMaxWidth().height(52.dp),
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = BluePrimary)
         ) {
             Icon(Icons.Filled.Sms, contentDescription = null, modifier = Modifier.size(22.dp))
             Spacer(modifier = Modifier.width(10.dp))
-            Text("Scan SMS Inbox for Transactions", fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.scan_sms_inbox_for_transactions), fontWeight = FontWeight.SemiBold)
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
         // ─── Import & Export Section ───────────────────────────────
         Text(
-            "IMPORT & EXPORT",
+            stringResource(R.string.section_import_export),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp)
@@ -457,8 +517,8 @@ fun SettingsScreen(
             Column(modifier = Modifier.padding(4.dp)) {
                 SettingsClickItem(
                     icon = Icons.Filled.FileUpload,
-                    title = "Export Data as JSON",
-                    subtitle = "Save all transactions, categories & settings to a file",
+                    title = stringResource(R.string.export_data_json),
+                    subtitle = stringResource(R.string.export_description),
                     onClick = { exportLauncher.launch("smart_expense_backup.json") }
                 )
 
@@ -466,8 +526,8 @@ fun SettingsScreen(
 
                 SettingsClickItem(
                     icon = Icons.Filled.FileDownload,
-                    title = "Import Data from JSON",
-                    subtitle = "Restore data from a previously exported file",
+                    title = stringResource(R.string.import_data_json),
+                    subtitle = stringResource(R.string.import_description),
                     onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }
                 )
             }
@@ -477,7 +537,7 @@ fun SettingsScreen(
 
         // ─── Storage Section ───────────────────────────────────────
         Text(
-            "STORAGE",
+            stringResource(R.string.section_storage),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp)
@@ -490,16 +550,16 @@ fun SettingsScreen(
             Column(modifier = Modifier.padding(4.dp)) {
                 SettingsClickItem(
                     icon = Icons.Filled.Storage,
-                    title = "Local Storage",
-                    subtitle = "Data stored as JSON · File size: $storageInfo"
+                    title = stringResource(R.string.local_storage),
+                    subtitle = stringResource(R.string.storage_info_format, storageInfo)
                 )
 
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
                 SettingsClickItem(
                     icon = Icons.Filled.DeleteForever,
-                    title = "Clear All Data",
-                    subtitle = "Delete all transactions and reset to defaults",
+                    title = stringResource(R.string.clear_all_data),
+                    subtitle = stringResource(R.string.clear_all_description),
                     isDestructive = true,
                     onClick = { showClearDialog = true }
                 )
@@ -510,7 +570,7 @@ fun SettingsScreen(
 
         // ─── About Section ─────────────────────────────────────────
         Text(
-            "ABOUT",
+            stringResource(R.string.section_about),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp)
@@ -522,28 +582,19 @@ fun SettingsScreen(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Filled.AccountBalanceWallet,
-                        contentDescription = null,
-                        tint = GreenPrimary,
-                        modifier = Modifier.size(28.dp)
-                    )
+                    Icon(Icons.Filled.AccountBalanceWallet, contentDescription = null,
+                        tint = GreenPrimary, modifier = Modifier.size(28.dp))
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Text("Smart Expense Tracker", fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "Version 1.0 · AI-Powered Finance Manager",
+                        Text(stringResource(R.string.app_name_full), fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.version_info),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    "OCR Receipt Scanning · SMS & Notification Tracking · " +
-                            "AI Categorization · Smart Optimization Suggestions · " +
-                            "Daily / Weekly / Monthly Reports · Local JSON Storage · " +
-                            "Multi-Currency Support · Import & Export · Dark Mode",
+                    stringResource(R.string.features_list),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 18.sp
@@ -560,18 +611,16 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
             icon = { Icon(Icons.Filled.Warning, contentDescription = null, tint = RedExpense) },
-            title = { Text("Clear All Data?") },
-            text = {
-                Text("This will permanently delete all transactions, categories, budgets, and settings. This action cannot be undone.")
-            },
+            title = { Text(stringResource(R.string.clear_all_data_question)) },
+            text = { Text(stringResource(R.string.clear_data_warning)) },
             confirmButton = {
                 TextButton(
                     onClick = { onClearData(); showClearDialog = false },
                     colors = ButtonDefaults.textButtonColors(contentColor = RedExpense)
-                ) { Text("Clear Everything") }
+                ) { Text(stringResource(R.string.clear_everything)) }
             },
             dismissButton = {
-                TextButton(onClick = { showClearDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showClearDialog = false }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -580,10 +629,8 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { showImportConfirmDialog = false; pendingImportUri = null },
             icon = { Icon(Icons.Filled.FileDownload, contentDescription = null, tint = BluePrimary) },
-            title = { Text("Import Data?") },
-            text = {
-                Text("This will replace all current data with the contents of the selected file. Your existing transactions and settings will be overwritten.\n\nMake sure to export your current data first if you want to keep it.")
-            },
+            title = { Text(stringResource(R.string.import_data_question)) },
+            text = { Text(stringResource(R.string.import_warning)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -591,11 +638,11 @@ fun SettingsScreen(
                         showImportConfirmDialog = false
                         pendingImportUri = null
                     }
-                ) { Text("Import & Replace") }
+                ) { Text(stringResource(R.string.import_replace)) }
             },
             dismissButton = {
                 TextButton(onClick = { showImportConfirmDialog = false; pendingImportUri = null }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -609,10 +656,14 @@ private fun ThemeModePicker(
     currentMode: ThemeMode,
     onModeSelected: (ThemeMode) -> Unit
 ) {
+    val lightLabel = stringResource(R.string.light)
+    val systemLabel = stringResource(R.string.system_default)
+    val darkLabel = stringResource(R.string.dark)
+
     val modes = listOf(
-        Triple(ThemeMode.LIGHT, "Light", Icons.Filled.LightMode),
-        Triple(ThemeMode.SYSTEM, "System", Icons.Filled.SettingsBrightness),
-        Triple(ThemeMode.DARK, "Dark", Icons.Filled.DarkMode)
+        Triple(ThemeMode.LIGHT, lightLabel, Icons.Filled.LightMode),
+        Triple(ThemeMode.SYSTEM, systemLabel, Icons.Filled.SettingsBrightness),
+        Triple(ThemeMode.DARK, darkLabel, Icons.Filled.DarkMode)
     )
 
     Row(
@@ -650,12 +701,9 @@ private fun ThemeModePicker(
                 ) {
                     Icon(icon, contentDescription = label, tint = contentColor, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        label,
-                        fontSize = 13.sp,
+                    Text(label, fontSize = 13.sp,
                         fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                        color = contentColor
-                    )
+                        color = contentColor)
                 }
             }
         }
@@ -673,9 +721,7 @@ private fun SettingsToggleItem(
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
@@ -703,24 +749,18 @@ private fun SettingsClickItem(
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            icon, contentDescription = null,
+        Icon(icon, contentDescription = null,
             tint = if (isDestructive) RedExpense else MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(24.dp)
-        )
+            modifier = Modifier.size(24.dp))
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                title, fontWeight = FontWeight.Medium, fontSize = 14.sp,
-                color = if (isDestructive) RedExpense else MaterialTheme.colorScheme.onSurface
-            )
+            Text(title, fontWeight = FontWeight.Medium, fontSize = 14.sp,
+                color = if (isDestructive) RedExpense else MaterialTheme.colorScheme.onSurface)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (onClick != null) {
-            Icon(
-                Icons.Filled.ChevronRight, contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp)
-            )
+            Icon(Icons.Filled.ChevronRight, contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
         }
     }
 }

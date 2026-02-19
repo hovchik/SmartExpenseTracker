@@ -14,9 +14,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.smartexpense.tracker.R
 import com.smartexpense.tracker.data.model.ExpenseReport
 import com.smartexpense.tracker.data.model.ReportPeriod
 import com.smartexpense.tracker.ui.theme.*
@@ -48,7 +50,7 @@ fun ReportsScreen(
     ) {
         // Header
         item {
-            Text("Reports", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.reports), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         }
 
         // Period selector
@@ -60,9 +62,9 @@ fun ReportsScreen(
                         onClick = { onPeriodChange(period) },
                         label = {
                             Text(when (period) {
-                                ReportPeriod.DAILY -> "Today"
-                                ReportPeriod.WEEKLY -> "This Week"
-                                ReportPeriod.MONTHLY -> "This Month"
+                                ReportPeriod.DAILY -> stringResource(R.string.today)
+                                ReportPeriod.WEEKLY -> stringResource(R.string.this_week)
+                                ReportPeriod.MONTHLY -> stringResource(R.string.this_month)
                             })
                         },
                         modifier = Modifier.weight(1f)
@@ -83,7 +85,7 @@ fun ReportsScreen(
                         Icon(Icons.Filled.Star, null, tint = PurpleAccent, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
-                            Text("AI Insights", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = PurpleAccent)
+                            Text(stringResource(R.string.ai_insights), fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = PurpleAccent)
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(report.aiInsight, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface,
                                 lineHeight = 18.sp)
@@ -96,15 +98,15 @@ fun ReportsScreen(
         // ─── Summary Cards ─────────────────────────────
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatCard("Expenses", CurrencyUtils.format(report.totalExpenses, currencyCode), RedExpense, Modifier.weight(1f))
-                StatCard("Income", CurrencyUtils.format(report.totalIncome, currencyCode), GreenIncome, Modifier.weight(1f))
+                StatCard(stringResource(R.string.expenses), CurrencyUtils.format(report.totalExpenses, currencyCode), RedExpense, Modifier.weight(1f))
+                StatCard(stringResource(R.string.income), CurrencyUtils.format(report.totalIncome, currencyCode), GreenIncome, Modifier.weight(1f))
             }
         }
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatCard("Net Balance", CurrencyUtils.format(report.netBalance, currencyCode),
+                StatCard(stringResource(R.string.net_balance), CurrencyUtils.format(report.netBalance, currencyCode),
                     if (report.netBalance >= 0) GreenIncome else RedExpense, Modifier.weight(1f))
-                StatCard("Avg Daily", CurrencyUtils.format(report.averageDailySpend, currencyCode), BluePrimary, Modifier.weight(1f))
+                StatCard(stringResource(R.string.avg_daily), CurrencyUtils.format(report.averageDailySpend, currencyCode), BluePrimary, Modifier.weight(1f))
             }
         }
 
@@ -119,7 +121,7 @@ fun ReportsScreen(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("vs Previous Period", style = MaterialTheme.typography.bodySmall,
+                        Text(stringResource(R.string.vs_previous_period), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(
                             "${if (report.comparisonWithPrevious > 0) "+" else ""}${String.format("%.1f", report.comparisonWithPrevious)}%",
@@ -129,12 +131,12 @@ fun ReportsScreen(
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
-                            "${report.transactionCount} transactions",
+                            stringResource(R.string.transactions_count_format, report.transactionCount),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            if (report.comparisonWithPrevious <= 0) "Spending down" else "Spending up",
+                            if (report.comparisonWithPrevious <= 0) stringResource(R.string.spending_down) else stringResource(R.string.spending_up),
                             fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -145,7 +147,7 @@ fun ReportsScreen(
         // ─── Category Breakdown ────────────────────────
         if (report.categoryBreakdown.isNotEmpty()) {
             item {
-                Text("Spending by Category", style = MaterialTheme.typography.titleMedium,
+                Text(stringResource(R.string.spending_by_category), style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
             }
             item {
@@ -186,7 +188,7 @@ fun ReportsScreen(
         // ─── Day of Week Spending ──────────────────────
         if (report.dayOfWeekSpending.isNotEmpty() && report.dayOfWeekSpending.values.any { it > 0 }) {
             item {
-                Text("Spending by Day", style = MaterialTheme.typography.titleMedium,
+                Text(stringResource(R.string.spending_by_day), style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
             }
             item {
@@ -223,7 +225,7 @@ fun ReportsScreen(
         // ─── Top Merchants ─────────────────────────────
         if (report.topMerchants.isNotEmpty()) {
             item {
-                Text("Top Merchants", style = MaterialTheme.typography.titleMedium,
+                Text(stringResource(R.string.top_merchants), style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
             }
             item {
@@ -253,7 +255,7 @@ fun ReportsScreen(
         // ─── Transaction Sources ───────────────────────
         if (report.sourceBreakdown.isNotEmpty()) {
             item {
-                Text("Transaction Sources", style = MaterialTheme.typography.titleMedium,
+                Text(stringResource(R.string.transaction_sources), style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
             }
             item {
@@ -264,11 +266,11 @@ fun ReportsScreen(
                     ) {
                         report.sourceBreakdown.forEach { (source, count) ->
                             val label = when (source) {
-                                "MANUAL" -> "Manual"
-                                "OCR_SCAN" -> "OCR"
-                                "SMS" -> "SMS"
-                                "NOTIFICATION" -> "Notif"
-                                "IMPORT" -> "Import"
+                                "MANUAL" -> stringResource(R.string.source_manual)
+                                "OCR_SCAN" -> stringResource(R.string.source_ocr)
+                                "SMS" -> stringResource(R.string.source_sms)
+                                "NOTIFICATION" -> stringResource(R.string.source_notif)
+                                "IMPORT" -> stringResource(R.string.source_import)
                                 else -> source
                             }
                             val icon = when (source) {
@@ -294,7 +296,7 @@ fun ReportsScreen(
         // ─── Top Expenses ──────────────────────────────
         if (report.topExpenses.isNotEmpty()) {
             item {
-                Text("Top Expenses", style = MaterialTheme.typography.titleMedium,
+                Text(stringResource(R.string.top_expenses), style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
             }
             items(report.topExpenses) { transaction ->
@@ -318,7 +320,7 @@ fun ReportsScreen(
         if (report.transactionsByDate.isNotEmpty()) {
             item {
                 Text(
-                    "Transactions by Date",
+                    stringResource(R.string.transactions_by_date),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(top = 4.dp)
@@ -418,8 +420,8 @@ fun ReportsScreen(
                         Icon(Icons.Filled.Receipt, null, modifier = Modifier.size(48.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text("No transactions this period", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("Add expenses to see reports here", fontSize = 13.sp,
+                        Text(stringResource(R.string.no_transactions_this_period), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.add_expenses_to_see_reports), fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                     }
                 }

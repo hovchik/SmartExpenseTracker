@@ -173,6 +173,8 @@ data class AppSettings(
     /** ISO-4217 currency code (e.g. "USD", "AMD"). Drives all formatting and OCR parsing. */
     val currencyCode: String = "USD",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    /** Language code for the app UI (e.g. "en", "ru", "hy", "zh", "es") or "system". */
+    val language: String = "system",
     val notificationListenerEnabled: Boolean = false,
     val smsParsingEnabled: Boolean = false,
     val autoCategorizationEnabled: Boolean = true,

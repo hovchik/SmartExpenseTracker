@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">智能费用追踪器</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">首页</string>
+    <string name="nav_reports">报告</string>
+    <string name="nav_add">添加</string>
+    <string name="nav_scan">扫描</string>
+    <string name="nav_settings">设置</string>
+
+    <!-- Common -->
+    <string name="back">返回</string>
+    <string name="cancel">取消</string>
+    <string name="delete">删除</string>
+    <string name="done">完成</string>
+    <string name="dismiss">关闭</string>
+    <string name="remove">移除</string>
+    <string name="retry">重试</string>
+    <string name="go_back">返回</string>
+    <string name="income">收入</string>
+    <string name="expenses">支出</string>
+    <string name="expense">支出</string>
+    <string name="today">今天</string>
+    <string name="this_week">本周</string>
+    <string name="this_month">本月</string>
+    <string name="transactions">交易</string>
+    <string name="category">类别</string>
+    <string name="amount">金额</string>
+    <string name="description">描述</string>
+
+    <!-- Dashboard -->
+    <string name="monthly_balance">月度余额</string>
+    <string name="ai_insights">AI 洞察</string>
+    <string name="spending_by_category">按类别支出</string>
+    <string name="recent_transactions">最近交易</string>
+    <string name="no_transactions_yet">暂无交易</string>
+    <string name="no_transactions_hint">手动添加、扫描收据或启用短信/通知追踪</string>
+    <string name="potential_saving_format">潜在节省：%s/月</string>
+
+    <!-- Add Transaction -->
+    <string name="add_transaction">添加交易</string>
+    <string name="merchant_optional">商家（可选）</string>
+    <string name="notes_optional">备注（可选）</string>
+    <string name="scan_receipt_instead">扫描收据</string>
+    <string name="add_expense">添加支出</string>
+    <string name="add_income">添加收入</string>
+    <string name="error_valid_amount_description">请输入有效的金额和描述</string>
+
+    <!-- Reports -->
+    <string name="reports">报告</string>
+    <string name="net_balance">净余额</string>
+    <string name="avg_daily">日均</string>
+    <string name="vs_previous_period">与上一期相比</string>
+    <string name="transactions_count_format">%d 笔交易</string>
+    <string name="spending_down">支出下降</string>
+    <string name="spending_up">支出上升</string>
+    <string name="spending_by_day">按日支出</string>
+    <string name="top_merchants">主要商家</string>
+    <string name="transaction_sources">交易来源</string>
+    <string name="source_manual">手动</string>
+    <string name="source_ocr">OCR</string>
+    <string name="source_sms">短信</string>
+    <string name="source_notif">通知</string>
+    <string name="source_import">导入</string>
+    <string name="top_expenses">最大支出</string>
+    <string name="transactions_by_date">按日期交易</string>
+    <string name="no_transactions_this_period">本期无交易</string>
+    <string name="add_expenses_to_see_reports">添加支出以查看报告</string>
+
+    <!-- Scan Receipt -->
+    <string name="scan_receipt">扫描收据</string>
+    <string name="scanning_all_languages">正在多语言扫描…</string>
+    <string name="capture_or_select_receipt">拍摄或选择收据图片</string>
+    <string name="supports_scripts">支持拉丁文、中文、日文、韩文、天城文文字</string>
+    <string name="take_photo">拍照</string>
+    <string name="choose_from_gallery">从相册选择</string>
+    <string name="transaction_saved">交易已保存</string>
+    <string name="scan_result">扫描结果</string>
+    <string name="extracted_text">提取的文本</string>
+    <string name="tips_best_results">最佳效果提示</string>
+    <string name="tip_good_lighting">确保收据光线充足</string>
+    <string name="tip_flat_aligned">保持收据平整对齐</string>
+    <string name="tip_total_visible">确保总额清晰可见</string>
+    <string name="tip_any_language">支持任何语言和文字</string>
+    <string name="camera_permission_required">需要相机权限</string>
+    <string name="cannot_create_temp_file">无法创建临时文件</string>
+    <string name="error_loading_image_format">加载图片出错：%s</string>
+    <string name="no_text_detected">未检测到文本。请在光线良好的情况下重新拍摄。</string>
+
+    <!-- SMS Scanner -->
+    <string name="sms_scanner">短信扫描器</string>
+    <string name="scanning_sms_messages">正在扫描短信…</string>
+    <string name="looking_for_banking_transactions">正在查找银行交易</string>
+    <string name="scanned">已扫描</string>
+    <string name="financial">财务相关</string>
+    <string name="parsed">已解析</string>
+    <string name="save_all_transactions_format">保存全部 %d 笔交易</string>
+    <string name="transactions_saved_format">已保存 %d 笔交易！</string>
+    <string name="scan_error">扫描错误</string>
+    <string name="no_transactions_found">未找到交易</string>
+    <string name="scanned_no_new_found_format">已扫描 %d 条消息，未发现新的银行交易。</string>
+    <string name="scan_sms_inbox">扫描短信收件箱</string>
+    <string name="sms_scan_description">搜索您的短信中的银行和支付通知。交易会自动检测和分类。</string>
+    <string name="all_processing_on_device">所有处理均在设备上完成。</string>
+    <string name="start_scanning">开始扫描</string>
+    <string name="grant_permission_scan">授权并扫描</string>
+    <string name="sms_permission_required">扫描消息需要短信权限</string>
+
+    <!-- Settings -->
+    <string name="settings">设置</string>
+    <string name="section_appearance">外观</string>
+    <string name="theme">主题</string>
+    <string name="theme_description">选择浅色、深色或跟随系统</string>
+    <string name="light">浅色</string>
+    <string name="system_default">系统</string>
+    <string name="dark">深色</string>
+    <string name="section_language">语言</string>
+    <string name="app_language">应用语言</string>
+    <string name="language_description">选择应用的显示语言</string>
+    <string name="lang_system">系统默认</string>
+    <string name="lang_english">English</string>
+    <string name="lang_russian">Русский</string>
+    <string name="lang_armenian">Հայերեն</string>
+    <string name="lang_chinese">中文</string>
+    <string name="lang_spanish">Español</string>
+    <string name="section_currency">货币</string>
+    <string name="display_currency">显示货币</string>
+    <string name="currency_description">用于格式化和收据扫描</string>
+    <string name="select_currency">选择货币</string>
+    <string name="currency_converter">货币转换器</string>
+    <string name="fetching_live_rates">正在获取实时汇率…</string>
+    <string name="rates_source">汇率来源 open.er-api.com · 每小时刷新</string>
+    <string name="section_data_sources">数据来源</string>
+    <string name="sms_transaction_detection">短信交易检测</string>
+    <string name="sms_detection_description">自动解析银行短信</string>
+    <string name="banking_app_notifications">银行应用通知</string>
+    <string name="banking_notifications_description">读取银行应用的通知</string>
+    <string name="ai_auto_categorization">AI 自动分类</string>
+    <string name="ai_categorization_description">使用 AI 自动对交易进行分类</string>
+    <string name="scan_sms_inbox_for_transactions">扫描短信查找交易</string>
+    <string name="section_import_export">导入与导出</string>
+    <string name="export_data_json">导出数据为 JSON</string>
+    <string name="export_description">将所有交易、类别和设置保存到文件</string>
+    <string name="import_data_json">从 JSON 导入数据</string>
+    <string name="import_description">从之前导出的文件恢复数据</string>
+    <string name="section_storage">存储</string>
+    <string name="local_storage">本地存储</string>
+    <string name="storage_info_format">数据以 JSON 格式存储 · 文件大小：%s</string>
+    <string name="clear_all_data">清除所有数据</string>
+    <string name="clear_all_description">删除所有交易并恢复默认设置</string>
+    <string name="section_about">关于</string>
+    <string name="app_name_full">智能费用追踪器</string>
+    <string name="version_info">版本 1.0 · AI 智能财务管理</string>
+    <string name="features_list">收据扫描 · 短信和通知追踪 · AI 分类 · 智能优化建议 · 日/周/月报告 · 本地 JSON 存储 · 多币种支持 · 导入导出 · 深色模式 · 多语言支持</string>
+    <string name="clear_all_data_question">清除所有数据？</string>
+    <string name="clear_data_warning">这将永久删除所有交易、类别、预算和设置。此操作不可撤销。</string>
+    <string name="clear_everything">清除全部</string>
+    <string name="import_data_question">导入数据？</string>
+    <string name="import_warning">这将用所选文件的内容替换所有当前数据。您现有的交易和设置将被覆盖。
+
+如果要保留当前数据，请先导出。</string>
+    <string name="import_replace">导入并替换</string>
+</resources>

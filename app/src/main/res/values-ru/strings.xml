@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Умный Трекер Расходов</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Главная</string>
+    <string name="nav_reports">Отчёты</string>
+    <string name="nav_add">Добавить</string>
+    <string name="nav_scan">Скан</string>
+    <string name="nav_settings">Настройки</string>
+
+    <!-- Common -->
+    <string name="back">Назад</string>
+    <string name="cancel">Отмена</string>
+    <string name="delete">Удалить</string>
+    <string name="done">Готово</string>
+    <string name="dismiss">Закрыть</string>
+    <string name="remove">Убрать</string>
+    <string name="retry">Повторить</string>
+    <string name="go_back">Вернуться</string>
+    <string name="income">Доходы</string>
+    <string name="expenses">Расходы</string>
+    <string name="expense">Расход</string>
+    <string name="today">Сегодня</string>
+    <string name="this_week">Эта неделя</string>
+    <string name="this_month">Этот месяц</string>
+    <string name="transactions">Транзакции</string>
+    <string name="category">Категория</string>
+    <string name="amount">Сумма</string>
+    <string name="description">Описание</string>
+
+    <!-- Dashboard -->
+    <string name="monthly_balance">Месячный баланс</string>
+    <string name="ai_insights">ИИ-аналитика</string>
+    <string name="spending_by_category">Расходы по категориям</string>
+    <string name="recent_transactions">Последние транзакции</string>
+    <string name="no_transactions_yet">Транзакций пока нет</string>
+    <string name="no_transactions_hint">Добавьте вручную, отсканируйте чек или включите отслеживание SMS/уведомлений</string>
+    <string name="potential_saving_format">Возможная экономия: %s/мес.</string>
+
+    <!-- Add Transaction -->
+    <string name="add_transaction">Добавить транзакцию</string>
+    <string name="merchant_optional">Продавец (необязательно)</string>
+    <string name="notes_optional">Заметки (необязательно)</string>
+    <string name="scan_receipt_instead">Сканировать чек</string>
+    <string name="add_expense">Добавить расход</string>
+    <string name="add_income">Добавить доход</string>
+    <string name="error_valid_amount_description">Введите корректную сумму и описание</string>
+
+    <!-- Reports -->
+    <string name="reports">Отчёты</string>
+    <string name="net_balance">Чистый баланс</string>
+    <string name="avg_daily">Среднедневной</string>
+    <string name="vs_previous_period">по сравнению с прошлым периодом</string>
+    <string name="transactions_count_format">%d транзакций</string>
+    <string name="spending_down">Расходы снизились</string>
+    <string name="spending_up">Расходы выросли</string>
+    <string name="spending_by_day">Расходы по дням</string>
+    <string name="top_merchants">Топ продавцов</string>
+    <string name="transaction_sources">Источники транзакций</string>
+    <string name="source_manual">Вручную</string>
+    <string name="source_ocr">OCR</string>
+    <string name="source_sms">SMS</string>
+    <string name="source_notif">Увед.</string>
+    <string name="source_import">Импорт</string>
+    <string name="top_expenses">Крупнейшие расходы</string>
+    <string name="transactions_by_date">Транзакции по дате</string>
+    <string name="no_transactions_this_period">Нет транзакций за этот период</string>
+    <string name="add_expenses_to_see_reports">Добавьте расходы, чтобы увидеть отчёты</string>
+
+    <!-- Scan Receipt -->
+    <string name="scan_receipt">Сканировать чек</string>
+    <string name="scanning_all_languages">Сканирование на всех языках…</string>
+    <string name="capture_or_select_receipt">Сфотографируйте или выберите изображение чека</string>
+    <string name="supports_scripts">Поддержка латиницы, китайского, японского, корейского, деванагари</string>
+    <string name="take_photo">Сделать фото</string>
+    <string name="choose_from_gallery">Выбрать из галереи</string>
+    <string name="transaction_saved">Транзакция сохранена</string>
+    <string name="scan_result">Результат сканирования</string>
+    <string name="extracted_text">Распознанный текст</string>
+    <string name="tips_best_results">Советы для лучших результатов</string>
+    <string name="tip_good_lighting">Обеспечьте хорошее освещение чека</string>
+    <string name="tip_flat_aligned">Чек должен лежать ровно</string>
+    <string name="tip_total_visible">Убедитесь, что итоговая сумма видна</string>
+    <string name="tip_any_language">Работает с любым языком и письмом</string>
+    <string name="camera_permission_required">Требуется разрешение камеры</string>
+    <string name="cannot_create_temp_file">Не удалось создать временный файл</string>
+    <string name="error_loading_image_format">Ошибка загрузки изображения: %s</string>
+    <string name="no_text_detected">Текст не обнаружен. Попробуйте сделать более чёткое фото при хорошем освещении.</string>
+
+    <!-- SMS Scanner -->
+    <string name="sms_scanner">SMS-сканер</string>
+    <string name="scanning_sms_messages">Сканирование SMS-сообщений…</string>
+    <string name="looking_for_banking_transactions">Поиск банковских транзакций</string>
+    <string name="scanned">Просканировано</string>
+    <string name="financial">Финансовых</string>
+    <string name="parsed">Распознано</string>
+    <string name="save_all_transactions_format">Сохранить все %d транзакций</string>
+    <string name="transactions_saved_format">Сохранено транзакций: %d!</string>
+    <string name="scan_error">Ошибка сканирования</string>
+    <string name="no_transactions_found">Транзакции не найдены</string>
+    <string name="scanned_no_new_found_format">Просканировано %d сообщений, новых банковских транзакций не найдено.</string>
+    <string name="scan_sms_inbox">Сканировать SMS</string>
+    <string name="sms_scan_description">Поиск банковских и платёжных уведомлений в ваших SMS-сообщениях. Транзакции определяются и категоризируются автоматически.</string>
+    <string name="all_processing_on_device">Вся обработка происходит на устройстве.</string>
+    <string name="start_scanning">Начать сканирование</string>
+    <string name="grant_permission_scan">Дать разрешение и сканировать</string>
+    <string name="sms_permission_required">Для сканирования сообщений требуется разрешение на чтение SMS</string>
+
+    <!-- Settings -->
+    <string name="settings">Настройки</string>
+    <string name="section_appearance">ВНЕШНИЙ ВИД</string>
+    <string name="theme">Тема</string>
+    <string name="theme_description">Выберите: Светлая, Тёмная или Системная</string>
+    <string name="light">Светлая</string>
+    <string name="system_default">Системная</string>
+    <string name="dark">Тёмная</string>
+    <string name="section_language">ЯЗЫК</string>
+    <string name="app_language">Язык приложения</string>
+    <string name="language_description">Выберите язык интерфейса приложения</string>
+    <string name="lang_system">Системный</string>
+    <string name="lang_english">English</string>
+    <string name="lang_russian">Русский</string>
+    <string name="lang_armenian">Հայերեն</string>
+    <string name="lang_chinese">中文</string>
+    <string name="lang_spanish">Español</string>
+    <string name="section_currency">ВАЛЮТА</string>
+    <string name="display_currency">Валюта отображения</string>
+    <string name="currency_description">Используется для форматирования и сканирования чеков</string>
+    <string name="select_currency">Выбрать валюту</string>
+    <string name="currency_converter">Конвертер валют</string>
+    <string name="fetching_live_rates">Загрузка курсов…</string>
+    <string name="rates_source">Курсы с open.er-api.com · обновляются каждый час</string>
+    <string name="section_data_sources">ИСТОЧНИКИ ДАННЫХ</string>
+    <string name="sms_transaction_detection">Обнаружение SMS-транзакций</string>
+    <string name="sms_detection_description">Автоматический разбор банковских SMS-сообщений</string>
+    <string name="banking_app_notifications">Уведомления банковских приложений</string>
+    <string name="banking_notifications_description">Чтение уведомлений от банковских приложений</string>
+    <string name="ai_auto_categorization">ИИ-категоризация</string>
+    <string name="ai_categorization_description">Автоматическая категоризация транзакций с помощью ИИ</string>
+    <string name="scan_sms_inbox_for_transactions">Сканировать SMS для поиска транзакций</string>
+    <string name="section_import_export">ИМПОРТ И ЭКСПОРТ</string>
+    <string name="export_data_json">Экспорт данных в JSON</string>
+    <string name="export_description">Сохранить все транзакции, категории и настройки в файл</string>
+    <string name="import_data_json">Импорт данных из JSON</string>
+    <string name="import_description">Восстановить данные из ранее экспортированного файла</string>
+    <string name="section_storage">ХРАНИЛИЩЕ</string>
+    <string name="local_storage">Локальное хранилище</string>
+    <string name="storage_info_format">Данные хранятся в JSON · Размер файла: %s</string>
+    <string name="clear_all_data">Очистить все данные</string>
+    <string name="clear_all_description">Удалить все транзакции и сбросить настройки</string>
+    <string name="section_about">О ПРИЛОЖЕНИИ</string>
+    <string name="app_name_full">Умный Трекер Расходов</string>
+    <string name="version_info">Версия 1.0 · Финансовый менеджер с ИИ</string>
+    <string name="features_list">Сканирование чеков · Отслеживание SMS и уведомлений · ИИ-категоризация · Умные рекомендации по оптимизации · Ежедневные / Еженедельные / Ежемесячные отчёты · Локальное хранение JSON · Мультивалютность · Импорт и экспорт · Тёмная тема · Мультиязычность</string>
+    <string name="clear_all_data_question">Очистить все данные?</string>
+    <string name="clear_data_warning">Это навсегда удалит все транзакции, категории, бюджеты и настройки. Это действие нельзя отменить.</string>
+    <string name="clear_everything">Удалить всё</string>
+    <string name="import_data_question">Импортировать данные?</string>
+    <string name="import_warning">Все текущие данные будут заменены содержимым выбранного файла. Ваши существующие транзакции и настройки будут перезаписаны.\n\nСначала экспортируйте текущие данные, если хотите их сохранить.</string>
+    <string name="import_replace">Импортировать и заменить</string>
+</resources>

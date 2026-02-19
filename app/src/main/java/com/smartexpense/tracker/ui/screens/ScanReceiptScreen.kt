@@ -18,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -32,6 +33,7 @@ import com.google.mlkit.vision.text.devanagari.DevanagariTextRecognizerOptions
 import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 import com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import com.smartexpense.tracker.R
 import com.smartexpense.tracker.ui.theme.*
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
@@ -71,7 +73,7 @@ fun ScanReceiptScreen(
             image = InputImage.fromFilePath(context, uri)
         } catch (e: Exception) {
             isProcessing = false
-            errorMsg = "Error loading image: ${e.message}"
+            errorMsg = context.getString(R.string.error_loading_image_format, e.message ?: "")
             return
         }
 
@@ -102,7 +104,7 @@ fun ScanReceiptScreen(
                 Log.d("OCR", "Best result from ${best.key}: ${best.value.length} chars")
                 onOcrResult(best.value)
             } else {
-                errorMsg = "No text detected. Try a clearer photo with good lighting."
+                errorMsg = context.getString(R.string.no_text_detected)
             }
 
             // Close all recognizers
@@ -134,7 +136,7 @@ fun ScanReceiptScreen(
 
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted && tempUri != null) cameraLauncher.launch(tempUri)
-        else if (!granted) Toast.makeText(context, "Camera permission is required", Toast.LENGTH_LONG).show()
+        else if (!granted) Toast.makeText(context, context.getString(R.string.camera_permission_required), Toast.LENGTH_LONG).show()
     }
 
     Column(
@@ -144,9 +146,9 @@ fun ScanReceiptScreen(
         // Header
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onNavigateBack) {
-                Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
             }
-            Text("Scan Receipt", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.scan_receipt), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.weight(1f))
         }
 
@@ -164,12 +166,12 @@ fun ScanReceiptScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            if (isProcessing) "Scanning in all languages..." else "Capture or select a receipt image",
+            if (isProcessing) stringResource(R.string.scanning_all_languages) else stringResource(R.string.capture_or_select_receipt),
             style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            "Supports Latin, Chinese, Japanese, Korean, Devanagari scripts",
+            stringResource(R.string.supports_scripts),
             style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
@@ -181,7 +183,7 @@ fun ScanReceiptScreen(
         Button(
             onClick = {
                 if (tempUri == null) {
-                    Toast.makeText(context, "Cannot create temp file", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.cannot_create_temp_file), Toast.LENGTH_SHORT).show()
                     return@Button
                 }
                 val hasCam = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
@@ -191,7 +193,7 @@ fun ScanReceiptScreen(
             shape = RoundedCornerShape(14.dp), enabled = !isProcessing
         ) {
             Icon(Icons.Filled.CameraAlt, null); Spacer(modifier = Modifier.width(12.dp))
-            Text("Take Photo", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            Text(stringResource(R.string.take_photo), fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
         }
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -202,7 +204,7 @@ fun ScanReceiptScreen(
             shape = RoundedCornerShape(14.dp), enabled = !isProcessing
         ) {
             Icon(Icons.Filled.Add, null); Spacer(modifier = Modifier.width(12.dp))
-            Text("Choose from Gallery", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            Text(stringResource(R.string.choose_from_gallery), fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
         }
 
         // Error
@@ -237,7 +239,7 @@ fun ScanReceiptScreen(
                             tint = if (isSuccess) GreenIncome else OrangeWarning, modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (isSuccess) "Transaction Saved" else "Scan Result",
+                        Text(if (isSuccess) stringResource(R.string.transaction_saved) else stringResource(R.string.scan_result),
                             fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                     }
                     Spacer(modifier = Modifier.height(6.dp))
@@ -252,7 +254,7 @@ fun ScanReceiptScreen(
             Spacer(modifier = Modifier.height(12.dp))
             Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    Text("Extracted Text", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text(stringResource(R.string.extracted_text), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(ocrText.take(400) + if (ocrText.length > 400) "..." else "",
                         style = MaterialTheme.typography.bodySmall,
@@ -269,13 +271,13 @@ fun ScanReceiptScreen(
             colors = CardDefaults.cardColors(containerColor = BluePrimary.copy(alpha = 0.05f))
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
-                Text("Tips for best results", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text(stringResource(R.string.tips_best_results), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 Spacer(modifier = Modifier.height(6.dp))
                 listOf(
-                    "Ensure good lighting on the receipt",
-                    "Keep the receipt flat and aligned",
-                    "Make sure the total amount is visible",
-                    "Works with any language or script"
+                    stringResource(R.string.tip_good_lighting),
+                    stringResource(R.string.tip_flat_aligned),
+                    stringResource(R.string.tip_total_visible),
+                    stringResource(R.string.tip_any_language)
                 ).forEach { tip ->
                     Row(modifier = Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.Check, null, modifier = Modifier.size(14.dp), tint = GreenPrimary)
