@@ -21,11 +21,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.smartexpense.tracker.R
 import com.smartexpense.tracker.data.model.TransactionType
 import com.smartexpense.tracker.ui.theme.*
 import com.smartexpense.tracker.ui.viewmodel.SmsScanState
@@ -50,6 +52,8 @@ fun SmsScanScreen(
     }
     var pendingScan by remember { mutableStateOf(false) }
 
+    val smsPermissionRequiredMsg = stringResource(R.string.sms_permission_required)
+
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { granted ->
@@ -59,7 +63,7 @@ fun SmsScanScreen(
                 onStartScan()
             } else if (!granted) {
                 pendingScan = false
-                Toast.makeText(context, "SMS permission is required to scan messages", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, smsPermissionRequiredMsg, Toast.LENGTH_LONG).show()
             }
         }
     )
@@ -84,9 +88,9 @@ fun SmsScanScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = { onReset(); onNavigateBack() }) {
-                Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
             }
-            Text("SMS Scanner", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.sms_scanner), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
 
         when {
@@ -96,9 +100,9 @@ fun SmsScanScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(modifier = Modifier.size(64.dp), color = BluePrimary)
                         Spacer(modifier = Modifier.height(24.dp))
-                        Text("Scanning SMS messages...", fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.scanning_sms_messages), fontWeight = FontWeight.Medium)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("Looking for banking transactions",
+                        Text(stringResource(R.string.looking_for_banking_transactions),
                             color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                     }
                 }
@@ -116,9 +120,9 @@ fun SmsScanScreen(
                             modifier = Modifier.fillMaxWidth().padding(16.dp),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                            StatItem("${scanState.totalScanned}", "Scanned")
-                            StatItem("${scanState.financialFound}", "Financial")
-                            StatItem("${scanState.pendingTransactions.size}", "Parsed", GreenPrimary)
+                            StatItem("${scanState.totalScanned}", stringResource(R.string.scanned))
+                            StatItem("${scanState.financialFound}", stringResource(R.string.financial))
+                            StatItem("${scanState.pendingTransactions.size}", stringResource(R.string.parsed), GreenPrimary)
                         }
                     }
 
@@ -133,7 +137,7 @@ fun SmsScanScreen(
                     ) {
                         Icon(Icons.Filled.Check, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Save All ${scanState.pendingTransactions.size} Transactions", fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.save_all_transactions_format, scanState.pendingTransactions.size), fontWeight = FontWeight.SemiBold)
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -179,7 +183,7 @@ fun SmsScanScreen(
                                         color = if (tx.type == TransactionType.EXPENSE) RedExpense else GreenIncome
                                     )
                                     IconButton(onClick = { onDiscard(tx.id) }, modifier = Modifier.size(32.dp)) {
-                                        Icon(Icons.Filled.Close, "Remove", modifier = Modifier.size(16.dp),
+                                        Icon(Icons.Filled.Close, stringResource(R.string.remove), modifier = Modifier.size(16.dp),
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
@@ -196,13 +200,13 @@ fun SmsScanScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
                         Icon(Icons.Filled.Check, null, tint = GreenPrimary, modifier = Modifier.size(72.dp))
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text("${scanState.savedCount} transactions saved!",
+                        Text(stringResource(R.string.transactions_saved_format, scanState.savedCount),
                             style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(24.dp))
                         Button(onClick = { onReset(); onNavigateBack() },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
                             shape = RoundedCornerShape(12.dp)) {
-                            Text("Done", fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.done), fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -213,24 +217,24 @@ fun SmsScanScreen(
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
                         Text(
-                            if (scanState.errorMessage != null) "Scan Error" else "No Transactions Found",
+                            if (scanState.errorMessage != null) stringResource(R.string.scan_error) else stringResource(R.string.no_transactions_found),
                             style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
                             scanState.errorMessage
-                                ?: "Scanned ${scanState.totalScanned} messages but no new banking transactions found.",
+                                ?: stringResource(R.string.scanned_no_new_found_format, scanState.totalScanned),
                             color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp
                         )
                         Spacer(modifier = Modifier.height(24.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             OutlinedButton(onClick = { onReset(); onNavigateBack() },
                                 modifier = Modifier.weight(1f).height(44.dp), shape = RoundedCornerShape(12.dp)) {
-                                Text("Go Back")
+                                Text(stringResource(R.string.go_back))
                             }
                             Button(onClick = { onReset(); doScan() },
                                 modifier = Modifier.weight(1f).height(44.dp), shape = RoundedCornerShape(12.dp)) {
-                                Text("Retry")
+                                Text(stringResource(R.string.retry))
                             }
                         }
                     }
@@ -243,13 +247,12 @@ fun SmsScanScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
                         Icon(Icons.Filled.Email, null, tint = BluePrimary, modifier = Modifier.size(80.dp))
                         Spacer(modifier = Modifier.height(24.dp))
-                        Text("Scan SMS Inbox", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.scan_sms_inbox), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("Search your SMS messages for banking and payment notifications. " +
-                                "Transactions are detected and categorized automatically.",
+                        Text(stringResource(R.string.sms_scan_description),
                             color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("All processing happens on-device.",
+                        Text(stringResource(R.string.all_processing_on_device),
                             color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                         Spacer(modifier = Modifier.height(32.dp))
                         Button(onClick = { doScan() },
@@ -257,7 +260,7 @@ fun SmsScanScreen(
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = BluePrimary)) {
                             Text(
-                                if (hasPermission) "Start Scanning" else "Grant Permission & Scan",
+                                if (hasPermission) stringResource(R.string.start_scanning) else stringResource(R.string.grant_permission_scan),
                                 fontWeight = FontWeight.SemiBold, fontSize = 16.sp
                             )
                         }

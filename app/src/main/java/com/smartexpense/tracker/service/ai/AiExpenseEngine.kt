@@ -412,8 +412,16 @@ class AiExpenseEngine {
      * Parse a banking SMS or notification text to extract transaction info.
      * Supports: US banks, Indian banks (INR/UPI), Armenian banks (AMD),
      * European banks (EUR/GBP), and generic international formats.
+     *
+     * [customIncomeKeywords] and [customExpenseKeywords] are user-defined keywords
+     * (from Settings) that override the built-in income/expense word lists.
+     * When non-empty, these are checked **first** before falling back to defaults.
      */
-    fun parseFinancialMessage(message: String): ParsedTransaction? {
+    fun parseFinancialMessage(
+        message: String,
+        customIncomeKeywords: List<String> = emptyList(),
+        customExpenseKeywords: List<String> = emptyList()
+    ): ParsedTransaction? {
         try {
             val lowerMsg = message.lowercase()
             val oneLine = message.replace(Regex("""\s*\n\s*"""), " ").trim()
@@ -525,7 +533,16 @@ class AiExpenseEngine {
                 "salary", "income", "reward"
             )
 
+            // Check user-defined custom keywords first (case-insensitive)
+            val customIncomeHit = customIncomeKeywords.any { lowerMsg.contains(it.lowercase()) }
+            val customExpenseHit = customExpenseKeywords.any { lowerMsg.contains(it.lowercase()) }
+
             val isExpense = when {
+                // Custom keywords take priority: if only income keywords matched, it's income
+                customIncomeHit && !customExpenseHit -> false
+                // If only expense keywords matched, it's expense
+                customExpenseHit && !customIncomeHit -> true
+                // If both or neither matched, fall back to built-in logic
                 incomeWords.any { lowerMsg.contains(it) } -> false
                 expenseWords.any { lowerMsg.contains(it) } -> true
                 lowerMsg.contains("approved") && !lowerMsg.contains("credit account") -> true

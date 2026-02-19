@@ -1,5 +1,6 @@
 package com.smartexpense.tracker
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -12,15 +13,22 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.smartexpense.tracker.ui.screens.*
 import com.smartexpense.tracker.ui.theme.SmartExpenseTheme
 import com.smartexpense.tracker.ui.viewmodel.MainViewModel
+import com.smartexpense.tracker.util.LocaleHelper
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleHelper.wrapContext(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -31,6 +39,12 @@ class MainActivity : ComponentActivity() {
                 MainApp(viewModel = viewModel)
             }
         }
+    }
+
+    /** Called from Compose when the user changes the language. */
+    fun applyLanguage(languageCode: String) {
+        LocaleHelper.setLanguage(this, languageCode)
+        recreate()
     }
 }
 
@@ -47,6 +61,16 @@ fun MainApp(viewModel: MainViewModel) {
 
     var currentScreen by remember { mutableStateOf("dashboard") }
 
+    // Resolve navigation labels from string resources
+    val navHome = stringResource(R.string.nav_home)
+    val navReports = stringResource(R.string.nav_reports)
+    val navAdd = stringResource(R.string.nav_add)
+    val navScan = stringResource(R.string.nav_scan)
+    val navSettings = stringResource(R.string.nav_settings)
+
+    // Get the activity reference for language changes
+    val activity = androidx.compose.ui.platform.LocalContext.current as? MainActivity
+
     Scaffold(
         bottomBar = {
             if (currentScreen != "add" && currentScreen != "scan" && currentScreen != "sms_scan") {
@@ -54,40 +78,38 @@ fun MainApp(viewModel: MainViewModel) {
                     NavigationBarItem(
                         selected = selectedTab == 0,
                         onClick = { viewModel.setSelectedTab(0); currentScreen = "dashboard" },
-                        icon = { Icon(if (selectedTab == 0) Icons.Filled.Home else Icons.Outlined.Home, "Home") },
-                        label = { Text("Home") }
+                        icon = { Icon(if (selectedTab == 0) Icons.Filled.Home else Icons.Outlined.Home, navHome) },
+                        label = { Text(navHome) }
                     )
                     NavigationBarItem(
                         selected = selectedTab == 1,
                         onClick = { viewModel.setSelectedTab(1); currentScreen = "reports" },
-                        icon = { Icon(if (selectedTab == 1) Icons.Filled.Receipt else Icons.Outlined.Receipt, "Reports") },
-                        label = { Text("Reports") }
+                        icon = { Icon(if (selectedTab == 1) Icons.Filled.Receipt else Icons.Outlined.Receipt, navReports) },
+                        label = { Text(navReports) }
                     )
                     NavigationBarItem(
                         selected = false,
                         onClick = { currentScreen = "add" },
-                        icon = { Icon(Icons.Filled.AddCircle, "Add", modifier = Modifier.size(32.dp)) },
-                        label = { Text("Add", fontWeight = FontWeight.Bold) }
+                        icon = { Icon(Icons.Filled.AddCircle, navAdd, modifier = Modifier.size(32.dp)) },
+                        label = { Text(navAdd, fontWeight = FontWeight.Bold) }
                     )
                     NavigationBarItem(
                         selected = selectedTab == 2,
                         onClick = { viewModel.setSelectedTab(2); currentScreen = "scan" },
-                        icon = { Icon(if (selectedTab == 2) Icons.Filled.CameraAlt else Icons.Outlined.CameraAlt, "Scan") },
-                        label = { Text("Scan") }
+                        icon = { Icon(if (selectedTab == 2) Icons.Filled.CameraAlt else Icons.Outlined.CameraAlt, navScan) },
+                        label = { Text(navScan) }
                     )
                     NavigationBarItem(
                         selected = selectedTab == 3,
                         onClick = { viewModel.setSelectedTab(3); currentScreen = "settings" },
-                        icon = { Icon(if (selectedTab == 3) Icons.Filled.Settings else Icons.Outlined.Settings, "Settings") },
-                        label = { Text("Settings") }
+                        icon = { Icon(if (selectedTab == 3) Icons.Filled.Settings else Icons.Outlined.Settings, navSettings) },
+                        label = { Text(navSettings) }
                     )
                 }
             }
         }
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            // Crossfade avoids lifecycle issues that AnimatedContent causes
-            // with rememberLauncherForActivityResult inside child screens
             Crossfade(targetState = currentScreen, label = "screen") { screen ->
                 when (screen) {
                     "dashboard" -> DashboardScreen(
@@ -135,7 +157,10 @@ fun MainApp(viewModel: MainViewModel) {
                         onClearMessage = { viewModel.clearImportExportMessage() },
                         onScanSms = { currentScreen = "sms_scan" },
                         exchangeRates = exchangeRates,
-                        onFetchRates = { viewModel.fetchExchangeRates() }
+                        onFetchRates = { viewModel.fetchExchangeRates() },
+                        onLanguageChanged = { langCode ->
+                            activity?.applyLanguage(langCode)
+                        }
                     )
                 }
             }

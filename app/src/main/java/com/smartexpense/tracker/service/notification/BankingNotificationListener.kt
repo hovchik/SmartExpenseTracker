@@ -5,6 +5,7 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import com.smartexpense.tracker.SmartExpenseApp
+import com.smartexpense.tracker.data.model.AppSettings
 import com.smartexpense.tracker.data.model.Transaction
 import com.smartexpense.tracker.data.model.TransactionSource
 import com.smartexpense.tracker.data.model.TransactionType
@@ -16,6 +17,12 @@ import kotlinx.coroutines.launch
 /**
  * Listens to banking app notifications to automatically log transactions.
  * User must grant Notification Access permission in Android Settings.
+ *
+ * Supports Armenian banking notifications: keywords like
+ * "\u0574\u0578\u0582\u057F\u0584" (income), "\u056C\u056B\u0581\u0584\u0561\u057E\u0578\u0580\u0578\u0582\u0574" (top-up),
+ * "\u0570\u0561\u0574\u0561\u056C\u0580\u0578\u0582\u0574" (replenishment) indicate income,
+ * while "\u0565\u056C\u0584" (exit) indicates an expense.
+ * Users can customise these keywords in Settings.
  */
 class BankingNotificationListener : NotificationListenerService() {
 
@@ -59,10 +66,21 @@ class BankingNotificationListener : NotificationListenerService() {
     private val financialKeywords = listOf(
         "debited", "credited", "spent", "received", "paid", "charged",
         "transaction", "payment", "transfer", "withdrawn", "deposit",
-        "$", "₹", "rs.", "inr", "usd", "amt",
+        "$", "\u20B9", "rs.", "inr", "usd", "amt",
         // International
         "approved", "authcode", "amd", "eur", "gbp",
-        "purchase", "atm cash", "mail order", "credit account", "balance:"
+        "purchase", "atm cash", "mail order", "credit account", "balance:",
+        // Armenian
+        "\u0574\u0578\u0582\u057F\u0584",           // income/deposit
+        "\u0565\u056C\u0584",                         // expense/withdrawal
+        "\u056C\u056B\u0581\u0584\u0561\u057E\u0578\u0580\u0578\u0582\u0574", // top-up
+        "\u0570\u0561\u0574\u0561\u056C\u0580\u0578\u0582\u0574", // replenishment
+        "\u058F", "\u0564\u0580\u0561\u0574",         // ֏ symbol and "dram"
+        // Russian
+        "\u0437\u0430\u0447\u0438\u0441\u043B\u0435\u043D\u0438\u0435", // crediting
+        "\u0441\u043F\u0438\u0441\u0430\u043D\u0438\u0435", // debiting
+        "\u043F\u0435\u0440\u0435\u0432\u043E\u0434", // transfer
+        "\u20BD" // ₽ symbol
     )
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
@@ -80,12 +98,22 @@ class BankingNotificationListener : NotificationListenerService() {
             val fullText = "$title $text $bigText".trim()
             if (fullText.length < 5) return
 
+            // Load user-customisable keywords from settings
+            val settings = loadSettings()
+            val allFinancialKeywords = financialKeywords +
+                settings.notificationIncomeKeywords +
+                settings.notificationExpenseKeywords
+
             // Quick check: does it look financial?
             val lowerText = fullText.lowercase()
-            if (financialKeywords.none { lowerText.contains(it) }) return
+            if (allFinancialKeywords.none { lowerText.contains(it.lowercase()) }) return
 
             val aiEngine = AiExpenseEngine()
-            val parsed = aiEngine.parseFinancialMessage(fullText) ?: return
+            val parsed = aiEngine.parseFinancialMessage(
+                fullText,
+                customIncomeKeywords = settings.notificationIncomeKeywords,
+                customExpenseKeywords = settings.notificationExpenseKeywords
+            ) ?: return
 
             Log.d(TAG, "Financial notification from $packageName: \$${parsed.amount}")
 
@@ -131,6 +159,16 @@ class BankingNotificationListener : NotificationListenerService() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error processing notification", e)
+        }
+    }
+
+    /** Read settings from the shared app repository, or fall back to defaults. */
+    private fun loadSettings(): AppSettings {
+        return try {
+            val app = applicationContext as? SmartExpenseApp
+            app?.repository?.appData?.value?.settings ?: AppSettings()
+        } catch (_: Throwable) {
+            AppSettings()
         }
     }
 

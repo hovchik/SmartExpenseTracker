@@ -13,10 +13,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.smartexpense.tracker.R
 import com.smartexpense.tracker.data.model.Category
 import com.smartexpense.tracker.data.model.TransactionSource
 import com.smartexpense.tracker.data.model.TransactionType
@@ -51,10 +53,10 @@ fun AddTransactionScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onNavigateBack) {
-                Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
             }
             Text(
-                "Add Transaction",
+                stringResource(R.string.add_transaction),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
@@ -71,7 +73,7 @@ fun AddTransactionScreen(
             FilterChip(
                 selected = isExpense,
                 onClick = { isExpense = true },
-                label = { Text("Expense") },
+                label = { Text(stringResource(R.string.expense)) },
                 leadingIcon = {
                     Icon(Icons.Filled.ArrowUpward, contentDescription = null, modifier = Modifier.size(18.dp))
                 },
@@ -84,7 +86,7 @@ fun AddTransactionScreen(
             FilterChip(
                 selected = !isExpense,
                 onClick = { isExpense = false },
-                label = { Text("Income") },
+                label = { Text(stringResource(R.string.income)) },
                 leadingIcon = {
                     Icon(Icons.Filled.ArrowDownward, contentDescription = null, modifier = Modifier.size(18.dp))
                 },
@@ -107,7 +109,7 @@ fun AddTransactionScreen(
                     showError = false
                 }
             },
-            label = { Text("Amount") },
+            label = { Text(stringResource(R.string.amount)) },
             leadingIcon = { Text("$", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.fillMaxWidth(),
@@ -122,7 +124,7 @@ fun AddTransactionScreen(
         OutlinedTextField(
             value = description,
             onValueChange = { description = it; showError = false },
-            label = { Text("Description") },
+            label = { Text(stringResource(R.string.description)) },
             leadingIcon = { Icon(Icons.Filled.Description, contentDescription = null) },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
@@ -136,7 +138,7 @@ fun AddTransactionScreen(
         OutlinedTextField(
             value = merchantName,
             onValueChange = { merchantName = it },
-            label = { Text("Merchant (optional)") },
+            label = { Text(stringResource(R.string.merchant_optional)) },
             leadingIcon = { Icon(Icons.Filled.Store, contentDescription = null) },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
@@ -147,7 +149,7 @@ fun AddTransactionScreen(
 
         // Category Selection
         Text(
-            "Category",
+            stringResource(R.string.category),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold
         )
@@ -174,7 +176,7 @@ fun AddTransactionScreen(
         OutlinedTextField(
             value = notes,
             onValueChange = { notes = it },
-            label = { Text("Notes (optional)") },
+            label = { Text(stringResource(R.string.notes_optional)) },
             leadingIcon = { Icon(Icons.Filled.Notes, contentDescription = null) },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
@@ -192,7 +194,7 @@ fun AddTransactionScreen(
         ) {
             Icon(Icons.Filled.CameraAlt, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Scan Receipt Instead")
+            Text(stringResource(R.string.scan_receipt_instead))
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -226,7 +228,7 @@ fun AddTransactionScreen(
             Icon(Icons.Filled.Add, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                if (isExpense) "Add Expense" else "Add Income",
+                if (isExpense) stringResource(R.string.add_expense) else stringResource(R.string.add_income),
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp
             )
@@ -235,7 +237,7 @@ fun AddTransactionScreen(
         if (showError) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                "Please enter a valid amount and description",
+                stringResource(R.string.error_valid_amount_description),
                 color = MaterialTheme.colorScheme.error,
                 fontSize = 12.sp
             )
