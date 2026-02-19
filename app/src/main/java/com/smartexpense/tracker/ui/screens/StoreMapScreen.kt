@@ -1,9 +1,10 @@
 package com.smartexpense.tracker.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.background
+import android.graphics.Canvas
+import android.graphics.Color as AndroidColor
+import android.graphics.Paint
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.Bitmap
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,29 +15,34 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.model.CameraPosition
-import com.google.android.gms.maps.model.LatLng
-import com.google.maps.android.compose.*
+import androidx.compose.ui.viewinterop.AndroidView
 import com.smartexpense.tracker.data.model.StoreLocation
 import com.smartexpense.tracker.data.model.Transaction
 import com.smartexpense.tracker.data.model.TransactionType
 import com.smartexpense.tracker.ui.theme.GreenIncome
 import com.smartexpense.tracker.ui.theme.RedExpense
 import com.smartexpense.tracker.util.CurrencyUtils
-import kotlinx.coroutines.launch
+import org.osmdroid.config.Configuration
+import org.osmdroid.events.MapEventsReceiver
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.MapEventsOverlay
+import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.infowindow.InfoWindow
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 /**
- * Screen that displays store locations on a Google Map.
+ * Screen that displays store locations on an OpenStreetMap (osmdroid).
  * Each marker represents a store (merchant) where the user has transactions.
- * Tapping a marker shows a hint window with the store's transaction summary.
+ * Tapping a marker shows a bubble with the store's transaction summary.
  * Long-pressing the map lets the user add a new store location.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,19 +55,20 @@ fun StoreMapScreen(
     onDeleteStoreLocation: (String) -> Unit,
     onNavigateBack: () -> Unit
 ) {
-    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
-    // Default camera position (centered on a reasonable default; adjusts to markers if available)
-    val defaultPosition = if (storeLocations.isNotEmpty()) {
-        val avgLat = storeLocations.map { it.latitude }.average()
-        val avgLng = storeLocations.map { it.longitude }.average()
-        LatLng(avgLat, avgLng)
-    } else {
-        LatLng(40.1872, 44.5152) // Default: Yerevan, Armenia (matching AMD currency default)
+    // Initialise osmdroid configuration once
+    LaunchedEffect(Unit) {
+        Configuration.getInstance().userAgentValue = context.packageName
     }
 
-    val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(defaultPosition, 12f)
+    // Default map centre – adjusts to markers if available
+    val defaultCenter = if (storeLocations.isNotEmpty()) {
+        val avgLat = storeLocations.map { it.latitude }.average()
+        val avgLng = storeLocations.map { it.longitude }.average()
+        GeoPoint(avgLat, avgLng)
+    } else {
+        GeoPoint(40.1872, 44.5152) // Default: Yerevan, Armenia
     }
 
     // Group transactions by merchant name (case-insensitive) for quick lookup
@@ -73,7 +80,8 @@ fun StoreMapScreen(
 
     // State for the "add store" dialog
     var showAddDialog by remember { mutableStateOf(false) }
-    var pendingLatLng by remember { mutableStateOf<LatLng?>(null) }
+    var pendingLat by remember { mutableDoubleStateOf(0.0) }
+    var pendingLng by remember { mutableDoubleStateOf(0.0) }
 
     // State for selected store detail panel
     var selectedStoreId by remember { mutableStateOf<String?>(null) }
@@ -89,6 +97,58 @@ fun StoreMapScreen(
             .filter { it !in existingMerchantNames }
             .map { key -> transactionsByMerchant[key]?.firstOrNull()?.merchantName ?: key }
             .sorted()
+    }
+
+    // Hold a reference to the MapView so we can update markers reactively
+    var mapViewRef by remember { mutableStateOf<MapView?>(null) }
+
+    // Update markers whenever storeLocations or transactions change
+    LaunchedEffect(storeLocations, transactionsByMerchant, mapViewRef) {
+        val mapView = mapViewRef ?: return@LaunchedEffect
+        // Close any open info windows and remove old markers (keep the MapEventsOverlay at index 0)
+        InfoWindow.closeAllInfoWindowsOn(mapView)
+        mapView.overlays.removeAll { it is Marker }
+
+        storeLocations.forEach { store ->
+            val merchantTx = transactionsByMerchant[store.merchantName.lowercase()] ?: emptyList()
+            val totalSpent = merchantTx
+                .filter { it.type == TransactionType.EXPENSE }
+                .sumOf { it.amount }
+            val txCount = merchantTx.size
+
+            val marker = Marker(mapView).apply {
+                position = GeoPoint(store.latitude, store.longitude)
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                title = store.merchantName
+                snippet = buildString {
+                    if (store.address.isNotBlank()) appendLine(store.address)
+                    if (txCount > 0) {
+                        appendLine("$txCount transaction${if (txCount != 1) "s" else ""}")
+                        append("Total: ${CurrencyUtils.format(totalSpent, currencyCode)}")
+                    } else {
+                        append("No transactions yet")
+                    }
+                }
+                subDescription = "Tap for details"
+
+                // Create a simple coloured pin icon
+                icon = createPinDrawable(mapView, if (txCount > 0) 0xFFE91E63.toInt() else 0xFF9E9E9E.toInt())
+
+                setOnMarkerClickListener { m, _ ->
+                    if (m.isInfoWindowShown) {
+                        // Second tap on an open info window → show detail panel
+                        selectedStoreId = store.id
+                        m.closeInfoWindow()
+                    } else {
+                        InfoWindow.closeAllInfoWindowsOn(mapView)
+                        m.showInfoWindow()
+                    }
+                    true
+                }
+            }
+            mapView.overlays.add(marker)
+        }
+        mapView.invalidate()
     }
 
     Scaffold(
@@ -108,48 +168,38 @@ fun StoreMapScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Google Map
-            GoogleMap(
+            // ── osmdroid MapView ─────────────────────────────────────
+            AndroidView(
                 modifier = Modifier.fillMaxSize(),
-                cameraPositionState = cameraPositionState,
-                properties = MapProperties(mapType = MapType.NORMAL),
-                uiSettings = MapUiSettings(
-                    zoomControlsEnabled = true,
-                    myLocationButtonEnabled = false
-                ),
-                onMapLongClick = { latLng ->
-                    pendingLatLng = latLng
-                    showAddDialog = true
-                }
-            ) {
-                // Place markers for each store location
-                storeLocations.forEach { store ->
-                    val position = LatLng(store.latitude, store.longitude)
-                    val merchantTransactions = transactionsByMerchant[store.merchantName.lowercase()]
-                        ?: emptyList()
-                    val totalSpent = merchantTransactions
-                        .filter { it.type == TransactionType.EXPENSE }
-                        .sumOf { it.amount }
-                    val txCount = merchantTransactions.size
+                factory = { ctx ->
+                    MapView(ctx).apply {
+                        setTileSource(TileSourceFactory.MAPNIK)
+                        setMultiTouchControls(true)
+                        controller.setZoom(13.0)
+                        controller.setCenter(defaultCenter)
 
-                    MarkerInfoWindowContent(
-                        state = MarkerState(position = position),
-                        title = store.merchantName,
-                        onInfoWindowClick = {
-                            selectedStoreId = store.id
-                        }
-                    ) { marker ->
-                        // Custom info window content (hint window)
-                        StoreInfoWindowContent(
-                            storeName = store.merchantName,
-                            address = store.address,
-                            transactionCount = txCount,
-                            totalSpent = totalSpent,
-                            currencyCode = currencyCode
-                        )
+                        // Long-press to add a new store
+                        val eventsOverlay = MapEventsOverlay(object : MapEventsReceiver {
+                            override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean = false
+                            override fun longPressHelper(p: GeoPoint?): Boolean {
+                                p?.let {
+                                    pendingLat = it.latitude
+                                    pendingLng = it.longitude
+                                    showAddDialog = true
+                                }
+                                return true
+                            }
+                        })
+                        overlays.add(0, eventsOverlay)
+
+                        mapViewRef = this
                     }
+                },
+                update = { mapView ->
+                    // Keep reference up-to-date (for recompositions)
+                    mapViewRef = mapView
                 }
-            }
+            )
 
             // Hint text when no stores exist
             if (storeLocations.isEmpty()) {
@@ -181,11 +231,12 @@ fun StoreMapScreen(
                 }
             }
 
-            // FAB to add store
+            // FAB to add store at current map centre
             FloatingActionButton(
                 onClick = {
-                    // Use map center as the default location
-                    pendingLatLng = cameraPositionState.position.target
+                    val center = mapViewRef?.mapCenter
+                    pendingLat = center?.latitude ?: defaultCenter.latitude
+                    pendingLng = center?.longitude ?: defaultCenter.longitude
                     showAddDialog = true
                 },
                 modifier = Modifier
@@ -196,7 +247,7 @@ fun StoreMapScreen(
                 Icon(Icons.Filled.AddLocation, contentDescription = "Add store location")
             }
 
-            // Bottom sheet for selected store details
+            // Bottom panel for selected store details
             selectedStore?.let { store ->
                 val merchantTx = transactionsByMerchant[store.merchantName.lowercase()] ?: emptyList()
                 StoreDetailPanel(
@@ -215,91 +266,50 @@ fun StoreMapScreen(
     }
 
     // Add store dialog
-    if (showAddDialog && pendingLatLng != null) {
+    if (showAddDialog) {
         AddStoreDialog(
-            latLng = pendingLatLng!!,
+            latitude = pendingLat,
+            longitude = pendingLng,
             availableMerchants = availableMerchants,
             onConfirm = { merchantName, address ->
-                onAddStoreLocation(merchantName, pendingLatLng!!.latitude, pendingLatLng!!.longitude, address)
+                onAddStoreLocation(merchantName, pendingLat, pendingLng, address)
                 showAddDialog = false
-                pendingLatLng = null
             },
-            onDismiss = {
-                showAddDialog = false
-                pendingLatLng = null
-            }
+            onDismiss = { showAddDialog = false }
         )
     }
 }
 
-/**
- * Custom content for the map marker info window (the "hint" popup).
- */
-@Composable
-private fun StoreInfoWindowContent(
-    storeName: String,
-    address: String,
-    transactionCount: Int,
-    totalSpent: Double,
-    currencyCode: String
-) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 4.dp
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            horizontalAlignment = Alignment.Start
-        ) {
-            Text(
-                storeName,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            if (address.isNotBlank()) {
-                Text(
-                    address,
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(4.dp))
-            if (transactionCount > 0) {
-                Text(
-                    "$transactionCount transaction${if (transactionCount != 1) "s" else ""}",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    "Total: ${CurrencyUtils.format(totalSpent, currencyCode)}",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = RedExpense
-                )
-            } else {
-                Text(
-                    "No transactions yet",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                "Tap for details",
-                fontSize = 10.sp,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-    }
+// ─── Helper: simple coloured pin bitmap ──────────────────────────────
+
+private fun createPinDrawable(mapView: MapView, color: Int): BitmapDrawable {
+    val size = 48
+    val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    // Pin body (filled circle)
+    paint.color = color
+    paint.style = Paint.Style.FILL
+    canvas.drawCircle(size / 2f, size / 2f - 6f, size / 3f, paint)
+
+    // Pin border
+    paint.color = AndroidColor.WHITE
+    paint.style = Paint.Style.STROKE
+    paint.strokeWidth = 3f
+    canvas.drawCircle(size / 2f, size / 2f - 6f, size / 3f, paint)
+
+    // Pin bottom triangle (simple line)
+    paint.color = color
+    paint.style = Paint.Style.FILL
+    paint.strokeWidth = 4f
+    canvas.drawLine(size / 2f, size / 2f + 10f, size / 2f, size.toFloat() - 2f, paint)
+
+    return BitmapDrawable(mapView.resources, bmp)
 }
 
-/**
- * Bottom panel showing detailed transactions for a selected store.
- */
+// ─── Bottom panel: transaction details for a store ───────────────────
+
 @Composable
 private fun StoreDetailPanel(
     store: StoreLocation,
@@ -310,10 +320,12 @@ private fun StoreDetailPanel(
     modifier: Modifier = Modifier
 ) {
     val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.US) }
-    val expenses = transactions.filter { it.type == TransactionType.EXPENSE }
-    val income = transactions.filter { it.type == TransactionType.INCOME }
-    val totalExpenses = expenses.sumOf { it.amount }
-    val totalIncome = income.sumOf { it.amount }
+    val totalExpenses = transactions
+        .filter { it.type == TransactionType.EXPENSE }
+        .sumOf { it.amount }
+    val totalIncome = transactions
+        .filter { it.type == TransactionType.INCOME }
+        .sumOf { it.amount }
 
     Surface(
         modifier = modifier
@@ -454,15 +466,13 @@ private fun StoreDetailPanel(
     }
 }
 
-/**
- * Dialog for adding a new store location.
- * Allows the user to pick a merchant name (from existing transaction merchants
- * or type a custom name) and optionally enter an address.
- */
+// ─── Add-store dialog ────────────────────────────────────────────────
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddStoreDialog(
-    latLng: LatLng,
+    latitude: Double,
+    longitude: Double,
     availableMerchants: List<String>,
     onConfirm: (merchantName: String, address: String) -> Unit,
     onDismiss: () -> Unit
@@ -477,7 +487,7 @@ private fun AddStoreDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "Location: ${String.format("%.4f", latLng.latitude)}, ${String.format("%.4f", latLng.longitude)}",
+                    "Location: ${String.format("%.4f", latitude)}, ${String.format("%.4f", longitude)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -505,7 +515,6 @@ private fun AddStoreDialog(
                         }
                     )
 
-                    // Dropdown with merchant suggestions from transactions
                     val filteredMerchants = if (merchantName.isBlank()) {
                         availableMerchants
                     } else {

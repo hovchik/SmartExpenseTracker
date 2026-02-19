@@ -30,11 +30,6 @@
         android:theme="@style/Theme.SmartExpenseTracker"
         tools:targetApi="34">
 
-        <!-- Google Maps API key – replace with your key from https://console.cloud.google.com -->
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="" />
-
         <activity
             android:name=".MainActivity"
             android:exported="true"
