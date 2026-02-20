@@ -1,4 +1,4 @@
-# Smart Expense Tracker
+# FlowSense
 
 AI-powered Android expense tracking app built with **Kotlin**, **Jetpack Compose**, and **Material 3**.
 
@@ -42,7 +42,7 @@ AI-powered Android expense tracking app built with **Kotlin**, **Jetpack Compose
 ## Architecture
 
 ```
-SmartExpenseTracker/
+FlowSense/
 ├── app/src/main/java/com/smartexpense/tracker/
 │   ├── data/
 │   │   ├── model/          # Data classes: Transaction, Category, Budget, Report, etc.
@@ -97,7 +97,7 @@ SmartExpenseTracker/
 3. **Run** on device/emulator (API 26+)
 
 For notification listener:
-> Settings → Apps → Special app access → Notification access → Enable Smart Expense Tracker
+> Settings → Apps → Special app access → Notification access → Enable FlowSense
 
 For SMS parsing:
 > Grant SMS permissions when prompted at runtime

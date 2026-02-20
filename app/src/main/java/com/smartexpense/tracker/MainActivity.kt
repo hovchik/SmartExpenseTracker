@@ -92,11 +92,11 @@ fun MainApp(viewModel: MainViewModel) {
                     title = {
                         Text(
                             when (currentScreen) {
-                                "dashboard"    -> "Smart Expense"
+                                "dashboard"    -> "FlowSense"
                                 "reports"      -> "Reports"
                                 "transactions" -> "Transactions"
                                 "settings"     -> "Settings"
-                                else           -> "Smart Expense"
+                                else           -> "FlowSense"
                             },
                             fontWeight = FontWeight.Bold
                         )

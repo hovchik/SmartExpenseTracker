@@ -909,7 +909,7 @@ fun ReportsScreen(
                                 selectedYear, selectedMonth, monthYearFormatter, periodLabel)
                             val intent = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
-                                putExtra(Intent.EXTRA_SUBJECT, "Smart Expense Report")
+                                putExtra(Intent.EXTRA_SUBJECT, "FlowSense Report")
                                 putExtra(Intent.EXTRA_TEXT, text)
                             }
                             context.startActivity(Intent.createChooser(intent, "Share Report"))
@@ -1123,7 +1123,7 @@ private fun buildShareText(
     }
 
     val sb = StringBuilder()
-    sb.appendLine("📊 Smart Expense Report — $periodLabel")
+    sb.appendLine("📊 FlowSense Report — $periodLabel")
     sb.appendLine("─".repeat(34))
     sb.appendLine("💸 Expenses : ${CurrencyUtils.format(report.totalExpenses, currencyCode)}")
     sb.appendLine("💰 Income   : ${CurrencyUtils.format(report.totalIncome, currencyCode)}")
@@ -1174,7 +1174,7 @@ private fun buildShareText(
     }
 
     sb.appendLine()
-    sb.append("Shared from Smart Expense Tracker")
+    sb.append("Shared from FlowSense")
     return sb.toString()
 }
 
@@ -1549,7 +1549,7 @@ private fun buildEnhancedReportLines(
     includeTransactions: Boolean = false
 ): List<ReportLine> {
     val lines = mutableListOf<ReportLine>()
-    lines += ReportLine("Smart Expense Report", isBold = true)
+    lines += ReportLine("FlowSense Report", isBold = true)
     lines += ReportLine(periodLabel)
     lines += ReportLine("")
     lines += ReportLine("Expenses:   ${CurrencyUtils.format(report.totalExpenses, currencyCode)}")
@@ -1644,7 +1644,7 @@ private fun buildEnhancedReportLines(
     }
 
     lines += ReportLine("")
-    lines += ReportLine("Shared from Smart Expense Tracker")
+    lines += ReportLine("Shared from FlowSense")
     return lines
 }
 

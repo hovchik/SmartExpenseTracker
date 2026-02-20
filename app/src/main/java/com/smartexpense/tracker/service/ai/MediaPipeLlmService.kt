@@ -163,7 +163,7 @@ class MediaPipeLlmService(private val context: Context) {
             val connection = URL(model.downloadUrl).openConnection() as HttpURLConnection
             connection.connectTimeout = 30_000
             connection.readTimeout = 60_000
-            connection.setRequestProperty("User-Agent", "SmartExpenseTracker/1.0")
+            connection.setRequestProperty("User-Agent", "FlowSense/1.0")
             // HuggingFace gated models require Bearer token
             if (hfToken.isNotBlank()) {
                 connection.setRequestProperty("Authorization", "Bearer $hfToken")

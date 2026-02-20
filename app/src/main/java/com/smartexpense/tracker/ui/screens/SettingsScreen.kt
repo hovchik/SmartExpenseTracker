@@ -2122,7 +2122,7 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Text("Smart Expense Tracker", fontWeight = FontWeight.SemiBold)
+                        Text("FlowSense", fontWeight = FontWeight.SemiBold)
                         Text(
                             "Version 1.0 · AI-Powered Finance Manager",
                             style = MaterialTheme.typography.bodySmall,
@@ -2140,7 +2140,7 @@ fun SettingsScreen(
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    "Smart Expense Tracker automatically detects transactions from banking " +
+                    "FlowSense automatically detects transactions from banking " +
                             "SMS messages and app notifications, scans paper receipts with your camera, " +
                             "and categorizes everything using on-device AI powered by Gemini Nano. " +
                             "It generates detailed reports with spending trends, savings insights, " +

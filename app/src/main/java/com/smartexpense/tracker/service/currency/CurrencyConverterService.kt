@@ -141,7 +141,7 @@ object CurrencyConverterService {
                 requestMethod = "GET"
                 connectTimeout = 10_000
                 readTimeout = 15_000
-                setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) SmartExpenseTracker")
+                setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) FlowSense")
                 setRequestProperty("Accept", "text/html,application/xhtml+xml")
                 setRequestProperty("Accept-Language", "en-US,en;q=0.9")
             }

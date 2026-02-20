@@ -11,7 +11,7 @@ import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 /**
- * On-device AI service for Smart Expense Tracker.
+ * On-device AI service for FlowSense.
  *
  * Detects and uses the best available local AI backend on the device:
  *  1. MediaPipe LLM     – user-selected Gemma model via MediaPipe Inference API
