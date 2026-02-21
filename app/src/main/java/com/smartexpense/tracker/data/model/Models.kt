@@ -196,7 +196,7 @@ data class AppData(
     val suggestions: List<AiSuggestion> = emptyList(),
     val inAppNotifications: List<InAppNotification> = emptyList(),
     val storeLocations: List<StoreLocation> = emptyList(),
-    /** Archived exchange rate snapshots, newest first. Capped at 500 entries. */
+    /** Exchange rates: current (index 0) and previous (index 1). Max 2 entries. */
     val rateHistory: List<RateHistoryEntry> = emptyList(),
     val settings: AppSettings = AppSettings(),
     val lastUpdated: Long = System.currentTimeMillis()
@@ -251,7 +251,8 @@ enum class RateUpdateFrequency(val minutes: Int, val label: String) {
 
 /**
  * A snapshot of exchange rates at a specific point in time.
- * Stored in [AppData.rateHistory] for historical reference.
+ * [AppData.rateHistory] keeps at most 2 entries: current (index 0)
+ * and previous (index 1).
  */
 data class RateHistoryEntry(
     /** Timestamp when rates were fetched. */

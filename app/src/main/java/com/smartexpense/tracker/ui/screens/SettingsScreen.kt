@@ -1,7 +1,11 @@
 package com.smartexpense.tracker.ui.screens
 
+import android.Manifest
+import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -30,11 +34,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.smartexpense.tracker.data.model.AppSettings
 import com.smartexpense.tracker.data.model.AiEnginePreference
 import java.io.File
@@ -144,6 +150,7 @@ fun SettingsScreen(
     var localAiExpanded by remember { mutableStateOf(false) }
     var importExportExpanded by remember { mutableStateOf(false) }
     var storageExpanded by remember { mutableStateOf(false) }
+    var permissionsExpanded by remember { mutableStateOf(false) }
 
     // Currency selector state
     var showCurrencyDropdown by remember { mutableStateOf(false) }
@@ -2145,6 +2152,19 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // ─── Permissions Section ─────────────────────────────────────
+        CollapsibleSectionHeader("PERMISSIONS", permissionsExpanded) { permissionsExpanded = !permissionsExpanded }
+
+        AnimatedVisibility(
+            visible = permissionsExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            PermissionsSectionContent(context)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
         // ─── About Section ─────────────────────────────────────────
         Text(
             "ABOUT",
@@ -2408,6 +2428,235 @@ private fun SettingsClickItem(
             Icon(
                 Icons.Filled.ChevronRight, contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+// ─── Permissions Section ─────────────────────────────────────────────
+
+/**
+ * Data class representing a permission to display in the Permissions section.
+ */
+private data class AppPermission(
+    val permission: String,
+    val label: String,
+    val description: String,
+    val icon: ImageVector,
+    /** True for permissions that can't be checked via ContextCompat (e.g. Notification Listener). */
+    val isSpecial: Boolean = false
+)
+
+/**
+ * All the permissions the app needs, shown in the Settings > Permissions section.
+ */
+private val appPermissions = listOf(
+    AppPermission(
+        Manifest.permission.CAMERA,
+        "Camera",
+        "Required for scanning receipts via OCR",
+        Icons.Filled.CameraAlt
+    ),
+    AppPermission(
+        Manifest.permission.READ_SMS,
+        "Read SMS",
+        "Detect transactions from banking SMS messages",
+        Icons.Filled.Sms
+    ),
+    AppPermission(
+        Manifest.permission.RECEIVE_SMS,
+        "Receive SMS",
+        "Real-time capture of incoming banking SMS",
+        Icons.Filled.Message
+    ),
+    AppPermission(
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        "Fine Location",
+        "Geo-tag transactions and pin stores on map",
+        Icons.Filled.MyLocation
+    ),
+    AppPermission(
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+        "Coarse Location",
+        "Approximate location for store mapping",
+        Icons.Filled.LocationOn
+    ),
+    AppPermission(
+        "android.permission.POST_NOTIFICATIONS",
+        "Notifications",
+        "Budget alerts and transaction confirmations",
+        Icons.Filled.Notifications
+    ),
+    AppPermission(
+        "notification_listener",
+        "Notification Listener",
+        "Monitor banking app notifications for auto-capture",
+        Icons.Filled.NotificationsActive,
+        isSpecial = true
+    )
+)
+
+/**
+ * Checks whether the Notification Listener service is enabled for this app.
+ */
+private fun isNotificationListenerEnabled(context: android.content.Context): Boolean {
+    val cn = ComponentName(context, "com.smartexpense.tracker.service.notification.BankingNotificationListener")
+    val enabledListeners = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
+    return enabledListeners?.contains(cn.flattenToString()) == true
+}
+
+@Composable
+private fun PermissionsSectionContent(context: android.content.Context) {
+    // Permission launcher for runtime requests
+    var permissionToRequest by remember { mutableStateOf<String?>(null) }
+    var showDeniedAlert by remember { mutableStateOf(false) }
+    var deniedPermissionLabel by remember { mutableStateOf("") }
+
+    // Force recomposition when returning from settings
+    var refreshKey by remember { mutableIntStateOf(0) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        refreshKey++
+        if (!granted) {
+            deniedPermissionLabel = appPermissions
+                .find { it.permission == permissionToRequest }?.label ?: "Permission"
+            showDeniedAlert = true
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(vertical = 4.dp)) {
+            // Use refreshKey to force recheck of permission states
+            key(refreshKey) {
+                appPermissions.forEachIndexed { index, perm ->
+                    val isGranted = if (perm.isSpecial) {
+                        isNotificationListenerEnabled(context)
+                    } else {
+                        ContextCompat.checkSelfPermission(
+                            context, perm.permission
+                        ) == PackageManager.PERMISSION_GRANTED
+                    }
+
+                    PermissionRow(
+                        icon = perm.icon,
+                        label = perm.label,
+                        description = perm.description,
+                        isGranted = isGranted,
+                        onClick = {
+                            if (!isGranted) {
+                                if (perm.isSpecial) {
+                                    // Open notification listener settings
+                                    context.startActivity(
+                                        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                                    )
+                                } else {
+                                    permissionToRequest = perm.permission
+                                    permissionLauncher.launch(perm.permission)
+                                }
+                            }
+                        }
+                    )
+
+                    if (index < appPermissions.lastIndex) {
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    }
+                }
+            }
+        }
+    }
+
+    // Alert dialog when permission is denied
+    if (showDeniedAlert) {
+        AlertDialog(
+            onDismissRequest = { showDeniedAlert = false },
+            icon = {
+                Icon(Icons.Filled.Warning, contentDescription = null, tint = RedExpense)
+            },
+            title = { Text("Permission Denied") },
+            text = {
+                Text(
+                    "\"$deniedPermissionLabel\" permission was denied. " +
+                        "Some features may not work correctly without it. " +
+                        "You can grant it from the app settings."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeniedAlert = false
+                    // Open app settings so user can grant manually
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", context.packageName, null)
+                    }
+                    context.startActivity(intent)
+                }) {
+                    Text("Open Settings")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeniedAlert = false }) {
+                    Text("Dismiss")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun PermissionRow(
+    icon: ImageVector,
+    label: String,
+    description: String,
+    isGranted: Boolean,
+    onClick: () -> Unit
+) {
+    val bgColor by animateColorAsState(
+        targetValue = if (isGranted) GreenPrimary.copy(alpha = 0.08f) else RedExpense.copy(alpha = 0.08f),
+        label = "permission_bg"
+    )
+    val statusColor = if (isGranted) GreenPrimary else RedExpense
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !isGranted) { onClick() }
+            .background(bgColor)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(statusColor.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = statusColor, modifier = Modifier.size(20.dp))
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+            Text(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = statusColor.copy(alpha = 0.12f)
+        ) {
+            Text(
+                if (isGranted) "Granted" else "Denied",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = statusColor,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
             )
         }
     }

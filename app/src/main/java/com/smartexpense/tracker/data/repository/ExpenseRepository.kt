@@ -302,12 +302,12 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
     // ─── Rate History ─────────────────────────────────────────────
 
     /**
-     * Archives a rate snapshot. Keeps newest-first, capped at 500 entries.
+     * Stores a rate snapshot. Keeps only current (index 0) and previous (index 1).
      */
     suspend fun addRateHistoryEntry(entry: com.smartexpense.tracker.data.model.RateHistoryEntry) {
         val current = _appData.value
         val updated = current.copy(
-            rateHistory = (listOf(entry) + current.rateHistory).take(500)
+            rateHistory = (listOf(entry) + current.rateHistory).take(2)
         )
         _appData.value = updated
         storage.saveData(updated)
