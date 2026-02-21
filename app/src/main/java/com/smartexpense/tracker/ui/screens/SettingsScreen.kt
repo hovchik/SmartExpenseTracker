@@ -2482,6 +2482,12 @@ private val appPermissions = listOf(
         Icons.Filled.LocationOn
     ),
     AppPermission(
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "Background Location",
+        "Geo-tag SMS/notification transactions in background",
+        Icons.Filled.LocationOn
+    ),
+    AppPermission(
         "android.permission.POST_NOTIFICATIONS",
         "Notifications",
         "Budget alerts and transaction confirmations",

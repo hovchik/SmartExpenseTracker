@@ -13,9 +13,11 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
 
-    <!-- Location permission for Store Map -->
+    <!-- Location permission for Store Map and geo-tagging transactions -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Required on Android 10+ to capture location from SMS/notification background receivers -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <!-- Notification Listener permission is granted via Settings -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />

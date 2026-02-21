@@ -134,6 +134,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             refreshSuggestions()
             scheduleRateRefresh()
+            // Warm up the location cache so background receivers (SMS, notifications)
+            // can fall back to a recent foreground fix.
+            currentLocation()
             repository.appData.collect { data ->
                 _themeMode.value = data.settings.themeMode
                 _inAppNotifications.value = data.inAppNotifications
@@ -647,9 +650,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    /** Returns the current device location, or null. */
-    private fun currentLocation(): LocationProvider.LatLng? =
-        LocationProvider.getLastKnownLocation(getApplication())
+    /** Returns the current device location (and caches it for background use), or null. */
+    private fun currentLocation(): LocationProvider.LatLng? {
+        val loc = LocationProvider.getLastKnownLocation(getApplication())
+        if (loc != null) LocationProvider.cacheLocation(getApplication(), loc)
+        return loc
+    }
 
     /**
      * Parses OCR/QR receipt data and stores it in [ocrParsedData] for the user to review
