@@ -402,6 +402,50 @@ fun SettingsScreen(
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
+
+                // ── Rate Update Frequency ────────────────────────
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.Schedule, contentDescription = null,
+                        tint = GreenPrimary, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Rate Update Frequency", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Text(settings.rateUpdateFrequency.label,
+                            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val visibleFreqs = listOf(
+                        com.smartexpense.tracker.data.model.RateUpdateFrequency.EVERY_HOUR,
+                        com.smartexpense.tracker.data.model.RateUpdateFrequency.EVERY_3_HOURS,
+                        com.smartexpense.tracker.data.model.RateUpdateFrequency.DAILY,
+                        com.smartexpense.tracker.data.model.RateUpdateFrequency.MANUAL
+                    )
+                    visibleFreqs.forEach { freq ->
+                        val selected = settings.rateUpdateFrequency == freq
+                        FilterChip(
+                            selected = selected,
+                            onClick = {
+                                if (!selected) {
+                                    onUpdateSettings(settings.copy(rateUpdateFrequency = freq))
+                                }
+                            },
+                            label = { Text(freq.label, fontSize = 11.sp) },
+                            leadingIcon = if (selected) {
+                                { Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                            } else null
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
                 HorizontalDivider()
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -569,12 +613,13 @@ fun SettingsScreen(
                                 )
                             }
                         }
+                        val freqLabel = settings.rateUpdateFrequency.label.lowercase()
                         Text(
                             when (settings.rateSource) {
                                 com.smartexpense.tracker.data.model.RateSource.RATE_AM ->
-                                    "Rates from rate.am \u00B7 Armenian bank averages \u00B7 refreshed hourly"
+                                    "Rates from rate.am \u00B7 Armenian bank averages \u00B7 $freqLabel"
                                 else ->
-                                    "Rates from open.er-api.com \u00B7 refreshed hourly"
+                                    "Rates from open.er-api.com \u00B7 $freqLabel"
                             },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,

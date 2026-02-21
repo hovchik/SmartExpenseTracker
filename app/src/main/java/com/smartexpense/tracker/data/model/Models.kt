@@ -15,7 +15,7 @@ private val isoDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
  */
 data class Transaction(
     val id: String = UUID.randomUUID().toString(),
-    /** Amount stored in the original currency (see [currencyCode]). */
+    /** Amount in the app's main currency (e.g. AMD). For foreign-currency transactions this is the converted value. */
     val amount: Double,
     val description: String,
     val category: String,
@@ -33,7 +33,13 @@ data class Transaction(
     /** GPS longitude captured at transaction time; null if unavailable. */
     val longitude: Double? = null,
     /** ISO-4217 currency code the [amount] is denominated in. Empty = app default at time of creation. */
-    val currencyCode: String = ""
+    val currencyCode: String = "",
+    /** Original amount in the foreign currency before conversion. 0.0 = no conversion was applied. */
+    val originalAmount: Double = 0.0,
+    /** ISO-4217 code of the original foreign currency (e.g. "USD", "RUB"). Empty = same as app currency. */
+    val originalCurrencyCode: String = "",
+    /** Exchange rate used at conversion time: 1 [originalCurrencyCode] = [exchangeRate] [currencyCode]. */
+    val exchangeRate: Double = 0.0
 )
 
 enum class TransactionType {
@@ -190,6 +196,8 @@ data class AppData(
     val suggestions: List<AiSuggestion> = emptyList(),
     val inAppNotifications: List<InAppNotification> = emptyList(),
     val storeLocations: List<StoreLocation> = emptyList(),
+    /** Archived exchange rate snapshots, newest first. Capped at 500 entries. */
+    val rateHistory: List<RateHistoryEntry> = emptyList(),
     val settings: AppSettings = AppSettings(),
     val lastUpdated: Long = System.currentTimeMillis()
 )
@@ -228,6 +236,31 @@ enum class RateSource {
     /** rate.am – Armenian bank exchange rates (AMD-centric). */
     RATE_AM
 }
+
+/**
+ * How often to automatically refresh exchange rates.
+ */
+enum class RateUpdateFrequency(val minutes: Int, val label: String) {
+    EVERY_30_MIN(30, "Every 30 min"),
+    EVERY_HOUR(60, "Every hour"),
+    EVERY_3_HOURS(180, "Every 3 hours"),
+    EVERY_6_HOURS(360, "Every 6 hours"),
+    DAILY(1440, "Once a day"),
+    MANUAL(0, "Manual only")
+}
+
+/**
+ * A snapshot of exchange rates at a specific point in time.
+ * Stored in [AppData.rateHistory] for historical reference.
+ */
+data class RateHistoryEntry(
+    /** Timestamp when rates were fetched. */
+    val timestamp: Long = System.currentTimeMillis(),
+    /** Which source was used (OPEN_API / RATE_AM). */
+    val source: String = "",
+    /** USD-based rate map, e.g. {"AMD" → 388.5, "EUR" → 0.92, …}. */
+    val rates: Map<String, Double> = emptyMap()
+)
 
 /**
  * Dashboard sections that can be reordered via drag-and-drop.
@@ -329,7 +362,12 @@ data class AppSettings(
     val scheduledSalaryDayOfMonth: Int = 1,
     val scheduledSalaryDescription: String = "Monthly Salary",
     /** Persisted order of dashboard sections (stored as enum names). Empty = default order. */
-    val dashboardSectionOrder: List<String> = emptyList()
+    val dashboardSectionOrder: List<String> = emptyList(),
+    // ── Exchange rate update frequency ─────────────────────────────
+    /** How often to auto-refresh exchange rates. */
+    val rateUpdateFrequency: RateUpdateFrequency = RateUpdateFrequency.EVERY_HOUR,
+    /** Timestamp of the last successful rate fetch (epoch millis). 0 = never. */
+    val lastRateUpdateTimestamp: Long = 0
 )
 
 fun defaultCategories(): List<Category> = listOf(

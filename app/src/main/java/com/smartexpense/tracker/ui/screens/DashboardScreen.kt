@@ -515,7 +515,7 @@ fun TransactionItem(
     var showDetail by remember { mutableStateOf(false) }
     val isExpense = transaction.type == TransactionType.EXPENSE
     // Show a small exchange icon when this transaction was auto-converted from another currency
-    val isConverted = transaction.notes.contains("Original:")
+    val isConverted = transaction.originalAmount > 0.0 && transaction.originalCurrencyCode.isNotEmpty()
     Card(
         modifier = Modifier.fillMaxWidth().clickable { showDetail = true },
         shape = RoundedCornerShape(12.dp)

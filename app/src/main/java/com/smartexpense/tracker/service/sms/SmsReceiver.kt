@@ -142,11 +142,30 @@ class SmsReceiver : BroadcastReceiver() {
                         val userCatNames = repo.appData.value.categories
                             .filter { !it.isDefault }.map { it.name }
 
-                        // ── Store original amount & currency ─────────────────────
-                        // The transaction keeps the original amount; conversion
-                        // happens at display time so a currency-setting change
-                        // recalculates everything automatically.
-                        val txCurrency = parsed.currency.ifEmpty { appCurrency }
+                        // ── Detect foreign currency and convert to app currency ──
+                        val parsedCurrency = parsed.currency.ifEmpty { appCurrency }
+                        val isForeignCurrency = parsedCurrency.isNotEmpty() &&
+                            parsedCurrency != appCurrency
+
+                        var finalAmount = parsed.amount
+                        var origAmount = 0.0
+                        var origCurrencyCode = ""
+                        var usedRate = 0.0
+
+                        if (isForeignCurrency) {
+                            val converted = CurrencyConverterService.convert(
+                                parsed.amount, parsedCurrency, appCurrency
+                            )
+                            if (converted != null) {
+                                usedRate = converted / parsed.amount
+                                origAmount = parsed.amount
+                                origCurrencyCode = parsedCurrency
+                                finalAmount = converted
+                                Log.d(TAG, "Converted ${parsed.amount} $parsedCurrency → $converted $appCurrency (rate: $usedRate)")
+                            } else {
+                                Log.w(TAG, "Rate unavailable for $parsedCurrency→$appCurrency, storing original amount")
+                            }
+                        }
 
                         val cardNote = if (parsed.cardLastFour.isNotEmpty()) "card:${parsed.cardLastFour}" else ""
                         val notes = listOf(dedupKey, cardNote)
@@ -156,14 +175,17 @@ class SmsReceiver : BroadcastReceiver() {
                         val location = LocationProvider.getLastKnownLocation(context)
 
                         val transaction = Transaction(
-                            amount = parsed.amount,
+                            amount = finalAmount,
                             description = parsed.description.ifEmpty { fullMessage.take(80) },
                             category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }, parsed.isExpense, userCatNames),
                             type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                             source = TransactionSource.SMS,
                             merchantName = parsed.merchantName,
                             notes = notes,
-                            currencyCode = txCurrency,
+                            currencyCode = appCurrency,
+                            originalAmount = origAmount,
+                            originalCurrencyCode = origCurrencyCode,
+                            exchangeRate = usedRate,
                             latitude = location?.latitude,
                             longitude = location?.longitude
                         )
@@ -173,38 +195,66 @@ class SmsReceiver : BroadcastReceiver() {
                         // addTransaction returns false if duplicate
                         val added = repo.addTransaction(transaction)
                         if (added) {
-                            val sym = currencyInfoFor(txCurrency).symbol
+                            val appSym = currencyInfoFor(appCurrency).symbol
                             val typeLabel = if (parsed.isExpense) "Expense" else "Income"
+                            val notifMsg = if (origAmount > 0.0) {
+                                val origSym = currencyInfoFor(origCurrencyCode).symbol
+                                "${transaction.description}: $appSym${String.format("%.2f", finalAmount)} " +
+                                    "(${origSym}${String.format("%.2f", origAmount)} $origCurrencyCode)" +
+                                    (if (parsed.merchantName.isNotEmpty()) " at ${parsed.merchantName}" else "")
+                            } else {
+                                "${transaction.description}: $appSym${String.format("%.2f", finalAmount)}" +
+                                    (if (parsed.merchantName.isNotEmpty()) " at ${parsed.merchantName}" else "")
+                            }
                             repo.addInAppNotification(
                                 InAppNotification(
                                     title = "$typeLabel detected via SMS",
-                                    message = "${transaction.description}: $sym${String.format("%.2f", parsed.amount)}" +
-                                        (if (parsed.merchantName.isNotEmpty()) " at ${parsed.merchantName}" else ""),
+                                    message = notifMsg,
                                     type = InAppNotificationType.TRANSACTION_DETECTED,
                                     relatedTransactionId = transaction.id
                                 )
                             )
-                            Log.d(TAG, "Saved SMS transaction: ${parsed.amount} $txCurrency from $sender")
+                            Log.d(TAG, "Saved SMS transaction: $finalAmount $appCurrency from $sender")
                         } else {
                             Log.d(TAG, "Skipped duplicate: ${parsed.amount}")
                         }
                     } else {
-                        // Fallback: own storage instance (no conversion possible without settings)
+                        // Fallback: own storage instance
                         val storage = com.smartexpense.tracker.data.json.JsonStorageManager(context)
                         val fallbackRepo = com.smartexpense.tracker.data.repository.ExpenseRepository(storage)
                         fallbackRepo.initialize()
                         val fallbackCatNames = fallbackRepo.appData.value.categories
                             .filter { !it.isDefault }.map { it.name }
                         val fbLocation = LocationProvider.getLastKnownLocation(context)
+                        val fbCurrency = parsed.currency.ifEmpty { "AMD" }
+                        val fbIsForeign = fbCurrency != "AMD"
+
+                        var fbFinal = parsed.amount
+                        var fbOrigAmt = 0.0
+                        var fbOrigCode = ""
+                        var fbRate = 0.0
+                        if (fbIsForeign) {
+                            val c = CurrencyConverterService.convert(parsed.amount, fbCurrency, "AMD")
+                            if (c != null) {
+                                fbRate = c / parsed.amount
+                                fbOrigAmt = parsed.amount
+                                fbOrigCode = fbCurrency
+                                fbFinal = c
+                            }
+                        }
+
                         fallbackRepo.addTransaction(Transaction(
-                            amount = parsed.amount,
+                            amount = fbFinal,
                             description = parsed.description.ifEmpty { fullMessage.take(80) },
                             category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }, parsed.isExpense, fallbackCatNames),
                             type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                             source = TransactionSource.SMS,
                             merchantName = parsed.merchantName,
                             notes = dedupKey,
-                            currencyCode = parsed.currency.ifEmpty { "AMD" },
+                            currencyCode = "AMD",
+                            originalAmount = fbOrigAmt,
+                            originalCurrencyCode = fbOrigCode,
+                            exchangeRate = fbRate,
                             latitude = fbLocation?.latitude,
                             longitude = fbLocation?.longitude
                         ))

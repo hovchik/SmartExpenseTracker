@@ -133,6 +133,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             refreshSuggestions()
+            scheduleRateRefresh()
             repository.appData.collect { data ->
                 _themeMode.value = data.settings.themeMode
                 _inAppNotifications.value = data.inAppNotifications
@@ -943,13 +944,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ─── Currency Converter ────────────────────────────────────────
 
+    private var rateRefreshJob: kotlinx.coroutines.Job? = null
+
     /**
-     * Fetches live exchange rates (base = USD) and stores them in [exchangeRates].
-     * Safe to call multiple times — results are cached for 1 hour.
+     * Fetches live exchange rates (base = USD), archives them in rate history,
+     * and stores them in [exchangeRates].
+     * Also persists the fetch timestamp to settings for frequency-based refresh.
      */
     fun fetchExchangeRates() {
         viewModelScope.launch {
             val settings = repository.appData.value.settings
+            val sourceName = settings.rateSource.name
             val rates = withContext(Dispatchers.IO) {
                 when (settings.rateSource) {
                     com.smartexpense.tracker.data.model.RateSource.RATE_AM ->
@@ -960,8 +965,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             if (rates != null) {
-                // Merge in USD itself so the converter can handle USD→X conversions
-                _exchangeRates.value = rates + ("USD" to 1.0)
+                val fullRates = rates + ("USD" to 1.0)
+                _exchangeRates.value = fullRates
+
+                // Archive this rate snapshot
+                val now = System.currentTimeMillis()
+                repository.addRateHistoryEntry(
+                    RateHistoryEntry(timestamp = now, source = sourceName, rates = fullRates)
+                )
+                // Persist fetch timestamp
+                repository.updateSettings(settings.copy(lastRateUpdateTimestamp = now))
+            }
+        }
+    }
+
+    /**
+     * Starts a repeating background job that refreshes exchange rates at the
+     * interval defined by [AppSettings.rateUpdateFrequency].
+     * Cancels any previous job before starting a new one.
+     */
+    fun scheduleRateRefresh() {
+        rateRefreshJob?.cancel()
+        val settings = repository.appData.value.settings
+        val freq = settings.rateUpdateFrequency
+        if (freq == RateUpdateFrequency.MANUAL || freq.minutes <= 0) return
+
+        rateRefreshJob = viewModelScope.launch {
+            // Check if a refresh is overdue right now
+            val elapsed = System.currentTimeMillis() - settings.lastRateUpdateTimestamp
+            if (elapsed >= freq.minutes * 60_000L) {
+                fetchExchangeRates()
+            }
+            // Then repeat on schedule
+            while (true) {
+                kotlinx.coroutines.delay(freq.minutes * 60_000L)
+                fetchExchangeRates()
             }
         }
     }
@@ -1091,32 +1129,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val parsedCurrency = tx.notes.lines()
                     .find { it.startsWith("parsedCurrency:") }?.removePrefix("parsedCurrency:") ?: ""
 
-                val (finalAmount, conversionNote) = if (
-                    parsedCurrency.isNotEmpty() && parsedCurrency != appCurrency
-                ) {
+                var finalAmount = tx.amount
+                var origAmount = 0.0
+                var origCode = ""
+                var rate = 0.0
+
+                if (parsedCurrency.isNotEmpty() && parsedCurrency != appCurrency) {
                     val converted = withContext(Dispatchers.IO) {
                         com.smartexpense.tracker.service.currency.CurrencyConverterService.convert(
                             tx.amount, parsedCurrency, appCurrency
                         )
                     }
                     if (converted != null) {
-                        val rate = converted / tx.amount
-                        val fromSym = currencyInfoFor(parsedCurrency).symbol
-                        converted to "Original: $fromSym${String.format("%.2f", tx.amount)} $parsedCurrency · 1 $parsedCurrency = ${String.format("%.4f", rate)} $appCurrency"
-                    } else {
-                        tx.amount to ""
+                        rate = converted / tx.amount
+                        origAmount = tx.amount
+                        origCode = parsedCurrency
+                        finalAmount = converted
                     }
-                } else {
-                    tx.amount to ""
                 }
 
-                // Remove parsedCurrency marker, append conversion note if present
+                // Remove parsedCurrency marker from notes
                 val cleanNotes = tx.notes.lines()
                     .filter { !it.startsWith("parsedCurrency:") }
-                    .joinToString("\n")
-                    .let { base -> if (conversionNote.isNotEmpty()) "$base\n$conversionNote".trim() else base.trim() }
+                    .joinToString("\n").trim()
 
-                val finalTx = tx.copy(amount = finalAmount, notes = cleanNotes)
+                val finalTx = tx.copy(
+                    amount = finalAmount,
+                    notes = cleanNotes,
+                    currencyCode = appCurrency,
+                    originalAmount = origAmount,
+                    originalCurrencyCode = origCode,
+                    exchangeRate = rate
+                )
 
                 // Auto-create category if not in the existing list
                 repository.ensureCategoryExists(finalTx.category)
