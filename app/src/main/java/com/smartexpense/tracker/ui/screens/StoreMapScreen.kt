@@ -107,15 +107,15 @@ fun StoreMapScreen(
 
     // Transactions that carry a GPS fix
     val geoTaggedTransactions = remember(filteredTransactions) {
-        filteredTransactions.filter { it.latitude != null && it.longitude != null }
+        filteredTransactions.filter { it.hasLocation }
     }
 
     // Default map centre – adjusts to markers if available
     val defaultCenter = run {
         val allLats = storeLocations.map { it.latitude } +
-                geoTaggedTransactions.mapNotNull { it.latitude }
+                geoTaggedTransactions.mapNotNull { it.resolvedLat }
         val allLngs = storeLocations.map { it.longitude } +
-                geoTaggedTransactions.mapNotNull { it.longitude }
+                geoTaggedTransactions.mapNotNull { it.resolvedLng }
         if (allLats.isNotEmpty()) GeoPoint(allLats.average(), allLngs.average())
         else GeoPoint(40.1872, 44.5152) // Default: Yerevan, Armenia
     }
@@ -205,7 +205,9 @@ fun StoreMapScreen(
         // ── Geo-tagged transaction markers ────────────────────────
         val storeCoords = storeLocations.map { "${it.latitude},${it.longitude}" }.toSet()
         geoTaggedTransactions.forEach { tx ->
-            val coord = "${tx.latitude},${tx.longitude}"
+            val txLat = tx.resolvedLat ?: return@forEach
+            val txLng = tx.resolvedLng ?: return@forEach
+            val coord = "$txLat,$txLng"
             if (coord in storeCoords) return@forEach
 
             val isExpense = tx.type == TransactionType.EXPENSE
@@ -213,7 +215,7 @@ fun StoreMapScreen(
             val pinDarkColor = if (isExpense) 0xFFDC2626.toInt() else 0xFF059669.toInt()
 
             val marker = Marker(mapView).apply {
-                position = GeoPoint(tx.latitude!!, tx.longitude!!)
+                position = GeoPoint(txLat, txLng)
                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                 title = tx.merchantName.ifBlank { tx.description.take(30) }
                 snippet = buildString {
@@ -635,9 +637,9 @@ fun StoreMapScreen(
                             selectedTransactionId = txId
                             selectedStoreId = null
                             allTransactions.find { it.id == txId }?.let { tx ->
-                                if (tx.latitude != null && tx.longitude != null) {
+                                if (tx.hasLocation) {
                                     mapViewRef?.controller?.animateTo(
-                                        GeoPoint(tx.latitude, tx.longitude)
+                                        GeoPoint(tx.resolvedLat!!, tx.resolvedLng!!)
                                     )
                                 }
                             }

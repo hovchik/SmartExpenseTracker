@@ -11,6 +11,14 @@ import java.util.UUID
 private val isoDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
 
 /**
+ * GPS coordinates captured at the moment a transaction is created.
+ */
+data class GeoLocation(
+    val lat: Double,
+    val lng: Double
+)
+
+/**
  * Represents a single financial transaction (expense or income).
  */
 data class Transaction(
@@ -28,9 +36,12 @@ data class Transaction(
     val notes: String = "",
     val merchantName: String = "",
     val isRecurring: Boolean = false,
-    /** GPS latitude captured at transaction time; null if unavailable. */
+    /** Device GPS location captured at transaction time; null if unavailable. */
+    val location: GeoLocation? = null,
+    // Legacy fields kept for backward-compatible JSON deserialization; prefer [location].
+    @Deprecated("Use location.lat", ReplaceWith("location?.lat"))
     val latitude: Double? = null,
-    /** GPS longitude captured at transaction time; null if unavailable. */
+    @Deprecated("Use location.lng", ReplaceWith("location?.lng"))
     val longitude: Double? = null,
     /** ISO-4217 currency code the [amount] is denominated in. Empty = app default at time of creation. */
     val currencyCode: String = "",
@@ -40,7 +51,16 @@ data class Transaction(
     val originalCurrencyCode: String = "",
     /** Exchange rate used at conversion time: 1 [originalCurrencyCode] = [exchangeRate] [currencyCode]. */
     val exchangeRate: Double = 0.0
-)
+) {
+    /** Resolved latitude: prefers [location], falls back to legacy [latitude] field. */
+    val resolvedLat: Double? get() = location?.lat ?: @Suppress("DEPRECATION") latitude
+
+    /** Resolved longitude: prefers [location], falls back to legacy [longitude] field. */
+    val resolvedLng: Double? get() = location?.lng ?: @Suppress("DEPRECATION") longitude
+
+    /** True when this transaction carries a GPS fix. */
+    val hasLocation: Boolean get() = resolvedLat != null && resolvedLng != null
+}
 
 enum class TransactionType {
     EXPENSE, INCOME

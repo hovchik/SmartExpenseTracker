@@ -6,6 +6,7 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import com.smartexpense.tracker.SmartExpenseApp
+import com.smartexpense.tracker.data.model.GeoLocation
 import com.smartexpense.tracker.data.model.InAppNotification
 import com.smartexpense.tracker.data.model.InAppNotificationType
 import com.smartexpense.tracker.data.model.StoreLocation
@@ -213,8 +214,7 @@ class BankingNotificationListener : NotificationListenerService() {
                         originalAmount = origAmount,
                         originalCurrencyCode = origCurrencyCode,
                         exchangeRate = usedRate,
-                        latitude = location?.latitude,
-                        longitude = location?.longitude
+                        location = location?.let { GeoLocation(it.latitude, it.longitude) }
                     )
                     // addTransaction returns false if duplicate
                     val added = repo.addTransaction(transaction)

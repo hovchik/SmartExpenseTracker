@@ -587,14 +587,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val finalCategory = category ?: smartCategorize(description)
             val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
             val loc = currentLocation()
+            val geoLoc = loc?.let { GeoLocation(it.latitude, it.longitude) }
             val added = repository.addTransaction(Transaction(
                 amount = amount, description = description, category = finalCategory,
                 type = type, source = source, merchantName = merchantName, notes = notes,
                 timestamp = timestamp, dateTime = dtFormatter.format(Date(timestamp)),
-                latitude = loc?.latitude, longitude = loc?.longitude
+                location = geoLoc
             ))
             if (added) {
-                autoCreateStoreIfNeeded(merchantName, loc?.latitude, loc?.longitude)
+                autoCreateStoreIfNeeded(merchantName, geoLoc)
                 refreshSuggestions()
             }
         }
@@ -628,21 +629,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Automatically creates a [StoreLocation] for [merchantName] at the given
-     * coordinates if one doesn't already exist for that merchant.
+     * [GeoLocation] if one doesn't already exist for that merchant.
      */
     private suspend fun autoCreateStoreIfNeeded(
         merchantName: String,
-        latitude: Double?,
-        longitude: Double?
+        location: GeoLocation?
     ) {
-        if (merchantName.isBlank() || latitude == null || longitude == null) return
+        if (merchantName.isBlank() || location == null) return
         val existing = repository.appData.value.storeLocations
         if (existing.any { it.merchantName.equals(merchantName, ignoreCase = true) }) return
         repository.addStoreLocation(
             StoreLocation(
                 merchantName = merchantName,
-                latitude = latitude,
-                longitude = longitude
+                latitude = location.lat,
+                longitude = location.lng
             )
         )
     }
@@ -744,6 +744,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 repository.ensureCategoryExists(category)
 
                 val loc = currentLocation()
+                val geoLoc = loc?.let { GeoLocation(it.latitude, it.longitude) }
                 val now = System.currentTimeMillis()
                 val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
                 repository.addTransaction(Transaction(
@@ -756,10 +757,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     timestamp = now,
                     dateTime = dtFormatter.format(Date(now)),
                     notes = listOf(itemsNote, sourceNote, aiNote).filter { it.isNotBlank() }.joinToString("\n"),
-                    latitude = loc?.latitude,
-                    longitude = loc?.longitude
+                    location = geoLoc
                 ))
-                autoCreateStoreIfNeeded(merchantName, loc?.latitude, loc?.longitude)
+                autoCreateStoreIfNeeded(merchantName, geoLoc)
 
                 val resultMsg = buildString {
                     append("Found: $merchantName — $currencySymbol${String.format("%.2f", amount)}")

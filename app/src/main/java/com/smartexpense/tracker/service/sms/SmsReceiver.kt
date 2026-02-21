@@ -7,6 +7,7 @@ import android.os.Build
 import android.telephony.SmsMessage
 import android.util.Log
 import com.smartexpense.tracker.SmartExpenseApp
+import com.smartexpense.tracker.data.model.GeoLocation
 import com.smartexpense.tracker.data.model.InAppNotification
 import com.smartexpense.tracker.data.model.InAppNotificationType
 import com.smartexpense.tracker.data.model.StoreLocation
@@ -187,8 +188,7 @@ class SmsReceiver : BroadcastReceiver() {
                             originalAmount = origAmount,
                             originalCurrencyCode = origCurrencyCode,
                             exchangeRate = usedRate,
-                            latitude = location?.latitude,
-                            longitude = location?.longitude
+                            location = location?.let { GeoLocation(it.latitude, it.longitude) }
                         )
 
                         // Auto-create category if not present
@@ -267,8 +267,7 @@ class SmsReceiver : BroadcastReceiver() {
                             originalAmount = fbOrigAmt,
                             originalCurrencyCode = fbOrigCode,
                             exchangeRate = fbRate,
-                            latitude = fbLocation?.latitude,
-                            longitude = fbLocation?.longitude
+                            location = fbLocation?.let { GeoLocation(it.latitude, it.longitude) }
                         ))
                     }
                 } catch (e: Exception) {
