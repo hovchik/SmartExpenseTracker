@@ -8,6 +8,7 @@ import android.util.Log
 import com.smartexpense.tracker.SmartExpenseApp
 import com.smartexpense.tracker.data.model.InAppNotification
 import com.smartexpense.tracker.data.model.InAppNotificationType
+import com.smartexpense.tracker.data.model.StoreLocation
 import com.smartexpense.tracker.data.model.Transaction
 import com.smartexpense.tracker.data.model.TransactionSource
 import com.smartexpense.tracker.data.model.TransactionType
@@ -164,8 +165,27 @@ class BankingNotificationListener : NotificationListenerService() {
                     val settings = repo.appData.value.settings
                     val appCurrency = settings.currencyCode
 
-                    // ── Store original amount & currency ─────────────────────
-                    val txCurrency = parsed.currency.ifEmpty { appCurrency }
+                    // ── Detect foreign currency and convert to app currency ──
+                    val parsedCurrency = parsed.currency.ifEmpty { appCurrency }
+                    val isForeignCurrency = parsedCurrency.isNotEmpty() &&
+                        parsedCurrency != appCurrency
+
+                    var finalAmount = parsed.amount
+                    var origAmount = 0.0
+                    var origCurrencyCode = ""
+                    var usedRate = 0.0
+
+                    if (isForeignCurrency) {
+                        val converted = CurrencyConverterService.convert(
+                            parsed.amount, parsedCurrency, appCurrency
+                        )
+                        if (converted != null) {
+                            usedRate = converted / parsed.amount
+                            origAmount = parsed.amount
+                            origCurrencyCode = parsedCurrency
+                            finalAmount = converted
+                        }
+                    }
 
                     val cardNote = if (parsed.cardLastFour.isNotEmpty()) "card:${parsed.cardLastFour}" else ""
                     val notes = listOf("Auto-detected from $appName", cardNote)
@@ -182,32 +202,54 @@ class BankingNotificationListener : NotificationListenerService() {
                     val location = LocationProvider.getLastKnownLocation(applicationContext)
 
                     val transaction = Transaction(
-                        amount = parsed.amount,
+                        amount = finalAmount,
                         description = parsed.description,
                         category = category,
                         type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                         source = TransactionSource.NOTIFICATION,
                         merchantName = parsed.merchantName,
                         notes = notes,
-                        currencyCode = txCurrency,
+                        currencyCode = appCurrency,
+                        originalAmount = origAmount,
+                        originalCurrencyCode = origCurrencyCode,
+                        exchangeRate = usedRate,
                         latitude = location?.latitude,
                         longitude = location?.longitude
                     )
                     // addTransaction returns false if duplicate
                     val added = repo.addTransaction(transaction)
                     if (added) {
-                        val sym = currencyInfoFor(txCurrency).symbol
+                        val appSym = currencyInfoFor(appCurrency).symbol
                         val typeLabel = if (parsed.isExpense) "Expense" else "Income"
+                        val notifMsg = if (origAmount > 0.0) {
+                            val origSym = currencyInfoFor(origCurrencyCode).symbol
+                            "${parsed.description}: $appSym${String.format("%.2f", finalAmount)} " +
+                                "(${origSym}${String.format("%.2f", origAmount)} $origCurrencyCode)" +
+                                (if (parsed.merchantName.isNotEmpty()) " at ${parsed.merchantName}" else "")
+                        } else {
+                            "${parsed.description}: $appSym${String.format("%.2f", finalAmount)}" +
+                                (if (parsed.merchantName.isNotEmpty()) " at ${parsed.merchantName}" else "")
+                        }
                         repo.addInAppNotification(
                             InAppNotification(
                                 title = "$typeLabel detected – $appName",
-                                message = "${parsed.description}: $sym${String.format("%.2f", parsed.amount)}" +
-                                    (if (parsed.merchantName.isNotEmpty()) " at ${parsed.merchantName}" else ""),
+                                message = notifMsg,
                                 type = InAppNotificationType.TRANSACTION_DETECTED,
                                 relatedTransactionId = transaction.id
                             )
                         )
-                        Log.d(TAG, "Saved notification transaction: ${parsed.amount} $txCurrency")
+                        // Auto-pin location on the map
+                        if (parsed.merchantName.isNotBlank() && location != null) {
+                            val existing = repo.appData.value.storeLocations
+                            if (existing.none { it.merchantName.equals(parsed.merchantName, ignoreCase = true) }) {
+                                repo.addStoreLocation(StoreLocation(
+                                    merchantName = parsed.merchantName,
+                                    latitude = location.latitude,
+                                    longitude = location.longitude
+                                ))
+                            }
+                        }
+                        Log.d(TAG, "Saved notification transaction: $finalAmount $appCurrency")
                     } else {
                         Log.d(TAG, "Skipped duplicate: ${parsed.amount}")
                     }

@@ -9,6 +9,7 @@ import android.util.Log
 import com.smartexpense.tracker.SmartExpenseApp
 import com.smartexpense.tracker.data.model.InAppNotification
 import com.smartexpense.tracker.data.model.InAppNotificationType
+import com.smartexpense.tracker.data.model.StoreLocation
 import com.smartexpense.tracker.data.model.Transaction
 import com.smartexpense.tracker.data.model.TransactionSource
 import com.smartexpense.tracker.data.model.TransactionType
@@ -214,6 +215,17 @@ class SmsReceiver : BroadcastReceiver() {
                                     relatedTransactionId = transaction.id
                                 )
                             )
+                            // Auto-pin location on the map if merchant + GPS are available
+                            if (parsed.merchantName.isNotBlank() && location != null) {
+                                val existing = repo.appData.value.storeLocations
+                                if (existing.none { it.merchantName.equals(parsed.merchantName, ignoreCase = true) }) {
+                                    repo.addStoreLocation(StoreLocation(
+                                        merchantName = parsed.merchantName,
+                                        latitude = location.latitude,
+                                        longitude = location.longitude
+                                    ))
+                                }
+                            }
                             Log.d(TAG, "Saved SMS transaction: $finalAmount $appCurrency from $sender")
                         } else {
                             Log.d(TAG, "Skipped duplicate: ${parsed.amount}")
