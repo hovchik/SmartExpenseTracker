@@ -504,123 +504,142 @@ fun StoreMapScreen(
                 }
             }
 
-            // ── Map + overlays ───────────────────────────────────────
-            Box(modifier = Modifier.fillMaxSize()) {
-                AndroidView(
-                    modifier = Modifier.fillMaxSize(),
-                    factory = { ctx ->
-                        MapView(ctx).apply {
-                            setTileSource(TileSourceFactory.MAPNIK)
-                            setMultiTouchControls(true)
-                            controller.setZoom(13.0)
-                            controller.setCenter(defaultCenter)
+            // ── Map card ──────────────────────────────────────────────
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(0.55f)
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(20.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { ctx ->
+                            MapView(ctx).apply {
+                                setTileSource(TileSourceFactory.MAPNIK)
+                                setMultiTouchControls(true)
+                                controller.setZoom(13.0)
+                                controller.setCenter(defaultCenter)
 
-                            val eventsOverlay = MapEventsOverlay(object : MapEventsReceiver {
-                                override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean = false
-                                override fun longPressHelper(p: GeoPoint?): Boolean {
-                                    p?.let {
-                                        pendingLat = it.latitude
-                                        pendingLng = it.longitude
-                                        showAddDialog = true
+                                val eventsOverlay = MapEventsOverlay(object : MapEventsReceiver {
+                                    override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean = false
+                                    override fun longPressHelper(p: GeoPoint?): Boolean {
+                                        p?.let {
+                                            pendingLat = it.latitude
+                                            pendingLng = it.longitude
+                                            showAddDialog = true
+                                        }
+                                        return true
                                     }
-                                    return true
-                                }
-                            })
-                            overlays.add(0, eventsOverlay)
-                            mapViewRef = this
-                        }
-                    },
-                    update = { mapView -> mapViewRef = mapView }
-                )
-
-                // Hint text when no stores exist
-                if (storeLocations.isEmpty() && geoTaggedTransactions.isEmpty()) {
-                    Card(
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(16.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.1f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    Icons.Filled.TouchApp, null,
-                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    modifier = Modifier.size(22.dp)
-                                )
+                                })
+                                overlays.add(0, eventsOverlay)
+                                mapViewRef = this
                             }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    "No locations yet",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                                Text(
-                                    "Long-press on the map to pin a store",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
-                                )
+                        },
+                        update = { mapView -> mapViewRef = mapView }
+                    )
+
+                    // Hint text when no stores exist
+                    if (storeLocations.isEmpty() && geoTaggedTransactions.isEmpty()) {
+                        Card(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(12.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.1f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Filled.TouchApp, null,
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        "No locations yet",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                    Text(
+                                        "Long-press on the map to pin a store",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                                    )
+                                }
                             }
                         }
                     }
-                }
 
-                // Re-center button
-                if (storeLocations.isNotEmpty() || geoTaggedTransactions.isNotEmpty()) {
-                    FilledTonalIconButton(
-                        onClick = {
-                            mapViewRef?.controller?.animateTo(defaultCenter)
-                        },
+                    // Map controls: re-center + add
+                    Column(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .padding(12.dp)
-                            .size(40.dp),
-                        shape = RoundedCornerShape(12.dp)
+                            .padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            Icons.Filled.MyLocation,
-                            contentDescription = "Center map",
-                            modifier = Modifier.size(20.dp)
-                        )
+                        if (storeLocations.isNotEmpty() || geoTaggedTransactions.isNotEmpty()) {
+                            FilledTonalIconButton(
+                                onClick = {
+                                    mapViewRef?.controller?.animateTo(defaultCenter)
+                                },
+                                modifier = Modifier.size(38.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.MyLocation,
+                                    contentDescription = "Center map",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Compact FAB on the map
+                    FloatingActionButton(
+                        onClick = {
+                            val center = mapViewRef?.mapCenter
+                            pendingLat = center?.latitude ?: defaultCenter.latitude
+                            pendingLng = center?.longitude ?: defaultCenter.longitude
+                            showAddDialog = true
+                        },
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(12.dp)
+                            .size(48.dp),
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(Icons.Filled.AddLocation, contentDescription = "Add store location")
                     }
                 }
+            }
 
-                // Extended FAB
-                ExtendedFloatingActionButton(
-                    onClick = {
-                        val center = mapViewRef?.mapCenter
-                        pendingLat = center?.latitude ?: defaultCenter.latitude
-                        pendingLng = center?.longitude ?: defaultCenter.longitude
-                        showAddDialog = true
-                    },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(16.dp),
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Icon(Icons.Filled.AddLocation, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Add Store", fontWeight = FontWeight.SemiBold)
-                }
-
-                // Bottom panel for selected store details
+            // ── Bottom content area ──────────────────────────────────────
+            // Shows selected detail OR store/transaction list
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(0.45f)
+            ) {
                 selectedStore?.let { store ->
                     val merchantTx = transactionsByMerchant[store.merchantName.lowercase()] ?: emptyList()
                     StoreDetailPanel(
@@ -632,17 +651,50 @@ fun StoreMapScreen(
                             onDeleteStoreLocation(store.id)
                             selectedStoreId = null
                         },
-                        modifier = Modifier.align(Alignment.BottomCenter)
+                        modifier = Modifier.fillMaxSize()
                     )
-                }
-
-                // Bottom panel for selected individual transaction
-                selectedTransaction?.let { tx ->
+                } ?: selectedTransaction?.let { tx ->
                     TransactionMapDetailPanel(
                         transaction = tx,
                         currencyCode = currencyCode,
                         onDismiss = { selectedTransactionId = null },
-                        modifier = Modifier.align(Alignment.BottomCenter)
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } ?: run {
+                    // Default: show list of stores + recent geo-tagged transactions
+                    StoreAndTransactionList(
+                        storeLocations = storeLocations,
+                        geoTaggedTransactions = geoTaggedTransactions,
+                        transactionsByMerchant = transactionsByMerchant,
+                        currencyCode = currencyCode,
+                        dateFormatter = dateFormatter,
+                        onStoreClick = { storeId ->
+                            selectedStoreId = storeId
+                            selectedTransactionId = null
+                            // Pan to store
+                            storeLocations.find { it.id == storeId }?.let { store ->
+                                mapViewRef?.controller?.animateTo(
+                                    GeoPoint(store.latitude, store.longitude)
+                                )
+                            }
+                        },
+                        onTransactionClick = { txId ->
+                            selectedTransactionId = txId
+                            selectedStoreId = null
+                            allTransactions.find { it.id == txId }?.let { tx ->
+                                if (tx.latitude != null && tx.longitude != null) {
+                                    mapViewRef?.controller?.animateTo(
+                                        GeoPoint(tx.latitude, tx.longitude)
+                                    )
+                                }
+                            }
+                        },
+                        onAddStore = {
+                            val center = mapViewRef?.mapCenter
+                            pendingLat = center?.latitude ?: defaultCenter.latitude
+                            pendingLng = center?.longitude ?: defaultCenter.longitude
+                            showAddDialog = true
+                        }
                     )
                 }
             }
@@ -724,27 +776,7 @@ private fun createModernPinDrawable(
     return BitmapDrawable(mapView.resources, bmp)
 }
 
-// ─── Drag handle composable for bottom panels ─────────────────────────
-
-@Composable
-private fun BottomSheetDragHandle() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 10.dp, bottom = 4.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .width(40.dp)
-                .height(4.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
-        )
-    }
-}
-
-// ─── Bottom panel: individual transaction detail on map ──────────────
+// ─── Bottom content: individual transaction detail ───────────────────
 
 @Composable
 private fun TransactionMapDetailPanel(
@@ -757,152 +789,138 @@ private fun TransactionMapDetailPanel(
     val isExpense = transaction.type == TransactionType.EXPENSE
     val amountColor = if (isExpense) RedExpense else GreenIncome
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column {
-            BottomSheetDragHandle()
-
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                // Header row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Colored icon container
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(amountColor.copy(alpha = 0.1f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            if (isExpense) Icons.Outlined.ShoppingCart else Icons.Outlined.AccountBalanceWallet,
-                            contentDescription = null,
-                            tint = amountColor,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            transaction.merchantName.ifBlank { transaction.description },
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis
-                        )
-                        if (transaction.merchantName.isNotBlank()) {
-                            Text(
-                                transaction.description,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Filled.Close, contentDescription = "Close")
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Amount + category
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+    Column(modifier = modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+        // Header row with close
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(amountColor.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    if (isExpense) Icons.Outlined.ShoppingCart else Icons.Outlined.AccountBalanceWallet,
+                    contentDescription = null,
+                    tint = amountColor,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    transaction.merchantName.ifBlank { transaction.description },
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
+                if (transaction.merchantName.isNotBlank()) {
                     Text(
-                        "${if (isExpense) "-" else "+"}${CurrencyUtils.format(transaction.amount, currencyCode)}",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 24.sp,
-                        color = amountColor
+                        transaction.description,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
                     )
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = amountColor.copy(alpha = 0.1f)
-                    ) {
-                        Text(
-                            transaction.category,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = amountColor,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                        )
-                    }
                 }
+            }
+            IconButton(onClick = onDismiss) {
+                Icon(Icons.Filled.Close, contentDescription = "Close")
+            }
+        }
 
-                // Foreign currency info
-                if (transaction.originalAmount > 0.0 && transaction.originalCurrencyCode.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    val origSym = currencyInfoFor(transaction.originalCurrencyCode).symbol
-                    Card(
-                        shape = RoundedCornerShape(10.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Filled.CurrencyExchange, null,
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                "Original: ${origSym}${String.format("%.2f", transaction.originalAmount)} ${transaction.originalCurrencyCode}" +
-                                    " · Rate: ${String.format("%.4f", transaction.exchangeRate)}",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
+        Spacer(modifier = Modifier.height(12.dp))
 
-                Spacer(modifier = Modifier.height(10.dp))
+        // Amount + category
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "${if (isExpense) "-" else "+"}${CurrencyUtils.format(transaction.amount, currencyCode)}",
+                fontWeight = FontWeight.Bold,
+                fontSize = 24.sp,
+                color = amountColor
+            )
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = amountColor.copy(alpha = 0.1f)
+            ) {
+                Text(
+                    transaction.category,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = amountColor,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                )
+            }
+        }
 
-                // Date + source row
+        // Foreign currency info
+        if (transaction.originalAmount > 0.0 && transaction.originalCurrencyCode.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            val origSym = currencyInfoFor(transaction.originalCurrencyCode).symbol
+            Card(
+                shape = RoundedCornerShape(10.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                )
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Filled.CalendarToday, null,
+                    Icon(
+                        Icons.Filled.CurrencyExchange, null,
                         modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        dateFormatter.format(Date(transaction.timestamp)),
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    val srcIcon = when (transaction.source) {
-                        TransactionSource.SMS -> Icons.Filled.Sms
-                        TransactionSource.NOTIFICATION -> Icons.Filled.Notifications
-                        TransactionSource.OCR_SCAN -> Icons.Filled.CameraAlt
-                        else -> Icons.Filled.Edit
-                    }
-                    Icon(srcIcon, null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        transaction.source.name.lowercase().replace("_", " "),
+                        "Original: ${origSym}${String.format("%.2f", transaction.originalAmount)} ${transaction.originalCurrencyCode}" +
+                            " · Rate: ${String.format("%.4f", transaction.exchangeRate)}",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-
-                Spacer(modifier = Modifier.height(14.dp))
             }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Date + source row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Filled.CalendarToday, null,
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                dateFormatter.format(Date(transaction.timestamp)),
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            val srcIcon = when (transaction.source) {
+                TransactionSource.SMS -> Icons.Filled.Sms
+                TransactionSource.NOTIFICATION -> Icons.Filled.Notifications
+                TransactionSource.OCR_SCAN -> Icons.Filled.CameraAlt
+                else -> Icons.Filled.Edit
+            }
+            Icon(srcIcon, null,
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                transaction.source.name.lowercase().replace("_", " "),
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -928,184 +946,169 @@ private fun StoreDetailPanel(
 
     var historyExpanded by remember { mutableStateOf(true) }
 
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .fillMaxHeight(0.48f),
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            BottomSheetDragHandle()
-
-            // Header with gradient accent
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                GreenPrimary.copy(alpha = 0.08f),
-                                Color.Transparent
-                            )
+    Column(modifier = modifier) {
+        // Header with gradient accent
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            GreenPrimary.copy(alpha = 0.08f),
+                            Color.Transparent
                         )
                     )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(GreenPrimary.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Filled.Store,
-                            contentDescription = null,
-                            tint = GreenPrimary,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            store.merchantName,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp
-                        )
-                        if (store.address.isNotBlank()) {
-                            Text(
-                                store.address,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                    IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
-                        Icon(
-                            Icons.Outlined.DeleteOutline, "Delete store",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Filled.Close, "Close", modifier = Modifier.size(20.dp))
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Stat cards row
+                )
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(GreenPrimary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.Store,
+                        contentDescription = null,
+                        tint = GreenPrimary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        store.merchantName,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp
+                    )
+                    if (store.address.isNotBlank()) {
+                        Text(
+                            store.address,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        Icons.Outlined.DeleteOutline, "Delete store",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Filled.Close, "Close", modifier = Modifier.size(20.dp))
+                }
+            }
+        }
+
+        // Stat cards row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            MiniStatCard(
+                value = "${transactions.size}",
+                label = "Transactions",
+                icon = Icons.Filled.Receipt,
+                color = BluePrimary,
+                modifier = Modifier.weight(1f)
+            )
+            if (totalExpenses > 0) {
                 MiniStatCard(
-                    value = "${transactions.size}",
-                    label = "Transactions",
-                    icon = Icons.Filled.Receipt,
-                    color = BluePrimary,
+                    value = CurrencyUtils.format(totalExpenses, currencyCode),
+                    label = "Spent",
+                    icon = Icons.Filled.ArrowUpward,
+                    color = RedExpense,
                     modifier = Modifier.weight(1f)
                 )
-                if (totalExpenses > 0) {
-                    MiniStatCard(
-                        value = CurrencyUtils.format(totalExpenses, currencyCode),
-                        label = "Spent",
-                        icon = Icons.Filled.ArrowUpward,
-                        color = RedExpense,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                if (totalIncome > 0) {
-                    MiniStatCard(
-                        value = CurrencyUtils.format(totalIncome, currencyCode),
-                        label = "Income",
-                        icon = Icons.Filled.ArrowDownward,
-                        color = GreenIncome,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
             }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Collapsible transaction history header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { historyExpanded = !historyExpanded }
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    "Transaction History",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Icon(
-                    if (historyExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                    contentDescription = if (historyExpanded) "Collapse" else "Expand",
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+            if (totalIncome > 0) {
+                MiniStatCard(
+                    value = CurrencyUtils.format(totalIncome, currencyCode),
+                    label = "Income",
+                    icon = Icons.Filled.ArrowDownward,
+                    color = GreenIncome,
+                    modifier = Modifier.weight(1f)
                 )
             }
+        }
 
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        // Collapsible transaction history header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { historyExpanded = !historyExpanded }
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                "Transaction History",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Icon(
+                if (historyExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = if (historyExpanded) "Collapse" else "Expand",
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
-            AnimatedVisibility(
-                visible = historyExpanded,
-                enter = expandVertically(
-                    animationSpec = spring(stiffness = Spring.StiffnessMedium)
-                ) + fadeIn(),
-                exit = shrinkVertically(
-                    animationSpec = spring(stiffness = Spring.StiffnessMedium)
-                ) + fadeOut()
-            ) {
-                if (transactions.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                Icons.Outlined.ReceiptLong,
-                                contentDescription = null,
-                                modifier = Modifier.size(36.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                "No matching transactions",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 14.dp))
+
+        AnimatedVisibility(
+            visible = historyExpanded,
+            enter = expandVertically(
+                animationSpec = spring(stiffness = Spring.StiffnessMedium)
+            ) + fadeIn(),
+            exit = shrinkVertically(
+                animationSpec = spring(stiffness = Spring.StiffnessMedium)
+            ) + fadeOut()
+        ) {
+            if (transactions.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Outlined.ReceiptLong,
+                            contentDescription = null,
+                            modifier = Modifier.size(36.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "No matching transactions",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
                     }
-                } else {
-                    LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        items(
-                            transactions.sortedByDescending { it.timestamp },
-                            key = { it.id }
-                        ) { tx ->
-                            TransactionHistoryRow(tx, currencyCode, dateFormatter)
-                        }
+                }
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(
+                        transactions.sortedByDescending { it.timestamp },
+                        key = { it.id }
+                    ) { tx ->
+                        TransactionHistoryRow(tx, currencyCode, dateFormatter)
                     }
                 }
             }
@@ -1224,6 +1227,214 @@ private fun TransactionHistoryRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
+    }
+}
+
+// ─── Default bottom list: stores + geo-tagged transactions ───────────
+
+@Composable
+private fun StoreAndTransactionList(
+    storeLocations: List<StoreLocation>,
+    geoTaggedTransactions: List<Transaction>,
+    transactionsByMerchant: Map<String, List<Transaction>>,
+    currencyCode: String,
+    dateFormatter: SimpleDateFormat,
+    onStoreClick: (String) -> Unit,
+    onTransactionClick: (String) -> Unit,
+    onAddStore: () -> Unit
+) {
+    if (storeLocations.isEmpty() && geoTaggedTransactions.isEmpty()) {
+        // Empty state
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Outlined.LocationOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    "No pinned stores",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    "Add your first store location",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                FilledTonalButton(
+                    onClick = onAddStore,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Filled.AddLocation, null, Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Add Store")
+                }
+            }
+        }
+    } else {
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Stores section
+            if (storeLocations.isNotEmpty()) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.Store, null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "Stores",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                "${storeLocations.size}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+                items(storeLocations, key = { it.id }) { store ->
+                    val txCount = transactionsByMerchant[store.merchantName.lowercase()]?.size ?: 0
+                    val totalSpent = transactionsByMerchant[store.merchantName.lowercase()]
+                        ?.filter { it.type == TransactionType.EXPENSE }
+                        ?.sumOf { it.amount } ?: 0.0
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onStoreClick(store.id) },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(
+                                        if (txCount > 0) GreenPrimary.copy(alpha = 0.1f)
+                                        else MaterialTheme.colorScheme.surfaceVariant
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Filled.Store, null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = if (txCount > 0) GreenPrimary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    store.merchantName,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 14.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    if (store.address.isNotBlank()) store.address
+                                    else "$txCount transaction${if (txCount != 1) "s" else ""}",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            if (totalSpent > 0) {
+                                Text(
+                                    CurrencyUtils.format(totalSpent, currencyCode),
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp,
+                                    color = RedExpense
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Recent geo-tagged transactions section
+            val recentGeoTx = geoTaggedTransactions
+                .sortedByDescending { it.timestamp }
+                .take(10)
+            if (recentGeoTx.isNotEmpty()) {
+                item {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.NearMe, null,
+                            modifier = Modifier.size(18.dp),
+                            tint = BluePrimary
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "Recent Nearby",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = BluePrimary.copy(alpha = 0.1f)
+                        ) {
+                            Text(
+                                "${geoTaggedTransactions.size}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = BluePrimary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+                items(recentGeoTx, key = { it.id }) { tx ->
+                    TransactionHistoryRow(tx, currencyCode, dateFormatter)
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(4.dp)) }
         }
     }
 }
