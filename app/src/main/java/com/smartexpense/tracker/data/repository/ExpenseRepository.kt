@@ -200,6 +200,17 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         storage.saveData(updated)
     }
 
+    suspend fun updateStoreLocation(updated: StoreLocation) {
+        val current = _appData.value
+        val newData = current.copy(
+            storeLocations = current.storeLocations.map {
+                if (it.id == updated.id) updated else it
+            }
+        )
+        _appData.value = newData
+        storage.saveData(newData)
+    }
+
     /**
      * Multiplies every transaction amount and budget limit by [rate].
      * Used when the user switches the app currency.

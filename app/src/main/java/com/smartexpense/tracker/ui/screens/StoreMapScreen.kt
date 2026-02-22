@@ -72,6 +72,7 @@ fun StoreMapScreen(
     currencyCode: String,
     onAddStoreLocation: (merchantName: String, latitude: Double, longitude: Double, address: String) -> Unit,
     onDeleteStoreLocation: (String) -> Unit,
+    onUpdateStoreLocation: (StoreLocation) -> Unit,
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -170,6 +171,7 @@ fun StoreMapScreen(
             val marker = Marker(mapView).apply {
                 position = GeoPoint(store.latitude, store.longitude)
                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                isDraggable = true
                 title = store.merchantName
                 snippet = buildString {
                     if (store.address.isNotBlank()) appendLine(store.address)
@@ -180,12 +182,26 @@ fun StoreMapScreen(
                         append("No matching transactions")
                     }
                 }
-                subDescription = "Tap for details"
+                subDescription = "Hold & drag to move"
                 icon = createModernPinDrawable(
                     mapView,
                     if (txCount > 0) 0xFFE91E63.toInt() else 0xFF9E9E9E.toInt(),
                     if (txCount > 0) 0xFFC2185B.toInt() else 0xFF757575.toInt()
                 )
+
+                setOnMarkerDragListener(object : Marker.OnMarkerDragListener {
+                    override fun onMarkerDragStart(marker: Marker) {}
+                    override fun onMarkerDrag(marker: Marker) {}
+                    override fun onMarkerDragEnd(marker: Marker) {
+                        val newPos = marker.position
+                        onUpdateStoreLocation(
+                            store.copy(
+                                latitude = newPos.latitude,
+                                longitude = newPos.longitude
+                            )
+                        )
+                    }
+                })
 
                 setOnMarkerClickListener { m, _ ->
                     if (m.isInfoWindowShown) {
@@ -606,6 +622,7 @@ fun StoreMapScreen(
                             onDeleteStoreLocation(store.id)
                             selectedStoreId = null
                         },
+                        onUpdate = onUpdateStoreLocation,
                         modifier = Modifier.fillMaxSize()
                     )
                 } ?: selectedTransaction?.let { tx ->
@@ -889,6 +906,7 @@ private fun StoreDetailPanel(
     currencyCode: String,
     onDismiss: () -> Unit,
     onDelete: () -> Unit,
+    onUpdate: (StoreLocation) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.US) }
@@ -900,6 +918,9 @@ private fun StoreDetailPanel(
         .sumOf { it.amount }
 
     var historyExpanded by remember { mutableStateOf(true) }
+    var editingCoords by remember { mutableStateOf(false) }
+    var editLat by remember(store.id) { mutableStateOf(String.format("%.6f", store.latitude)) }
+    var editLng by remember(store.id) { mutableStateOf(String.format("%.6f", store.longitude)) }
 
     Column(modifier = modifier) {
         // Header with gradient accent
@@ -952,6 +973,18 @@ private fun StoreDetailPanel(
                         )
                     }
                 }
+                IconButton(
+                    onClick = { editingCoords = !editingCoords },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Edit,
+                        "Edit location",
+                        tint = if (editingCoords) MaterialTheme.colorScheme.tertiary
+                               else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
                 IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
                     Icon(
                         Icons.Outlined.DeleteOutline, "Delete store",
@@ -961,6 +994,90 @@ private fun StoreDetailPanel(
                 }
                 IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
                     Icon(Icons.Filled.Close, "Close", modifier = Modifier.size(20.dp))
+                }
+            }
+        }
+
+        // Editable coordinates section
+        AnimatedVisibility(
+            visible = editingCoords,
+            enter = expandVertically(
+                animationSpec = spring(stiffness = Spring.StiffnessMedium)
+            ) + fadeIn(),
+            exit = shrinkVertically(
+                animationSpec = spring(stiffness = Spring.StiffnessMedium)
+            ) + fadeOut()
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = editLat,
+                            onValueChange = { editLat = it },
+                            label = { Text("Latitude", fontSize = 11.sp) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
+                        )
+                        OutlinedTextField(
+                            value = editLng,
+                            onValueChange = { editLng = it },
+                            label = { Text("Longitude", fontSize = 11.sp) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+                    ) {
+                        TextButton(onClick = {
+                            editLat = String.format("%.6f", store.latitude)
+                            editLng = String.format("%.6f", store.longitude)
+                            editingCoords = false
+                        }) {
+                            Text("Cancel", fontSize = 12.sp)
+                        }
+                        val parsedLat = editLat.toDoubleOrNull()
+                        val parsedLng = editLng.toDoubleOrNull()
+                        val isValid = parsedLat != null && parsedLng != null &&
+                            parsedLat in -90.0..90.0 && parsedLng in -180.0..180.0
+                        Button(
+                            onClick = {
+                                if (isValid) {
+                                    onUpdate(store.copy(latitude = parsedLat!!, longitude = parsedLng!!))
+                                    editingCoords = false
+                                }
+                            },
+                            enabled = isValid,
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Filled.Check, null, Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Save", fontSize = 12.sp)
+                        }
+                    }
+                    Text(
+                        "Tip: You can also drag the pin on the map to move it",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
                 }
             }
         }

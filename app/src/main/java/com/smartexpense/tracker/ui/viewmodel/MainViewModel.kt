@@ -630,6 +630,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.deleteStoreLocation(id) }
     }
 
+    fun updateStoreLocation(store: StoreLocation) {
+        viewModelScope.launch { repository.updateStoreLocation(store) }
+    }
+
     /**
      * Automatically creates a [StoreLocation] for [merchantName] at the given
      * [GeoLocation] if one doesn't already exist for that merchant.
