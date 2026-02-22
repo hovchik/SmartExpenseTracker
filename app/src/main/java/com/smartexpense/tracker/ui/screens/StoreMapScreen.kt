@@ -1360,6 +1360,9 @@ private fun StoreAndTransactionList(
             }
         }
     } else {
+        var storesExpanded by remember { mutableStateOf(true) }
+        var nearbyExpanded by remember { mutableStateOf(true) }
+
         LazyColumn(
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -1368,7 +1371,11 @@ private fun StoreAndTransactionList(
             if (storeLocations.isNotEmpty()) {
                 item {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { storesExpanded = !storesExpanded }
+                            .padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
@@ -1395,9 +1402,17 @@ private fun StoreAndTransactionList(
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                             )
                         }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            if (storesExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                            contentDescription = if (storesExpanded) "Collapse" else "Expand",
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
-                items(storeLocations, key = { it.id }) { store ->
+                if (storesExpanded) {
+                    items(storeLocations, key = { it.id }) { store ->
                     val txCount = transactionsByMerchant[store.merchantName.lowercase()]?.size ?: 0
                     val totalSpent = transactionsByMerchant[store.merchantName.lowercase()]
                         ?.filter { it.type == TransactionType.EXPENSE }
@@ -1462,6 +1477,7 @@ private fun StoreAndTransactionList(
                         }
                     }
                 }
+                }
             }
 
             // Recent geo-tagged transactions section
@@ -1472,7 +1488,11 @@ private fun StoreAndTransactionList(
                 item {
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { nearbyExpanded = !nearbyExpanded }
+                            .padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
@@ -1499,10 +1519,19 @@ private fun StoreAndTransactionList(
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                             )
                         }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            if (nearbyExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                            contentDescription = if (nearbyExpanded) "Collapse" else "Expand",
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
-                items(recentGeoTx, key = { it.id }) { tx ->
-                    TransactionHistoryRow(tx, currencyCode, dateFormatter)
+                if (nearbyExpanded) {
+                    items(recentGeoTx, key = { it.id }) { tx ->
+                        TransactionHistoryRow(tx, currencyCode, dateFormatter)
+                    }
                 }
             }
 
