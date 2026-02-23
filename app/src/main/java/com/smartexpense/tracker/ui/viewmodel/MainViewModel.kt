@@ -335,8 +335,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val settings = repository.appData.value.settings
             repository.updateSettings(settings.copy(
-                aiEnginePreference = preference,
-                localAiEnabled = preference != AiEnginePreference.RULE_BASED
+                aiEnginePreference = preference
             ))
             _localAiStatus.value = "Switching engine…"
             withContext(Dispatchers.IO) { localAiService.recheckAvailability(preference) }

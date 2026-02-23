@@ -269,11 +269,11 @@ fun SettingsScreen(
             enter = expandVertically(),
             exit = shrinkVertically()
         ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
                 // Currency picker row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -425,9 +425,10 @@ fun SettingsScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     val visibleFreqs = listOf(
                         com.smartexpense.tracker.data.model.RateUpdateFrequency.EVERY_HOUR,

@@ -2,6 +2,7 @@ package com.smartexpense.tracker.service.ai
 
 import android.content.Context
 import android.net.Uri
+import android.os.Environment
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -25,17 +26,6 @@ class MediaPipeLlmService(private val context: Context) {
 
     companion object {
         private const val TAG = "MediaPipeLlm"
-
-        /** Well-known model directories to scan for .task files. */
-        private val MODEL_SEARCH_DIRS = listOf(
-            "/data/local/tmp/llm",
-            "/sdcard/Download",
-            "/sdcard/Documents",
-            "/storage/emulated/0/Download",
-            "/storage/emulated/0/Documents",
-            "/sdcard/Android/media/com.google.ai.edge.gallery",
-            "/sdcard/Android/media/com.google.ai.edge.gallery/files"
-        )
 
         /** File extensions recognized as MediaPipe model files. */
         private val MODEL_EXTENSIONS = listOf(".task", ".bin", ".tflite")
@@ -294,10 +284,31 @@ class MediaPipeLlmService(private val context: Context) {
         val appModelsDir = modelsDir()
         if (appModelsDir.exists()) scanDir(appModelsDir, models)
 
-        // External locations
-        for (dir in MODEL_SEARCH_DIRS) {
-            val f = File(dir)
-            if (f.exists() && f.isDirectory) scanDir(f, models)
+        // Build search dirs dynamically using the Environment API
+        // so paths resolve correctly regardless of device / emulator layout.
+        val searchDirs = mutableListOf<File>()
+        try {
+            searchDirs += Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            searchDirs += Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+        } catch (_: Exception) { /* not available */ }
+
+        // AI Edge Gallery media dir
+        val extStorage = Environment.getExternalStorageDirectory()
+        searchDirs += File(extStorage, "Android/media/$GALLERY_PACKAGE")
+        searchDirs += File(extStorage, "Android/media/$GALLERY_PACKAGE/files")
+
+        // adb push location
+        searchDirs += File("/data/local/tmp/llm")
+
+        // App-specific external files dirs (e.g. models placed by the user)
+        context.getExternalFilesDir(null)?.let { searchDirs += it }
+
+        for (dir in searchDirs) {
+            try {
+                if (dir.exists() && dir.isDirectory) scanDir(dir, models)
+            } catch (e: SecurityException) {
+                Log.d(TAG, "Cannot access ${dir.absolutePath}: ${e.message}")
+            }
         }
 
         return models.distinctBy { it.second }
