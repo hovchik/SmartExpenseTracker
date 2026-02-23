@@ -629,6 +629,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.deleteStoreLocation(id) }
     }
 
+    fun clearAllStoreLocations() {
+        viewModelScope.launch { repository.clearAllStoreLocations() }
+    }
+
     fun updateStoreLocation(store: StoreLocation) {
         viewModelScope.launch { repository.updateStoreLocation(store) }
     }

@@ -73,6 +73,7 @@ fun StoreMapScreen(
     onAddStoreLocation: (merchantName: String, latitude: Double, longitude: Double, address: String) -> Unit,
     onDeleteStoreLocation: (String) -> Unit,
     onUpdateStoreLocation: (StoreLocation) -> Unit,
+    onClearAllStoreLocations: () -> Unit,
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -1362,6 +1363,29 @@ private fun StoreAndTransactionList(
     } else {
         var storesExpanded by remember { mutableStateOf(true) }
         var nearbyExpanded by remember { mutableStateOf(true) }
+        var showClearStoresDialog by remember { mutableStateOf(false) }
+
+        // Confirmation dialog for clearing all stores
+        if (showClearStoresDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearStoresDialog = false },
+                icon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                title = { Text("Clear All Stores") },
+                text = { Text("Remove all ${storeLocations.size} store locations? This action cannot be undone.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            onClearAllStoreLocations()
+                            showClearStoresDialog = false
+                        },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) { Text("Clear All") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showClearStoresDialog = false }) { Text("Cancel") }
+                }
+            )
+        }
 
         LazyColumn(
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
@@ -1402,7 +1426,19 @@ private fun StoreAndTransactionList(
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        IconButton(
+                            onClick = { showClearStoresDialog = true },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.Clear,
+                                contentDescription = "Clear all stores",
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(2.dp))
                         Icon(
                             if (storesExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                             contentDescription = if (storesExpanded) "Collapse" else "Expand",

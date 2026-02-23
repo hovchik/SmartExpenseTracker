@@ -238,6 +238,7 @@ fun MainApp(viewModel: MainViewModel) {
                         },
                         onDeleteStoreLocation = { id -> viewModel.deleteStoreLocation(id) },
                         onUpdateStoreLocation = { store -> viewModel.updateStoreLocation(store) },
+                        onClearAllStoreLocations = { viewModel.clearAllStoreLocations() },
                         onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
                     )
                     "ai_analyze" -> AiAnalyzeScreen(

@@ -200,6 +200,13 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         storage.saveData(updated)
     }
 
+    suspend fun clearAllStoreLocations() {
+        val current = _appData.value
+        val updated = current.copy(storeLocations = emptyList())
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
     suspend fun updateStoreLocation(updated: StoreLocation) {
         val current = _appData.value
         val newData = current.copy(
