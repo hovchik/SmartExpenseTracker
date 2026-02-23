@@ -667,7 +667,8 @@ fun StoreMapScreen(
                             pendingLat = center?.latitude ?: defaultCenter.latitude
                             pendingLng = center?.longitude ?: defaultCenter.longitude
                             showAddDialog = true
-                        }
+                        },
+                        onClearAllStoreLocations = onClearAllStoreLocations
                     )
                 }
             }
@@ -1315,7 +1316,8 @@ private fun StoreAndTransactionList(
     dateFormatter: SimpleDateFormat,
     onStoreClick: (String) -> Unit,
     onTransactionClick: (String) -> Unit,
-    onAddStore: () -> Unit
+    onAddStore: () -> Unit,
+    onClearAllStoreLocations: () -> Unit
 ) {
     if (storeLocations.isEmpty() && geoTaggedTransactions.isEmpty()) {
         // Empty state
