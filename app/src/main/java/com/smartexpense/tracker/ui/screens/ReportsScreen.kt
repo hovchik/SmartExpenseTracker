@@ -795,7 +795,7 @@ fun ReportsScreen(
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(tx.description, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                                         Text(
-                                            "${tx.category} · ${tx.dateTime.take(16).replace("T", " ")}",
+                                            "${tx.category} · ${(tx.dateTime ?: "").take(16).replace("T", " ")}",
                                             fontSize = 11.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )

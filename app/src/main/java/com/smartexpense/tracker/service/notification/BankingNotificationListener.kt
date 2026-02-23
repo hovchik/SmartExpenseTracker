@@ -150,6 +150,16 @@ class BankingNotificationListener : NotificationListenerService() {
                 customExpenseKeywords = settings0?.expenseKeywords.orEmpty()
             ) ?: return
 
+            // Only proceed if the text contains at least one configured expense or income keyword
+            val allKeywords = settings0?.expenseKeywords.orEmpty() + settings0?.incomeKeywords.orEmpty()
+            if (allKeywords.isNotEmpty()) {
+                val lowerMsg = fullText.lowercase()
+                if (allKeywords.none { it.isNotEmpty() && lowerMsg.contains(it.lowercase()) }) {
+                    Log.d(TAG, "Notification skipped: no configured expense/income keyword found")
+                    return
+                }
+            }
+
             val appName = appLabel(packageName) ?: packageName
 
             Log.d(TAG, "Financial notification from $appName ($packageName): ${parsed.amount}")

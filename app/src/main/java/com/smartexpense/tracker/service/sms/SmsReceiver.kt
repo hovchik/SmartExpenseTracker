@@ -121,6 +121,16 @@ class SmsReceiver : BroadcastReceiver() {
                 customExpenseKeywords = settings0?.expenseKeywords.orEmpty()
             ) ?: return
 
+            // Only proceed if the message contains at least one configured expense or income keyword
+            val allKeywords = settings0?.expenseKeywords.orEmpty() + settings0?.incomeKeywords.orEmpty()
+            if (allKeywords.isNotEmpty()) {
+                val lowerMsg = fullMessage.lowercase()
+                if (allKeywords.none { it.isNotEmpty() && lowerMsg.contains(it.lowercase()) }) {
+                    Log.d(TAG, "SMS skipped: no configured expense/income keyword found")
+                    return
+                }
+            }
+
             val dedupKey = "Auto SMS: $sender | ${System.currentTimeMillis() / 60000}"
 
             // goAsync() extends the BroadcastReceiver's process lifetime beyond onReceive()

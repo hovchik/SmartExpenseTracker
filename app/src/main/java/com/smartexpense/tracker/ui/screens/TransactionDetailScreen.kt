@@ -135,7 +135,7 @@ fun TransactionDetailDialog(
                     .padding(horizontal = 24.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                val dtDisplay = transaction.dateTime.take(16).replace("T", "  ")
+                val dtDisplay = (transaction.dateTime ?: "").take(16).replace("T", "  ")
                 DetailRow(Icons.Filled.CalendarToday, "Date & Time", dtDisplay)
 
                 if (transaction.merchantName.isNotEmpty()) {
