@@ -149,11 +149,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Returns [Transaction.amount] converted to [targetCurrency].
-     * If the transaction is already in the target currency (or has no
-     * explicit currency), the amount is returned as-is.
+     *
+     * When the transaction carries original-currency metadata (e.g. 800 RUB)
+     * we always convert from the *original* amount/currency so that switching
+     * display currency never compounds rounding errors (RUB→USD→AMD).
      * Falls back to the unconverted amount when rates are unavailable.
      */
     fun convertAmount(tx: Transaction, targetCurrency: String): Double {
+        // ── Path 1: transaction has original foreign-currency metadata ──
+        if (tx.originalAmount > 0.0 && tx.originalCurrencyCode.isNotEmpty()) {
+            if (tx.originalCurrencyCode == targetCurrency) return tx.originalAmount
+            val rateMap = conversionRateCache[tx.originalCurrencyCode]
+            val rate = rateMap?.get(targetCurrency)
+            if (rate != null) return tx.originalAmount * rate
+            // Fall through to stored amount if rate unavailable
+        }
+        // ── Path 2: no original metadata – use stored amount & currency ──
         val txCur = tx.currencyCode.ifEmpty { targetCurrency }
         if (txCur == targetCurrency) return tx.amount
         val rateMap = conversionRateCache[txCur]
@@ -164,13 +175,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Pre-fetches exchange rates for every distinct currency found in
      * the current transaction list so that [convertAmount] can work
-     * synchronously.
+     * synchronously.  Includes both stored currencies AND original
+     * foreign currencies so cross-rate conversions work correctly.
      */
     private fun preloadConversionRates(transactions: List<Transaction>, appCurrency: String) {
-        val currencies = transactions
-            .map { it.currencyCode.ifEmpty { appCurrency } }
-            .distinct()
-            .filter { it != appCurrency }
+        val currencies = buildSet {
+            for (tx in transactions) {
+                add(tx.currencyCode.ifEmpty { appCurrency })
+                if (tx.originalCurrencyCode.isNotEmpty()) add(tx.originalCurrencyCode)
+            }
+        }.filter { it != appCurrency }
         if (currencies.isEmpty()) return
         viewModelScope.launch(Dispatchers.IO) {
             val newCache = conversionRateCache.toMutableMap()
@@ -804,11 +818,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Returns a copy of all transactions with amounts converted to [targetCurrency]. */
+    /**
+     * Returns a copy of all transactions with amounts converted to [targetCurrency].
+     * Original currency metadata (originalAmount, originalCurrencyCode) is always
+     * preserved so further conversions can go back to the source amount.
+     */
     private fun transactionsInDisplayCurrency(targetCurrency: String): List<Transaction> {
         return repository.appData.value.transactions.map { tx ->
             val converted = convertAmount(tx, targetCurrency)
-            if (converted != tx.amount) tx.copy(amount = converted, currencyCode = targetCurrency) else tx
+            if (converted != tx.amount) {
+                tx.copy(amount = converted, currencyCode = targetCurrency)
+            } else tx
         }
     }
 
@@ -907,13 +927,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository.updateSettings(settings)
             CurrencyConverterService.invalidateCache()
 
-            // When currency changes, convert all transaction amounts and budget limits
+            // When currency changes, re-convert all transaction amounts and budget limits.
+            // Transactions with original foreign-currency metadata are converted directly
+            // from the original currency, avoiding compounded rounding errors.
             if (oldCurrency != newCurrency) {
-                val rate = withContext(Dispatchers.IO) {
+                val fallbackRate = withContext(Dispatchers.IO) {
                     CurrencyConverterService.convert(1.0, oldCurrency, newCurrency)
                 }
-                if (rate != null && rate > 0) {
-                    repository.convertAmounts(rate)
+                if (fallbackRate != null && fallbackRate > 0) {
+                    // Collect all distinct original currencies that need rates
+                    val origCurrencies = repository.appData.value.transactions
+                        .filter { it.originalAmount > 0.0 && it.originalCurrencyCode.isNotEmpty() }
+                        .map { it.originalCurrencyCode }
+                        .distinct()
+
+                    // Pre-fetch rates for each original currency → newCurrency
+                    val origRates = mutableMapOf<String, Double>()
+                    for (oc in origCurrencies) {
+                        if (oc == newCurrency) { origRates[oc] = 1.0; continue }
+                        val r = withContext(Dispatchers.IO) {
+                            CurrencyConverterService.convert(1.0, oc, newCurrency)
+                        }
+                        if (r != null) origRates[oc] = r
+                    }
+
+                    repository.convertAmounts(
+                        newCurrency = newCurrency,
+                        fallbackRate = fallbackRate,
+                        rateFromOriginal = { origRates[it] }
+                    )
                     refreshSuggestions()
                 }
             }

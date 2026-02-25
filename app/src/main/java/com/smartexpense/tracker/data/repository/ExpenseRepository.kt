@@ -219,14 +219,52 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
     }
 
     /**
-     * Multiplies every transaction amount and budget limit by [rate].
-     * Used when the user switches the app currency.
+     * Converts every transaction amount and budget limit to [newCurrency].
+     *
+     * For transactions that carry original foreign-currency metadata
+     * (originalAmount / originalCurrencyCode), the amount is re-converted
+     * from the *original* currency to [newCurrency] using the provided
+     * [rateFromOriginal] lookup, avoiding compounded rounding errors.
+     *
+     * Transactions without original metadata are multiplied by [fallbackRate]
+     * (the old-currency → new-currency rate).
+     *
+     * @param newCurrency       ISO-4217 code of the new app currency.
+     * @param fallbackRate      1 old-currency = fallbackRate new-currency.
+     * @param rateFromOriginal  Lookup: (originalCurrencyCode) → rate where
+     *                          1 originalCurrency = rate new-currency.
+     *                          Return null when a rate is unavailable.
      */
-    suspend fun convertAmounts(rate: Double) {
+    suspend fun convertAmounts(
+        newCurrency: String,
+        fallbackRate: Double,
+        rateFromOriginal: (String) -> Double?
+    ) {
         val current = _appData.value
         val updated = current.copy(
-            transactions = current.transactions.map { it.copy(amount = it.amount * rate) },
-            budgets = current.budgets.map { it.copy(monthlyLimit = it.monthlyLimit * rate) }
+            transactions = current.transactions.map { tx ->
+                if (tx.originalAmount > 0.0 && tx.originalCurrencyCode.isNotEmpty()) {
+                    val rate = rateFromOriginal(tx.originalCurrencyCode)
+                    if (rate != null) {
+                        tx.copy(
+                            amount = tx.originalAmount * rate,
+                            currencyCode = newCurrency,
+                            exchangeRate = rate
+                        )
+                    } else {
+                        tx.copy(
+                            amount = tx.amount * fallbackRate,
+                            currencyCode = newCurrency
+                        )
+                    }
+                } else {
+                    tx.copy(
+                        amount = tx.amount * fallbackRate,
+                        currencyCode = newCurrency
+                    )
+                }
+            },
+            budgets = current.budgets.map { it.copy(monthlyLimit = it.monthlyLimit * fallbackRate) }
         )
         _appData.value = updated
         storage.saveData(updated)
