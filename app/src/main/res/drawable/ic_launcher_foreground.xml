@@ -5,124 +5,79 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- ═══ FlowSense Modern Icon ═══
-         Smart dashboard card with upward trend chart
-         representing intelligent expense tracking.
+    <!-- ═══ FlowSense Icon ═══
+         A flowing S-curve wave representing financial flow,
+         with a subtle circle backdrop for depth.
     -->
 
-    <!-- Card shadow / depth layer -->
+    <!-- Subtle circular glow backdrop -->
     <path
-        android:fillColor="#0A2540"
-        android:pathData="M30,34 L78,34 Q82,34 82,38 L82,76 Q82,80 78,80 L30,80 Q26,80 26,76 L26,38 Q26,34 30,34Z" />
+        android:fillColor="#1E3A5F"
+        android:pathData="M54,20 A34,34,0,1,1 54,88 A34,34,0,1,1 54,20 Z" />
 
-    <!-- Card body -->
+    <!-- Inner circle — dark navy depth layer -->
     <path
-        android:fillColor="#134E5E"
-        android:pathData="M28,32 L76,32 Q80,32 80,36 L80,74 Q80,78 76,78 L28,78 Q24,78 24,74 L24,36 Q24,32 28,32Z" />
+        android:fillColor="#0F172A"
+        android:pathData="M54,24 A30,30,0,1,1 54,84 A30,30,0,1,1 54,24 Z" />
 
-    <!-- Card header bar -->
-    <path
-        android:fillColor="#1A6B7D"
-        android:pathData="M28,32 L76,32 Q80,32 80,36 L80,42 L24,42 L24,36 Q24,32 28,32Z" />
-
-    <!-- Header accent stripe -->
-    <path
-        android:fillColor="#06B6D4"
-        android:pathData="M24,42 L80,42 L80,43.5 L24,43.5Z" />
-
-    <!-- Header dots (window controls) -->
-    <path
-        android:fillColor="#06B6D4"
-        android:pathData="M30,37 m-2,0 a2,2,0,1,1,4,0 a2,2,0,1,1,-4,0" />
-    <path
-        android:fillColor="#34D399"
-        android:pathData="M36.5,37 m-2,0 a2,2,0,1,1,4,0 a2,2,0,1,1,-4,0" />
-    <path
-        android:fillColor="#F59E0B"
-        android:pathData="M43,37 m-2,0 a2,2,0,1,1,4,0 a2,2,0,1,1,-4,0" />
-
-    <!-- Chart grid lines (subtle) -->
-    <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#1A6B7D"
-        android:strokeWidth="0.7"
-        android:pathData="M28,52 L76,52 M28,60 L76,60 M28,68 L76,68" />
-
-    <!-- Chart area fill under trend line -->
-    <path
-        android:fillColor="#06B6D4"
-        android:fillAlpha="0.15"
-        android:pathData="M32,72 L40,64 L48,68 L56,56 L64,52 L72,46 L76,44 L76,74 L32,74Z" />
-
-    <!-- Bold upward trend chart line -->
+    <!-- Main flowing S-curve (teal/cyan) — the "Flow" -->
     <path
         android:fillColor="@android:color/transparent"
         android:strokeColor="#06B6D4"
-        android:strokeWidth="3.5"
+        android:strokeWidth="4"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M32,72 L40,64 L48,68 L56,56 L64,52 L72,46" />
+        android:pathData="M30,60 C36,42 42,38 48,46 C54,54 60,50 66,38 C70,30 74,32 78,36" />
 
-    <!-- Data point dots along chart line -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M32,72 m-2.5,0 a2.5,2.5,0,1,1,5,0 a2.5,2.5,0,1,1,-5,0" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M40,64 m-2,0 a2,2,0,1,1,4,0 a2,2,0,1,1,-4,0" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M48,68 m-2,0 a2,2,0,1,1,4,0 a2,2,0,1,1,-4,0" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M56,56 m-2,0 a2,2,0,1,1,4,0 a2,2,0,1,1,-4,0" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M64,52 m-2,0 a2,2,0,1,1,4,0 a2,2,0,1,1,-4,0" />
-
-    <!-- Final data point — emerald green (growth!) -->
-    <path
-        android:fillColor="#34D399"
-        android:pathData="M72,46 m-3,0 a3,3,0,1,1,6,0 a3,3,0,1,1,-6,0" />
-
-    <!-- Growth arrow emerging upward from last point -->
-    <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#34D399"
-        android:strokeWidth="2.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M72,46 L75,38" />
-    <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#34D399"
-        android:strokeWidth="2.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M71.5,38.5 L75,38 L75,42" />
-
-    <!-- AI/Smart pulse rings around final data point -->
+    <!-- Secondary wave layer (indigo/violet accent) — "Sense" -->
     <path
         android:fillColor="@android:color/transparent"
         android:strokeColor="#818CF8"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M30,68 C38,54 44,52 50,58 C56,64 62,60 68,50 C72,44 76,46 80,48" />
+
+    <!-- Highlight pulse dot on the teal curve peak -->
+    <path
+        android:fillColor="#06B6D4"
+        android:pathData="M66,38 A3.5,3.5,0,1,1 66,38.01 Z" />
+
+    <!-- Small glow ring around pulse dot -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#06B6D4"
         android:strokeWidth="1.5"
-        android:strokeAlpha="0.5"
-        android:pathData="M72,46 m-6,0 a6,6,0,1,1,12,0 a6,6,0,1,1,-12,0" />
-    <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#818CF8"
-        android:strokeWidth="1"
-        android:strokeAlpha="0.25"
-        android:pathData="M72,46 m-9.5,0 a9.5,9.5,0,1,1,19,0 a9.5,9.5,0,1,1,-19,0" />
+        android:strokeAlpha="0.4"
+        android:pathData="M66,38 A6,6,0,1,1 66,38.01 Z" />
 
-    <!-- Secondary trend line (expenses) — indigo, offset below -->
+    <!-- Upward trend arrow tip (emerald green) — growth indicator -->
     <path
         android:fillColor="@android:color/transparent"
-        android:strokeColor="#818CF8"
-        android:strokeWidth="2"
+        android:strokeColor="#34D399"
+        android:strokeWidth="2.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:strokeAlpha="0.6"
-        android:pathData="M32,70 L40,72 L48,66 L56,70 L64,64 L72,62" />
+        android:pathData="M73,40 L78,34 L80,42" />
+
+    <!-- Subtle "F" letterform hint — bottom left -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeAlpha="0.85"
+        android:pathData="M38,72 L38,64 L46,64 M38,68 L44,68" />
+
+    <!-- Subtle "S" letterform hint — bottom right -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeAlpha="0.85"
+        android:pathData="M70,64 C66,63 62,65 62,68 C62,71 66,73 70,72 C74,71 74,76 70,76 C66,76 62,74 62,74" />
 
 </vector>

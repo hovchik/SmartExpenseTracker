@@ -101,7 +101,7 @@ class BankingNotificationListener : NotificationListenerService() {
     private val financialKeywords = listOf(
         "debited", "credited", "spent", "received", "paid", "charged",
         "transaction", "payment", "transfer", "withdrawn", "deposit",
-        "$", "₹", "֏", "rs.", "inr", "usd", "amd", "eur", "gbp", "amt",
+        "\$", "₹", "֏", "rs.", "inr", "usd", "amd", "eur", "gbp", "amt",
         "approved", "authcode", "purchase", "atm cash", "balance:", "credit account"
     )
 
