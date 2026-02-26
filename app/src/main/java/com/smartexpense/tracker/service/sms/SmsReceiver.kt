@@ -52,12 +52,15 @@ class SmsReceiver : BroadcastReceiver() {
         "transaction", "debit", "credit", "payment", "charged", "spent",
         "debited", "credited", "paid", "received", "purchase", "withdrawal",
         "deposit", "transferred", "upi", "neft", "imps", "amt", "txn",
-        "a/c", "acct", "account", "balance",
+        "a/c", "acct", "account", "balance", "amount", "card",
+        // Currency codes & symbols
+        "usd", "eur", "gbp", "inr", "rub", "amd", "try",
+        "$", "€", "£", "₹", "֏", "₽",
         // International
         "approved", "authcode", "auth code", "atm cash", "mail order",
         "credit account", "debit account", "completion",
         // Armenian/CIS banking terms (transliterated or common in region)
-        "amd", "֏", "դրամ", "списание", "зачисление", "баланс", "оплата",
+        "դրամ", "списание", "зачисление", "баланс", "оплата",
         "перевод", "покупка", "снятие", "пополнение"
     )
 
@@ -108,13 +111,17 @@ class SmsReceiver : BroadcastReceiver() {
                 Log.d(TAG, "Pre-auth SMS ignored from $sender")
                 return
             }
-            if (!isFinancialMessage(sender, fullMessage)) return
+            val app0 = context.applicationContext as? SmartExpenseApp
+            val settings0 = app0?.repository?.appData?.value?.settings
+
+            // User-configured keywords also count as financial indicators
+            val userKeywords = settings0?.expenseKeywords.orEmpty() +
+                settings0?.incomeKeywords.orEmpty()
+            if (!isFinancialMessage(sender, fullMessage, userKeywords)) return
 
             Log.d(TAG, "Financial SMS detected from: $sender")
 
             val aiEngine = AiExpenseEngine()
-            val app0 = context.applicationContext as? SmartExpenseApp
-            val settings0 = app0?.repository?.appData?.value?.settings
             val parsed = aiEngine.parseFinancialMessage(
                 fullMessage,
                 customIncomeKeywords = settings0?.incomeKeywords.orEmpty(),
@@ -292,9 +299,18 @@ class SmsReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun isFinancialMessage(sender: String, body: String): Boolean {
+    private fun isFinancialMessage(
+        sender: String,
+        body: String,
+        extraKeywords: List<String> = emptyList()
+    ): Boolean {
         val lower = (sender + " " + body).lowercase()
         if (bankingSenders.any { lower.contains(it) }) return true
-        return financialKeywords.count { lower.contains(it) } >= 2
+        // Count built-in financial keywords + user-configured keywords
+        var hits = financialKeywords.count { lower.contains(it) }
+        if (hits < 2) {
+            hits += extraKeywords.count { it.isNotEmpty() && lower.contains(it.lowercase()) }
+        }
+        return hits >= 2
     }
 }

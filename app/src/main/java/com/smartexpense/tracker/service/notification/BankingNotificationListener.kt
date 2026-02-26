@@ -139,11 +139,16 @@ class BankingNotificationListener : NotificationListenerService() {
             if (fullText.length < 5) return
 
             val lowerText = fullText.lowercase()
-            if (financialKeywords.none { lowerText.contains(it) }) return
-
-            val aiEngine = AiExpenseEngine()
             val app0 = applicationContext as? SmartExpenseApp
             val settings0 = app0?.repository?.appData?.value?.settings
+
+            // User-configured keywords also count as financial indicators
+            val userKeywords = settings0?.expenseKeywords.orEmpty() +
+                settings0?.incomeKeywords.orEmpty()
+            val allFinancialKw = financialKeywords + userKeywords.map { it.lowercase() }
+            if (allFinancialKw.none { it.isNotEmpty() && lowerText.contains(it) }) return
+
+            val aiEngine = AiExpenseEngine()
             val parsed = aiEngine.parseFinancialMessage(
                 fullText,
                 customIncomeKeywords = settings0?.incomeKeywords.orEmpty(),
