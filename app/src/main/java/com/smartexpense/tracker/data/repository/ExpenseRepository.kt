@@ -243,8 +243,8 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         val current = _appData.value
         val updated = current.copy(
             transactions = current.transactions.map { tx ->
-                if (tx.originalAmount > 0.0 && tx.originalCurrencyCode.isNotEmpty()) {
-                    val rate = rateFromOriginal(tx.originalCurrencyCode)
+                if (tx.originalAmount > 0.0 && tx.originalCurrencyCode.orEmpty().isNotEmpty()) {
+                    val rate = rateFromOriginal(tx.originalCurrencyCode.orEmpty())
                     if (rate != null) {
                         tx.copy(
                             amount = tx.originalAmount * rate,

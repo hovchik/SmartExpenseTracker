@@ -238,9 +238,9 @@ fun StoreMapScreen(
                 snippet = buildString {
                     val sign = if (isExpense) "-" else "+"
                     append("$sign${CurrencyUtils.format(tx.amount, currencyCode)}")
-                    if (tx.originalAmount > 0.0 && tx.originalCurrencyCode.isNotEmpty()) {
-                        val origSym = currencyInfoFor(tx.originalCurrencyCode).symbol
-                        append(" ($origSym${String.format("%.2f", tx.originalAmount)} ${tx.originalCurrencyCode})")
+                    if (tx.originalAmount > 0.0 && tx.originalCurrencyCode.orEmpty().isNotEmpty()) {
+                        val origSym = currencyInfoFor(tx.originalCurrencyCode.orEmpty()).symbol
+                        append(" ($origSym${String.format("%.2f", tx.originalAmount)} ${tx.originalCurrencyCode.orEmpty()})")
                     }
                     append("\n${tx.category} · ${dateFormatter.format(Date(tx.timestamp))}")
                     val srcLabel = when (tx.source) {
@@ -834,9 +834,9 @@ private fun TransactionMapDetailPanel(
         }
 
         // Foreign currency info
-        if (transaction.originalAmount > 0.0 && transaction.originalCurrencyCode.isNotEmpty()) {
+        if (transaction.originalAmount > 0.0 && transaction.originalCurrencyCode.orEmpty().isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
-            val origSym = currencyInfoFor(transaction.originalCurrencyCode).symbol
+            val origSym = currencyInfoFor(transaction.originalCurrencyCode.orEmpty()).symbol
             Card(
                 shape = RoundedCornerShape(10.dp),
                 colors = CardDefaults.cardColors(
@@ -854,7 +854,7 @@ private fun TransactionMapDetailPanel(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        "Original: ${origSym}${String.format("%.2f", transaction.originalAmount)} ${transaction.originalCurrencyCode}" +
+                        "Original: ${origSym}${String.format("%.2f", transaction.originalAmount)} ${transaction.originalCurrencyCode.orEmpty()}" +
                             " · Rate: ${String.format("%.4f", transaction.exchangeRate)}",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1273,7 +1273,7 @@ private fun TransactionHistoryRow(
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                if (tx.originalAmount > 0.0 && tx.originalCurrencyCode.isNotEmpty()) {
+                if (tx.originalAmount > 0.0 && tx.originalCurrencyCode.orEmpty().isNotEmpty()) {
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(
                         Icons.Filled.CurrencyExchange, null,
@@ -1293,10 +1293,10 @@ private fun TransactionHistoryRow(
                 fontSize = 13.sp,
                 color = accentColor
             )
-            if (tx.originalAmount > 0.0 && tx.originalCurrencyCode.isNotEmpty()) {
-                val origSym = currencyInfoFor(tx.originalCurrencyCode).symbol
+            if (tx.originalAmount > 0.0 && tx.originalCurrencyCode.orEmpty().isNotEmpty()) {
+                val origSym = currencyInfoFor(tx.originalCurrencyCode.orEmpty()).symbol
                 Text(
-                    "${origSym}${String.format("%.2f", tx.originalAmount)} ${tx.originalCurrencyCode}",
+                    "${origSym}${String.format("%.2f", tx.originalAmount)} ${tx.originalCurrencyCode.orEmpty()}",
                     fontSize = 10.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

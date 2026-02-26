@@ -157,9 +157,9 @@ fun TransactionDetailDialog(
                 DetailRow(Icons.Filled.Source, "Source", sourceLabel)
 
                 // ── Foreign currency conversion details ──────────
-                if (transaction.originalAmount > 0.0 && transaction.originalCurrencyCode.isNotEmpty()) {
+                if (transaction.originalAmount > 0.0 && transaction.originalCurrencyCode.orEmpty().isNotEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    val origSym = currencyInfoFor(transaction.originalCurrencyCode).symbol
+                    val origSym = currencyInfoFor(transaction.originalCurrencyCode.orEmpty()).symbol
                     val appSym = currencyInfoFor(currencyCode).symbol
                     Card(
                         shape = RoundedCornerShape(12.dp),
@@ -191,7 +191,7 @@ fun TransactionDetailDialog(
                                     Text("Original amount", fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     Text(
-                                        "${origSym}${String.format("%.2f", transaction.originalAmount)} ${transaction.originalCurrencyCode}",
+                                        "${origSym}${String.format("%.2f", transaction.originalAmount)} ${transaction.originalCurrencyCode.orEmpty()}",
                                         fontSize = 15.sp, fontWeight = FontWeight.SemiBold
                                     )
                                 }
@@ -206,7 +206,7 @@ fun TransactionDetailDialog(
                             }
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                "Rate: 1 ${transaction.originalCurrencyCode} = ${String.format("%.4f", transaction.exchangeRate)} $currencyCode",
+                                "Rate: 1 ${transaction.originalCurrencyCode.orEmpty()} = ${String.format("%.4f", transaction.exchangeRate)} $currencyCode",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

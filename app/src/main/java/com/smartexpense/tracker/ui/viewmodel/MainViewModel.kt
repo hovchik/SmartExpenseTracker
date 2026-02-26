@@ -156,16 +156,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Falls back to the unconverted amount when rates are unavailable.
      */
     fun convertAmount(tx: Transaction, targetCurrency: String): Double {
+        // Guard against null leaking from JSON deserialisation of older data
+        val origCode = tx.originalCurrencyCode.orEmpty()
+        val origAmt = tx.originalAmount
+
         // ── Path 1: transaction has original foreign-currency metadata ──
-        if (tx.originalAmount > 0.0 && tx.originalCurrencyCode.isNotEmpty()) {
-            if (tx.originalCurrencyCode == targetCurrency) return tx.originalAmount
-            val rateMap = conversionRateCache[tx.originalCurrencyCode]
+        if (origAmt > 0.0 && origCode.isNotEmpty()) {
+            if (origCode == targetCurrency) return origAmt
+            val rateMap = conversionRateCache[origCode]
             val rate = rateMap?.get(targetCurrency)
-            if (rate != null) return tx.originalAmount * rate
+            if (rate != null) return origAmt * rate
             // Fall through to stored amount if rate unavailable
         }
         // ── Path 2: no original metadata – use stored amount & currency ──
-        val txCur = tx.currencyCode.ifEmpty { targetCurrency }
+        val txCur = tx.currencyCode.orEmpty().ifEmpty { targetCurrency }
         if (txCur == targetCurrency) return tx.amount
         val rateMap = conversionRateCache[txCur]
         val rate = rateMap?.get(targetCurrency)
@@ -181,8 +185,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun preloadConversionRates(transactions: List<Transaction>, appCurrency: String) {
         val currencies = buildSet {
             for (tx in transactions) {
-                add(tx.currencyCode.ifEmpty { appCurrency })
-                if (tx.originalCurrencyCode.isNotEmpty()) add(tx.originalCurrencyCode)
+                add(tx.currencyCode.orEmpty().ifEmpty { appCurrency })
+                val origCode = tx.originalCurrencyCode.orEmpty()
+                if (origCode.isNotEmpty()) add(origCode)
             }
         }.filter { it != appCurrency }
         if (currencies.isEmpty()) return
@@ -937,8 +942,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (fallbackRate != null && fallbackRate > 0) {
                     // Collect all distinct original currencies that need rates
                     val origCurrencies = repository.appData.value.transactions
-                        .filter { it.originalAmount > 0.0 && it.originalCurrencyCode.isNotEmpty() }
-                        .map { it.originalCurrencyCode }
+                        .filter { it.originalAmount > 0.0 && it.originalCurrencyCode.orEmpty().isNotEmpty() }
+                        .map { it.originalCurrencyCode.orEmpty() }
                         .distinct()
 
                     // Pre-fetch rates for each original currency → newCurrency
