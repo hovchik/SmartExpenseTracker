@@ -54,8 +54,8 @@ class SmsReceiver : BroadcastReceiver() {
         "deposit", "transferred", "upi", "neft", "imps", "amt", "txn",
         "a/c", "acct", "account", "balance", "amount", "card",
         // Currency codes & symbols
-        "usd", "eur", "gbp", "inr", "rub", "amd", "try",
-        "$", "€", "£", "₹", "֏", "₽",
+        "usd", "eur", "gbp", "inr", "rub", "amd",
+        "\$", "€", "£", "₹", "֏", "₽",
         // International
         "approved", "authcode", "auth code", "atm cash", "mail order",
         "credit account", "debit account", "completion",
