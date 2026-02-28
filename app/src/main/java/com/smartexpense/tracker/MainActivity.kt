@@ -269,6 +269,9 @@ fun MainApp(viewModel: MainViewModel) {
                         onConfigureSalary = { enabled, amount, day, desc ->
                             viewModel.configureSalaryScheduler(enabled, amount, day, desc)
                         },
+                        onAddScheduledExpense = { viewModel.addScheduledExpense(it) },
+                        onUpdateScheduledExpense = { viewModel.updateScheduledExpense(it) },
+                        onDeleteScheduledExpense = { viewModel.deleteScheduledExpense(it) },
                         discoveredBankingApps = discoveredBankingApps,
                         isScanningBankingApps = isScanningBankingApps,
                         onScanBankingApps = { viewModel.scanForBankingApps() },

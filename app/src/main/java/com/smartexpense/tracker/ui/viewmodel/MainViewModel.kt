@@ -1002,6 +1002,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ─── Scheduled Expenses (loans, subscriptions) ──────────────────
+
+    fun addScheduledExpense(expense: com.smartexpense.tracker.data.model.ScheduledExpense) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            repository.updateSettings(
+                settings.copy(scheduledExpenses = settings.scheduledExpenses + expense)
+            )
+            rescheduleExpenseWorker()
+        }
+    }
+
+    fun updateScheduledExpense(expense: com.smartexpense.tracker.data.model.ScheduledExpense) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            repository.updateSettings(
+                settings.copy(
+                    scheduledExpenses = settings.scheduledExpenses.map {
+                        if (it.id == expense.id) expense else it
+                    }
+                )
+            )
+            rescheduleExpenseWorker()
+        }
+    }
+
+    fun deleteScheduledExpense(id: String) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            val updated = settings.scheduledExpenses.filter { it.id != id }
+            repository.updateSettings(settings.copy(scheduledExpenses = updated))
+            rescheduleExpenseWorker()
+        }
+    }
+
+    private fun rescheduleExpenseWorker() {
+        val appContext = getApplication<android.app.Application>().applicationContext
+        val hasEnabled = repository.appData.value.settings.scheduledExpenses.any { it.enabled }
+        if (hasEnabled) {
+            com.smartexpense.tracker.service.scheduler.ScheduledExpenseWorker.schedule(appContext)
+        } else {
+            com.smartexpense.tracker.service.scheduler.ScheduledExpenseWorker.cancel(appContext)
+        }
+    }
+
     // ─── Currency Converter ────────────────────────────────────────
 
     private var rateRefreshJob: kotlinx.coroutines.Job? = null

@@ -308,6 +308,19 @@ data class StoreLocation(
     val address: String = ""
 )
 
+/**
+ * A recurring expense (e.g. loan payment, subscription) that fires a reminder
+ * notification on the last working day (Mon–Fri) before the payment day.
+ */
+data class ScheduledExpense(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String = "",
+    val amount: Double = 0.0,
+    /** Day-of-month (1–31) when the payment is due. */
+    val dayOfMonth: Int = 1,
+    val enabled: Boolean = true
+)
+
 data class AppSettings(
     /** Legacy single-char symbol kept for backward-compat. Use currencyCode instead. */
     val currency: String = "֏",
@@ -384,6 +397,8 @@ data class AppSettings(
     val scheduledSalaryDescription: String = "Monthly Salary",
     /** Persisted order of dashboard sections (stored as enum names). Empty = default order. */
     val dashboardSectionOrder: List<String> = emptyList(),
+    // ── Scheduled expenses (loans, subscriptions) ─────────────────
+    val scheduledExpenses: List<ScheduledExpense> = emptyList(),
     // ── Exchange rate update frequency ─────────────────────────────
     /** How often to auto-refresh exchange rates. */
     val rateUpdateFrequency: RateUpdateFrequency = RateUpdateFrequency.EVERY_HOUR,

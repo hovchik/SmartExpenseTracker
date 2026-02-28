@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.smartexpense.tracker.data.model.AppSettings
 import com.smartexpense.tracker.data.model.AiEnginePreference
+import com.smartexpense.tracker.data.model.ScheduledExpense
 import java.io.File
 import com.smartexpense.tracker.data.model.Category
 import com.smartexpense.tracker.data.model.SUPPORTED_CURRENCIES
@@ -75,6 +76,9 @@ fun SettingsScreen(
     onDeleteCategory: (String) -> Unit = {},
     onSetMonthlyLimit: (Double) -> Unit = {},
     onConfigureSalary: (enabled: Boolean, amount: Double, dayOfMonth: Int, description: String) -> Unit = { _, _, _, _ -> },
+    onAddScheduledExpense: (ScheduledExpense) -> Unit = {},
+    onUpdateScheduledExpense: (ScheduledExpense) -> Unit = {},
+    onDeleteScheduledExpense: (String) -> Unit = {},
     /** Discovered banking apps from device scan. */
     discoveredBankingApps: List<com.smartexpense.tracker.ui.viewmodel.MainViewModel.DiscoveredApp> = emptyList(),
     isScanningBankingApps: Boolean = false,
@@ -146,6 +150,7 @@ fun SettingsScreen(
     var connectedAppsExpanded by remember { mutableStateOf(false) }
     var budgetExpanded by remember { mutableStateOf(false) }
     var salaryExpanded by remember { mutableStateOf(false) }
+    var scheduledExpensesExpanded by remember { mutableStateOf(false) }
     var categoriesExpanded by remember { mutableStateOf(false) }
     var localAiExpanded by remember { mutableStateOf(false) }
     var importExportExpanded by remember { mutableStateOf(false) }
@@ -1607,6 +1612,27 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // ─── Scheduled Expenses Section ─────────────────────────────
+        CollapsibleSectionHeader("SCHEDULED EXPENSES", scheduledExpensesExpanded) {
+            scheduledExpensesExpanded = !scheduledExpensesExpanded
+        }
+
+        AnimatedVisibility(
+            visible = scheduledExpensesExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            ScheduledExpensesSection(
+                expenses = settings.scheduledExpenses,
+                currencyCode = settings.currencyCode,
+                onAdd = onAddScheduledExpense,
+                onUpdate = onUpdateScheduledExpense,
+                onDelete = onDeleteScheduledExpense
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
         // ─── Categories Section ────────────────────────────────────
         CollapsibleSectionHeader("CATEGORIES", categoriesExpanded) { categoriesExpanded = !categoriesExpanded }
 
@@ -2666,6 +2692,356 @@ private fun PermissionRow(
                 color = statusColor,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
             )
+        }
+    }
+}
+
+// ─── Scheduled Expenses Section ─────────────────────────────────────────
+
+@Composable
+private fun ScheduledExpensesSection(
+    expenses: List<ScheduledExpense>,
+    currencyCode: String,
+    onAdd: (ScheduledExpense) -> Unit,
+    onUpdate: (ScheduledExpense) -> Unit,
+    onDelete: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val currencySymbol = currencyInfoFor(currencyCode).symbol
+
+    // Form state for adding a new expense
+    var newName by remember { mutableStateOf("") }
+    var newAmountText by remember { mutableStateOf("") }
+    var newDayText by remember { mutableStateOf("") }
+
+    // Which expense ID is currently being edited (null = none)
+    var editingId by remember { mutableStateOf<String?>(null) }
+    var editName by remember { mutableStateOf("") }
+    var editAmountText by remember { mutableStateOf("") }
+    var editDayText by remember { mutableStateOf("") }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Header
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.EventRepeat,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text("Recurring Payments", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                    Text(
+                        "Add loans, subscriptions, or any recurring payment. " +
+                            "You'll be notified on the last working day before each payment date.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // ── Existing expenses list ──
+            if (expenses.isEmpty()) {
+                Text(
+                    "No scheduled expenses yet. Add one below.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            } else {
+                expenses.forEach { expense ->
+                    if (editingId == expense.id) {
+                        // Inline edit form
+                        ScheduledExpenseEditRow(
+                            name = editName,
+                            onNameChange = { editName = it },
+                            amountText = editAmountText,
+                            onAmountChange = { editAmountText = it.filter { c -> c.isDigit() || c == '.' } },
+                            dayText = editDayText,
+                            onDayChange = {
+                                val filtered = it.filter { c -> c.isDigit() }
+                                val num = filtered.toIntOrNull()
+                                if (num == null || num in 1..31) editDayText = filtered
+                            },
+                            currencyCode = currencyCode,
+                            currencySymbol = currencySymbol,
+                            onSave = {
+                                val amount = editAmountText.toDoubleOrNull() ?: 0.0
+                                val day = editDayText.toIntOrNull()?.coerceIn(1, 31) ?: 1
+                                if (editName.isNotBlank() && amount > 0) {
+                                    onUpdate(expense.copy(name = editName, amount = amount, dayOfMonth = day))
+                                    editingId = null
+                                    Toast.makeText(context, "Updated: ${editName}", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            onCancel = { editingId = null }
+                        )
+                    } else {
+                        ScheduledExpenseRow(
+                            expense = expense,
+                            currencySymbol = currencySymbol,
+                            onToggle = { onUpdate(expense.copy(enabled = it)) },
+                            onEdit = {
+                                editingId = expense.id
+                                editName = expense.name
+                                editAmountText = if (expense.amount > 0) expense.amount.toLong().toString() else ""
+                                editDayText = expense.dayOfMonth.toString()
+                            },
+                            onDelete = { onDelete(expense.id) }
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // ── Add new expense form ──
+            Text(
+                "Add New Payment",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = newName,
+                onValueChange = { newName = it },
+                label = { Text("Name (e.g. Mortgage, Car Loan)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = newAmountText,
+                    onValueChange = { newAmountText = it.filter { c -> c.isDigit() || c == '.' } },
+                    label = { Text("Amount ($currencyCode)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier.weight(2f),
+                    shape = RoundedCornerShape(10.dp),
+                    leadingIcon = {
+                        Text(currencySymbol, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp))
+                    }
+                )
+                OutlinedTextField(
+                    value = newDayText,
+                    onValueChange = {
+                        val filtered = it.filter { c -> c.isDigit() }
+                        val num = filtered.toIntOrNull()
+                        if (num == null || num in 1..31) newDayText = filtered
+                    },
+                    label = { Text("Pay Day (1–31)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Button(
+                onClick = {
+                    val amount = newAmountText.toDoubleOrNull() ?: 0.0
+                    val day = newDayText.toIntOrNull()?.coerceIn(1, 31) ?: 1
+                    if (newName.isBlank()) {
+                        Toast.makeText(context, "Please enter a name", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    if (amount <= 0) {
+                        Toast.makeText(context, "Please enter a valid amount", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    if (newDayText.isBlank()) {
+                        Toast.makeText(context, "Please enter the payment day", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    onAdd(ScheduledExpense(name = newName.trim(), amount = amount, dayOfMonth = day))
+                    Toast.makeText(
+                        context,
+                        "${newName.trim()} added — reminder on working day before day $day",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    newName = ""
+                    newAmountText = ""
+                    newDayText = ""
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Add Scheduled Payment", fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScheduledExpenseRow(
+    expense: ScheduledExpense,
+    currencySymbol: String,
+    onToggle: (Boolean) -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (expense.enabled)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            else
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    Icons.Filled.Payment,
+                    contentDescription = null,
+                    tint = if (expense.enabled) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        expense.name,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        color = if (expense.enabled) MaterialTheme.colorScheme.onSurface
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "$currencySymbol${String.format("%.2f", expense.amount)} · Day ${expense.dayOfMonth} of each month",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = expense.enabled,
+                    onCheckedChange = onToggle,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onEdit, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                    Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Edit", fontSize = 12.sp)
+                }
+                TextButton(
+                    onClick = onDelete,
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Delete", fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScheduledExpenseEditRow(
+    name: String,
+    onNameChange: (String) -> Unit,
+    amountText: String,
+    onAmountChange: (String) -> Unit,
+    dayText: String,
+    onDayChange: (String) -> Unit,
+    currencyCode: String,
+    currencySymbol: String,
+    onSave: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            OutlinedTextField(
+                value = name,
+                onValueChange = onNameChange,
+                label = { Text("Name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = onAmountChange,
+                    label = { Text("Amount ($currencyCode)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier.weight(2f),
+                    shape = RoundedCornerShape(10.dp),
+                    leadingIcon = {
+                        Text(currencySymbol, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp))
+                    }
+                )
+                OutlinedTextField(
+                    value = dayText,
+                    onValueChange = onDayChange,
+                    label = { Text("Day (1–31)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onCancel) { Text("Cancel") }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = onSave,
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Save")
+                }
+            }
         }
     }
 }
