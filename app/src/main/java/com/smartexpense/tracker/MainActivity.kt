@@ -284,10 +284,13 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         settings = uiState.settings,
                         storageInfo = viewModel.getStorageInfoText(),
                         isSubscribed = isSubscribed,
+                        isTrialActive = viewModel.subscriptionManager.isTrialActive.collectAsState().value,
+                        activePlanName = viewModel.subscriptionManager.activePlan.collectAsState().value?.displayName,
                         onShowPaywall = { feature ->
                             paywallFeatureName = feature
                             showPaywall = true
                         },
+                        onRestorePurchases = { viewModel.subscriptionManager.restorePurchases() },
                         onUpdateSettings = { s -> viewModel.updateSettings(s) },
                         onExportToUri = { uri -> viewModel.exportDataToUri(uri) },
                         onImportFromUri = { uri -> viewModel.importDataFromUri(uri) },
@@ -355,6 +358,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                 showPaywall = false
                 viewModel.subscriptionManager.startFreeTrial()
             },
+            onRestorePurchases = { viewModel.subscriptionManager.restorePurchases() },
             onDismiss = { showPaywall = false },
             onSubscribe = { plan ->
                 showPaywall = false

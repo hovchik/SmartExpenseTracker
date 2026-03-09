@@ -342,10 +342,49 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
 
     /**
      * Manually restore purchases – call from a "Restore Purchases" button.
+     * Provides user feedback via [billingError] on success or failure.
      */
     fun restorePurchases() {
         _billingError.value = null
-        ensureConnected { queryExistingPurchases() }
+        ensureConnected {
+            queryExistingPurchasesWithFeedback()
+        }
+    }
+
+    private fun queryExistingPurchasesWithFeedback() {
+        billingClient.queryPurchasesAsync(
+            QueryPurchasesParams.newBuilder()
+                .setProductType(BillingClient.ProductType.SUBS)
+                .build()
+        ) { billingResult, purchases ->
+            if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                val activeSub = purchases.firstOrNull { it.purchaseState == Purchase.PurchaseState.PURCHASED }
+                if (activeSub != null) {
+                    activateFromPurchase(activeSub)
+                    _billingError.value = "Subscription restored successfully!"
+                    return@queryPurchasesAsync
+                }
+            }
+            // Check in-app purchases (lifetime)
+            billingClient.queryPurchasesAsync(
+                QueryPurchasesParams.newBuilder()
+                    .setProductType(BillingClient.ProductType.INAPP)
+                    .build()
+            ) { inAppResult, inAppPurchases ->
+                if (inAppResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                    val lifetime = inAppPurchases.firstOrNull {
+                        it.purchaseState == Purchase.PurchaseState.PURCHASED &&
+                            it.products.any { pid -> pid == SubscriptionPlan.LIFETIME.productId }
+                    }
+                    if (lifetime != null) {
+                        activateFromPurchase(lifetime)
+                        _billingError.value = "Lifetime purchase restored successfully!"
+                        return@queryPurchasesAsync
+                    }
+                }
+                _billingError.value = "No previous purchase found for this account."
+            }
+        }
     }
 
     // ─── Free Trial ────────────────────────────────────────────────

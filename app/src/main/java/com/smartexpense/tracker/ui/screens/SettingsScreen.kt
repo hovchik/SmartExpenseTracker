@@ -59,7 +59,10 @@ fun SettingsScreen(
     settings: AppSettings,
     storageInfo: String,
     isSubscribed: Boolean = false,
+    isTrialActive: Boolean = false,
+    activePlanName: String? = null,
     onShowPaywall: (featureName: String) -> Unit = {},
+    onRestorePurchases: () -> Unit = {},
     onUpdateSettings: (AppSettings) -> Unit,
     onExportToUri: (Uri) -> Unit,
     onImportFromUri: (Uri) -> Unit,
@@ -2239,6 +2242,50 @@ fun SettingsScreen(
             exit = shrinkVertically()
         ) {
             PermissionsSectionContent(context)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ─── Subscription Section ──────────────────────────────────
+        Text(
+            "SUBSCRIPTION",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(4.dp)) {
+                SettingsClickItem(
+                    icon = Icons.Filled.WorkspacePremium,
+                    title = if (isSubscribed) {
+                        when {
+                            isTrialActive -> "Premium Trial Active"
+                            activePlanName != null -> "Premium · $activePlanName"
+                            else -> "Premium Active"
+                        }
+                    } else "Free Plan",
+                    subtitle = if (isSubscribed) {
+                        if (isTrialActive) "Your 3-day free trial is active"
+                        else "You have full access to all premium features"
+                    } else "Upgrade to unlock all premium features",
+                    onClick = {
+                        if (!isSubscribed) onShowPaywall("Premium")
+                    }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                SettingsClickItem(
+                    icon = Icons.Filled.Restore,
+                    title = "Restore Purchases",
+                    subtitle = "Reinstalled the app? Recover your subscription here",
+                    onClick = onRestorePurchases
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))

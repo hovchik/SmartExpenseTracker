@@ -37,6 +37,7 @@ fun SubscriptionPaywallDialog(
     featureName: String,
     isTrialEligible: Boolean = false,
     onStartTrial: () -> Unit = {},
+    onRestorePurchases: () -> Unit = {},
     onDismiss: () -> Unit,
     onSubscribe: (SubscriptionPlan) -> Unit
 ) {
@@ -217,11 +218,26 @@ fun SubscriptionPaywallDialog(
             }
         },
         dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Maybe Later")
+            Column(modifier = Modifier.fillMaxWidth()) {
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Maybe Later")
+                }
+                TextButton(
+                    onClick = {
+                        onRestorePurchases()
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "Restore Purchases",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     )
