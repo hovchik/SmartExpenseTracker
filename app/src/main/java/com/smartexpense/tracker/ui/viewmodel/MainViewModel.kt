@@ -32,6 +32,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val repository: ExpenseRepository = (application as SmartExpenseApp).repository
     val aiEngine = AiExpenseEngine()
 
+    /** Subscription manager for premium feature gating. */
+    val subscriptionManager = (application as SmartExpenseApp).subscriptionManager
+    val isSubscribed: StateFlow<Boolean> = subscriptionManager.isSubscribed
+
     /** On-device Gemini Nano service – null responses mean "not available / not enabled". */
     private val localAiService = LocalAiService(application.applicationContext)
 

@@ -49,13 +49,20 @@ import com.smartexpense.tracker.data.model.Category
 import com.smartexpense.tracker.data.model.SUPPORTED_CURRENCIES
 import com.smartexpense.tracker.data.model.ThemeMode
 import com.smartexpense.tracker.data.model.currencyInfoFor
+import com.smartexpense.tracker.BuildConfig
 import com.smartexpense.tracker.service.currency.CurrencyConverterService
+import com.smartexpense.tracker.ui.components.PremiumBadge
 import com.smartexpense.tracker.ui.theme.*
 
 @Composable
 fun SettingsScreen(
     settings: AppSettings,
     storageInfo: String,
+    isSubscribed: Boolean = false,
+    isTrialActive: Boolean = false,
+    activePlanName: String? = null,
+    onShowPaywall: (featureName: String) -> Unit = {},
+    onRestorePurchases: () -> Unit = {},
     onUpdateSettings: (AppSettings) -> Unit,
     onExportToUri: (Uri) -> Unit,
     onImportFromUri: (Uri) -> Unit,
@@ -969,10 +976,18 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         // ─── Application Scanner Section ─────────────────────────
-        CollapsibleSectionHeader("APPLICATION SCANNER", appScannerExpanded) { appScannerExpanded = !appScannerExpanded }
+        CollapsibleSectionHeader(
+            title = "APPLICATION SCANNER",
+            expanded = appScannerExpanded,
+            isPremium = !isSubscribed,
+            onToggle = {
+                if (isSubscribed) appScannerExpanded = !appScannerExpanded
+                else onShowPaywall("Application Scanner")
+            }
+        )
 
         AnimatedVisibility(
-            visible = appScannerExpanded,
+            visible = appScannerExpanded && isSubscribed,
             enter = expandVertically(),
             exit = shrinkVertically()
         ) {
@@ -1384,10 +1399,18 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         // ─── Monthly Expense Limit Section ────────────────────────
-        CollapsibleSectionHeader("BUDGET THRESHOLD", budgetExpanded) { budgetExpanded = !budgetExpanded }
+        CollapsibleSectionHeader(
+            title = "BUDGET THRESHOLD",
+            expanded = budgetExpanded,
+            isPremium = !isSubscribed,
+            onToggle = {
+                if (isSubscribed) budgetExpanded = !budgetExpanded
+                else onShowPaywall("Budget Threshold")
+            }
+        )
 
         AnimatedVisibility(
-            visible = budgetExpanded,
+            visible = budgetExpanded && isSubscribed,
             enter = expandVertically(),
             exit = shrinkVertically()
         ) {
@@ -1468,10 +1491,18 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         // ─── Salary Scheduler Section ──────────────────────────────
-        CollapsibleSectionHeader("SALARY SCHEDULER", salaryExpanded) { salaryExpanded = !salaryExpanded }
+        CollapsibleSectionHeader(
+            title = "SALARY SCHEDULER",
+            expanded = salaryExpanded,
+            isPremium = !isSubscribed,
+            onToggle = {
+                if (isSubscribed) salaryExpanded = !salaryExpanded
+                else onShowPaywall("Salary Scheduler")
+            }
+        )
 
         AnimatedVisibility(
-            visible = salaryExpanded,
+            visible = salaryExpanded && isSubscribed,
             enter = expandVertically(),
             exit = shrinkVertically()
         ) {
@@ -1613,12 +1644,18 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         // ─── Scheduled Expenses Section ─────────────────────────────
-        CollapsibleSectionHeader("SCHEDULED EXPENSES", scheduledExpensesExpanded) {
-            scheduledExpensesExpanded = !scheduledExpensesExpanded
-        }
+        CollapsibleSectionHeader(
+            title = "SCHEDULED EXPENSES",
+            expanded = scheduledExpensesExpanded,
+            isPremium = !isSubscribed,
+            onToggle = {
+                if (isSubscribed) scheduledExpensesExpanded = !scheduledExpensesExpanded
+                else onShowPaywall("Scheduled Expenses")
+            }
+        )
 
         AnimatedVisibility(
-            visible = scheduledExpensesExpanded,
+            visible = scheduledExpensesExpanded && isSubscribed,
             enter = expandVertically(),
             exit = shrinkVertically()
         ) {
@@ -1634,7 +1671,11 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         // ─── Categories Section ────────────────────────────────────
-        CollapsibleSectionHeader("CATEGORIES", categoriesExpanded) { categoriesExpanded = !categoriesExpanded }
+        CollapsibleSectionHeader(
+            title = "CATEGORIES",
+            expanded = categoriesExpanded,
+            onToggle = { categoriesExpanded = !categoriesExpanded }
+        )
 
         AnimatedVisibility(
             visible = categoriesExpanded,
@@ -1647,30 +1688,42 @@ fun SettingsScreen(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 // Add new category row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedTextField(
-                        value = newCategoryText,
-                        onValueChange = { newCategoryText = it },
-                        label = { Text("New category name") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    FilledTonalIconButton(
-                        onClick = {
-                            val name = newCategoryText.trim()
-                            if (name.isNotEmpty()) {
-                                onAddCategory(name)
-                                newCategoryText = ""
-                            }
-                        },
-                        modifier = Modifier.size(48.dp)
+                if (isSubscribed) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Filled.Add, contentDescription = "Add category")
+                        OutlinedTextField(
+                            value = newCategoryText,
+                            onValueChange = { newCategoryText = it },
+                            label = { Text("New category name") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        FilledTonalIconButton(
+                            onClick = {
+                                val name = newCategoryText.trim()
+                                if (name.isNotEmpty()) {
+                                    onAddCategory(name)
+                                    newCategoryText = ""
+                                }
+                            },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = "Add category")
+                        }
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = { onShowPaywall("Custom Categories") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        PremiumBadge()
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Add Custom Categories")
                     }
                 }
 
@@ -2193,6 +2246,50 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // ─── Subscription Section ──────────────────────────────────
+        Text(
+            "SUBSCRIPTION",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(4.dp)) {
+                SettingsClickItem(
+                    icon = Icons.Filled.WorkspacePremium,
+                    title = if (isSubscribed) {
+                        when {
+                            isTrialActive -> "Premium Trial Active"
+                            activePlanName != null -> "Premium · $activePlanName"
+                            else -> "Premium Active"
+                        }
+                    } else "Free Plan",
+                    subtitle = if (isSubscribed) {
+                        if (isTrialActive) "Your 3-day free trial is active"
+                        else "You have full access to all premium features"
+                    } else "Upgrade to unlock all premium features",
+                    onClick = {
+                        if (!isSubscribed) onShowPaywall("Premium")
+                    }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                SettingsClickItem(
+                    icon = Icons.Filled.Restore,
+                    title = "Restore Purchases",
+                    subtitle = "Reinstalled the app? Recover your subscription here",
+                    onClick = onRestorePurchases
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
         // ─── About Section ─────────────────────────────────────────
         Text(
             "ABOUT",
@@ -2217,7 +2314,7 @@ fun SettingsScreen(
                     Column {
                         Text("FlowSense", fontWeight = FontWeight.SemiBold)
                         Text(
-                            "Version 1.0 · AI-Powered Finance Manager",
+                            "Version ${BuildConfig.VERSION_NAME} · AI-Powered Finance Manager",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -2370,6 +2467,7 @@ private fun ThemeModePicker(
 private fun CollapsibleSectionHeader(
     title: String,
     expanded: Boolean,
+    isPremium: Boolean = false,
     onToggle: () -> Unit
 ) {
     val rotation by animateFloatAsState(
@@ -2389,6 +2487,10 @@ private fun CollapsibleSectionHeader(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f)
         )
+        if (isPremium) {
+            PremiumBadge()
+            Spacer(modifier = Modifier.width(8.dp))
+        }
         Icon(
             Icons.Filled.KeyboardArrowDown,
             contentDescription = if (expanded) "Collapse" else "Expand",

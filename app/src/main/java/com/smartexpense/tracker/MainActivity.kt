@@ -1,5 +1,6 @@
 package com.smartexpense.tracker
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,9 +17,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.smartexpense.tracker.ui.components.SubscriptionPaywallDialog
 import com.smartexpense.tracker.ui.screens.*
 import com.smartexpense.tracker.ui.theme.SmartExpenseTheme
 import com.smartexpense.tracker.ui.viewmodel.MainViewModel
+import com.smartexpense.tracker.service.subscription.SubscriptionPlan
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -29,7 +32,7 @@ class MainActivity : ComponentActivity() {
             val viewModel: MainViewModel = viewModel()
             val themeMode by viewModel.themeMode.collectAsState()
             SmartExpenseTheme(themeMode = themeMode) {
-                MainApp(viewModel = viewModel)
+                MainApp(viewModel = viewModel, activity = this@MainActivity)
             }
         }
     }
@@ -37,7 +40,7 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainApp(viewModel: MainViewModel) {
+fun MainApp(viewModel: MainViewModel, activity: Activity) {
     val uiState by viewModel.uiState.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
     val reportPeriod by viewModel.reportPeriod.collectAsState()
@@ -64,7 +67,22 @@ fun MainApp(viewModel: MainViewModel) {
     val ollamaConnecting by viewModel.ollamaConnecting.collectAsState()
     val dashboardSectionOrder by viewModel.dashboardSectionOrder.collectAsState()
     val storeLocations by viewModel.storeLocations.collectAsState()
+    val isSubscribed by viewModel.isSubscribed.collectAsState()
+    val billingError by viewModel.subscriptionManager.billingError.collectAsState()
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Show billing errors/confirmations via Snackbar
+    LaunchedEffect(billingError) {
+        billingError?.let { msg ->
+            snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short)
+            viewModel.subscriptionManager.clearBillingError()
+        }
+    }
+
+    // Paywall dialog state
+    var showPaywall by remember { mutableStateOf(false) }
+    var paywallFeatureName by remember { mutableStateOf("") }
 
     // Shortcut to always-up-to-date currency code
     val currencyCode = uiState.settings.currencyCode
@@ -86,6 +104,7 @@ fun MainApp(viewModel: MainViewModel) {
     val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze")
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             if (showTopBar) {
                 TopAppBar(
@@ -102,7 +121,14 @@ fun MainApp(viewModel: MainViewModel) {
                         )
                     },
                     actions = {
-                        IconButton(onClick = { currentScreen = "store_map" }) {
+                        IconButton(onClick = {
+                            if (isSubscribed) {
+                                currentScreen = "store_map"
+                            } else {
+                                paywallFeatureName = "Store Map"
+                                showPaywall = true
+                            }
+                        }) {
                             Icon(Icons.Filled.Map, contentDescription = "Store Map")
                         }
                         NotificationBell(
@@ -192,7 +218,14 @@ fun MainApp(viewModel: MainViewModel) {
                                 category = category, type = type, source = source,
                                 merchantName = merchant, notes = notes, timestamp = timestamp)
                         },
-                        onScanReceipt = { currentScreen = "scan" },
+                        onScanReceipt = {
+                            if (isSubscribed) {
+                                currentScreen = "scan"
+                            } else {
+                                paywallFeatureName = "OCR Receipt Scanner"
+                                showPaywall = true
+                            }
+                        },
                         onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) },
                         currencyCode = currencyCode
                     )
@@ -250,6 +283,14 @@ fun MainApp(viewModel: MainViewModel) {
                     "settings" -> SettingsScreen(
                         settings = uiState.settings,
                         storageInfo = viewModel.getStorageInfoText(),
+                        isSubscribed = isSubscribed,
+                        isTrialActive = viewModel.subscriptionManager.isTrialActive.collectAsState().value,
+                        activePlanName = viewModel.subscriptionManager.activePlan.collectAsState().value?.displayName,
+                        onShowPaywall = { feature ->
+                            paywallFeatureName = feature
+                            showPaywall = true
+                        },
+                        onRestorePurchases = { viewModel.subscriptionManager.restorePurchases() },
                         onUpdateSettings = { s -> viewModel.updateSettings(s) },
                         onExportToUri = { uri -> viewModel.exportDataToUri(uri) },
                         onImportFromUri = { uri -> viewModel.importDataFromUri(uri) },
@@ -306,5 +347,23 @@ fun MainApp(viewModel: MainViewModel) {
                 }
             }
         }
+    }
+
+    // ─── Subscription Paywall Dialog ─────────────────────────────────
+    if (showPaywall) {
+        SubscriptionPaywallDialog(
+            featureName = paywallFeatureName,
+            isTrialEligible = viewModel.subscriptionManager.isTrialEligible,
+            onStartTrial = {
+                showPaywall = false
+                viewModel.subscriptionManager.startFreeTrial()
+            },
+            onRestorePurchases = { viewModel.subscriptionManager.restorePurchases() },
+            onDismiss = { showPaywall = false },
+            onSubscribe = { plan ->
+                showPaywall = false
+                viewModel.subscriptionManager.launchPurchaseFlow(activity, plan)
+            }
+        )
     }
 }
