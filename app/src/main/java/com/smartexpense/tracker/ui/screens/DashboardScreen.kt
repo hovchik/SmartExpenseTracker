@@ -325,34 +325,49 @@ fun WeeklySpendingChart(data: List<Pair<String, Double>>, currencyCode: String =
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("This Week", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             val maxValue = data.maxOfOrNull { it.second } ?: 1.0
             Row(
-                modifier = Modifier.fillMaxWidth().height(120.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.Bottom
+                modifier = Modifier.fillMaxWidth().height(150.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 data.forEach { (day, amount) ->
+                    val isToday = day == todayLabel
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Bottom,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     ) {
+                        // Push content to the bottom so bars grow upward
+                        Spacer(modifier = Modifier.weight(1f))
                         if (amount > 0) {
-                            Text("$sym${String.format("%.0f", amount)}", fontSize = 9.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "$sym${String.format("%.0f", amount)}",
+                                fontSize = 9.sp,
+                                color = if (isToday) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                             Spacer(modifier = Modifier.height(4.dp))
                         }
-                        val isToday = day == todayLabel
-                        val height = if (maxValue > 0) (amount / maxValue * 80).coerceAtLeast(4.0) else 4.0
+                        val barHeight = if (maxValue > 0) (amount / maxValue * 100).coerceAtLeast(6.0) else 6.0
+                        val cornerDp = kotlin.math.min(6.0, barHeight / 2.0).dp
                         Box(
                             modifier = Modifier
-                                .width(28.dp).height(height.dp)
-                                .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
-                                .background(GreenPrimary.copy(alpha = if (isToday) 1f else 0.5f))
+                                .width(28.dp).height(barHeight.dp)
+                                .clip(RoundedCornerShape(topStart = cornerDp, topEnd = cornerDp))
+                                .background(
+                                    brush = Brush.verticalGradient(
+                                        colors = if (isToday) listOf(GreenLight, GreenPrimary)
+                                                 else listOf(GreenPrimary.copy(alpha = 0.55f), GreenPrimary.copy(alpha = 0.35f))
+                                    )
+                                )
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text(day, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            day, fontSize = 11.sp,
+                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isToday) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -500,7 +515,7 @@ fun TransactionItem(
     var showDetail by remember { mutableStateOf(false) }
     val isExpense = transaction.type == TransactionType.EXPENSE
     // Show a small exchange icon when this transaction was auto-converted from another currency
-    val isConverted = transaction.notes.contains("Original:")
+    val isConverted = transaction.originalAmount > 0.0 && transaction.originalCurrencyCode.orEmpty().isNotEmpty()
     Card(
         modifier = Modifier.fillMaxWidth().clickable { showDetail = true },
         shape = RoundedCornerShape(12.dp)

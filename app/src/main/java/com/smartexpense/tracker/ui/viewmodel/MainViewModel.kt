@@ -72,6 +72,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _exchangeRates = MutableStateFlow<Map<String, Double>>(emptyMap())
     val exchangeRates: StateFlow<Map<String, Double>> = _exchangeRates.asStateFlow()
 
+    /**
+     * Cached conversion rates keyed by base currency, e.g. "USD" → {"AMD" → 389.5, …}.
+     * Populated lazily when [convertAmount] encounters a cross-currency transaction.
+     */
+    @Volatile
+    private var conversionRateCache: Map<String, Map<String, Double>> = emptyMap()
+
     /** Parsed OCR data awaiting user confirmation (editable review form). */
     private val _ocrParsedData = MutableStateFlow<OcrParsedData?>(null)
     val ocrParsedData: StateFlow<OcrParsedData?> = _ocrParsedData.asStateFlow()
@@ -126,6 +133,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             refreshSuggestions()
+            scheduleRateRefresh()
+            // Warm up the location cache so background receivers (SMS, notifications)
+            // can fall back to a recent foreground fix.
+            currentLocation()
             repository.appData.collect { data ->
                 _themeMode.value = data.settings.themeMode
                 _inAppNotifications.value = data.inAppNotifications
@@ -134,8 +145,66 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ─── Currency conversion helper ─────────────────────────────────────
+
+    /**
+     * Returns [Transaction.amount] converted to [targetCurrency].
+     *
+     * When the transaction carries original-currency metadata (e.g. 800 RUB)
+     * we always convert from the *original* amount/currency so that switching
+     * display currency never compounds rounding errors (RUB→USD→AMD).
+     * Falls back to the unconverted amount when rates are unavailable.
+     */
+    fun convertAmount(tx: Transaction, targetCurrency: String): Double {
+        // Guard against null leaking from JSON deserialisation of older data
+        val origCode = tx.originalCurrencyCode.orEmpty()
+        val origAmt = tx.originalAmount
+
+        // ── Path 1: transaction has original foreign-currency metadata ──
+        if (origAmt > 0.0 && origCode.isNotEmpty()) {
+            if (origCode == targetCurrency) return origAmt
+            val rateMap = conversionRateCache[origCode]
+            val rate = rateMap?.get(targetCurrency)
+            if (rate != null) return origAmt * rate
+            // Fall through to stored amount if rate unavailable
+        }
+        // ── Path 2: no original metadata – use stored amount & currency ──
+        val txCur = tx.currencyCode.orEmpty().ifEmpty { targetCurrency }
+        if (txCur == targetCurrency) return tx.amount
+        val rateMap = conversionRateCache[txCur]
+        val rate = rateMap?.get(targetCurrency)
+        return if (rate != null) tx.amount * rate else tx.amount
+    }
+
+    /**
+     * Pre-fetches exchange rates for every distinct currency found in
+     * the current transaction list so that [convertAmount] can work
+     * synchronously.  Includes both stored currencies AND original
+     * foreign currencies so cross-rate conversions work correctly.
+     */
+    private fun preloadConversionRates(transactions: List<Transaction>, appCurrency: String) {
+        val currencies = buildSet {
+            for (tx in transactions) {
+                add(tx.currencyCode.orEmpty().ifEmpty { appCurrency })
+                val origCode = tx.originalCurrencyCode.orEmpty()
+                if (origCode.isNotEmpty()) add(origCode)
+            }
+        }.filter { it != appCurrency }
+        if (currencies.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val newCache = conversionRateCache.toMutableMap()
+            for (cur in currencies) {
+                if (newCache.containsKey(cur)) continue
+                val rates = CurrencyConverterService.getRates(cur)
+                if (rates != null) newCache[cur] = rates
+            }
+            conversionRateCache = newCache
+        }
+    }
+
     private fun updateUiState(data: AppData) {
         val now = System.currentTimeMillis()
+        val appCurrency = data.settings.currencyCode
         val startOfMonth = DateUtils.getStartOfMonth(now)
         val endOfMonth = DateUtils.getEndOfMonth(now)
         val startOfWeek = DateUtils.getStartOfWeek(now)
@@ -143,25 +212,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val startOfDay = DateUtils.getStartOfDay(now)
         val endOfDay = DateUtils.getEndOfDay(now)
 
+        // Pre-fetch rates for cross-currency transactions (async; first render uses raw amounts)
+        preloadConversionRates(data.transactions, appCurrency)
+
         val monthlyExpenses = data.transactions
             .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfMonth..endOfMonth }
-            .sumOf { it.amount }
+            .sumOf { convertAmount(it, appCurrency) }
         val monthlyIncome = data.transactions
             .filter { it.type == TransactionType.INCOME && it.timestamp in startOfMonth..endOfMonth }
-            .sumOf { it.amount }
+            .sumOf { convertAmount(it, appCurrency) }
         val todayExpenses = data.transactions
             .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfDay..endOfDay }
-            .sumOf { it.amount }
+            .sumOf { convertAmount(it, appCurrency) }
         val weeklyExpenses = data.transactions
             .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfWeek..endOfWeek }
-            .sumOf { it.amount }
+            .sumOf { convertAmount(it, appCurrency) }
 
         val allTransactionsSorted = data.transactions.sortedByDescending { it.timestamp }
         val recentTransactions = allTransactionsSorted.take(20)
         val categoryBreakdown = data.transactions
             .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfMonth..endOfMonth }
             .groupBy { it.category }
-            .mapValues { it.value.sumOf { t -> t.amount } }
+            .mapValues { it.value.sumOf { t -> convertAmount(t, appCurrency) } }
             .entries.sortedByDescending { it.value }
             .associate { it.key to it.value }
 
@@ -282,8 +354,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val settings = repository.appData.value.settings
             repository.updateSettings(settings.copy(
-                aiEnginePreference = preference,
-                localAiEnabled = preference != AiEnginePreference.RULE_BASED
+                aiEnginePreference = preference
             ))
             _localAiStatus.value = "Switching engine…"
             withContext(Dispatchers.IO) { localAiService.recheckAvailability(preference) }
@@ -537,14 +608,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val finalCategory = category ?: smartCategorize(description)
             val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
             val loc = currentLocation()
+            val geoLoc = loc?.let { GeoLocation(it.latitude, it.longitude) }
             val added = repository.addTransaction(Transaction(
                 amount = amount, description = description, category = finalCategory,
                 type = type, source = source, merchantName = merchantName, notes = notes,
                 timestamp = timestamp, dateTime = dtFormatter.format(Date(timestamp)),
-                latitude = loc?.latitude, longitude = loc?.longitude
+                location = geoLoc
             ))
             if (added) {
-                autoCreateStoreIfNeeded(merchantName, loc?.latitude, loc?.longitude)
+                autoCreateStoreIfNeeded(merchantName, geoLoc)
                 refreshSuggestions()
             }
         }
@@ -576,30 +648,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.deleteStoreLocation(id) }
     }
 
+    fun clearAllStoreLocations() {
+        viewModelScope.launch { repository.clearAllStoreLocations() }
+    }
+
+    fun updateStoreLocation(store: StoreLocation) {
+        viewModelScope.launch { repository.updateStoreLocation(store) }
+    }
+
     /**
      * Automatically creates a [StoreLocation] for [merchantName] at the given
-     * coordinates if one doesn't already exist for that merchant.
+     * [GeoLocation] if one doesn't already exist for that merchant.
      */
     private suspend fun autoCreateStoreIfNeeded(
         merchantName: String,
-        latitude: Double?,
-        longitude: Double?
+        location: GeoLocation?
     ) {
-        if (merchantName.isBlank() || latitude == null || longitude == null) return
+        if (merchantName.isBlank() || location == null) return
         val existing = repository.appData.value.storeLocations
         if (existing.any { it.merchantName.equals(merchantName, ignoreCase = true) }) return
         repository.addStoreLocation(
             StoreLocation(
                 merchantName = merchantName,
-                latitude = latitude,
-                longitude = longitude
+                latitude = location.lat,
+                longitude = location.lng
             )
         )
     }
 
-    /** Returns the current device location, or null. */
-    private fun currentLocation(): LocationProvider.LatLng? =
-        LocationProvider.getLastKnownLocation(getApplication())
+    /** Returns the current device location (and caches it for background use), or null. */
+    private fun currentLocation(): LocationProvider.LatLng? {
+        val loc = LocationProvider.getLastKnownLocation(getApplication())
+        if (loc != null) LocationProvider.cacheLocation(getApplication(), loc)
+        return loc
+    }
 
     /**
      * Parses OCR/QR receipt data and stores it in [ocrParsedData] for the user to review
@@ -694,6 +776,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 repository.ensureCategoryExists(category)
 
                 val loc = currentLocation()
+                val geoLoc = loc?.let { GeoLocation(it.latitude, it.longitude) }
                 val now = System.currentTimeMillis()
                 val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
                 repository.addTransaction(Transaction(
@@ -706,10 +789,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     timestamp = now,
                     dateTime = dtFormatter.format(Date(now)),
                     notes = listOf(itemsNote, sourceNote, aiNote).filter { it.isNotBlank() }.joinToString("\n"),
-                    latitude = loc?.latitude,
-                    longitude = loc?.longitude
+                    location = geoLoc
                 ))
-                autoCreateStoreIfNeeded(merchantName, loc?.latitude, loc?.longitude)
+                autoCreateStoreIfNeeded(merchantName, geoLoc)
 
                 val resultMsg = buildString {
                     append("Found: $merchantName — $currencySymbol${String.format("%.2f", amount)}")
@@ -741,6 +823,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Returns a copy of all transactions with amounts converted to [targetCurrency].
+     * Original currency metadata (originalAmount, originalCurrencyCode) is always
+     * preserved so further conversions can go back to the source amount.
+     */
+    private fun transactionsInDisplayCurrency(targetCurrency: String): List<Transaction> {
+        return repository.appData.value.transactions.map { tx ->
+            val converted = convertAmount(tx, targetCurrency)
+            if (converted != tx.amount) {
+                tx.copy(amount = converted, currencyCode = targetCurrency)
+            } else tx
+        }
+    }
+
     fun generateReport(period: ReportPeriod): ExpenseReport {
         val now = System.currentTimeMillis()
         val (start, end) = when (period) {
@@ -750,7 +846,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ReportPeriod.CUSTOM -> DateUtils.getStartOfMonth(now) to DateUtils.getEndOfMonth(now) // fallback; use generateReportForRange for custom
         }
         val currencyCode = repository.appData.value.settings.currencyCode
-        return aiEngine.generateReport(repository.appData.value.transactions, period, start, end, currencyCode)
+        return aiEngine.generateReport(transactionsInDisplayCurrency(currencyCode), period, start, end, currencyCode)
     }
 
     /**
@@ -778,7 +874,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         val currencyCode = repository.appData.value.settings.currencyCode
         return aiEngine.generateReport(
-            repository.appData.value.transactions,
+            transactionsInDisplayCurrency(currencyCode),
             ReportPeriod.MONTHLY,
             startCal.timeInMillis,
             endCal.timeInMillis,
@@ -792,7 +888,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun generateReportForRange(startMillis: Long, endMillis: Long): ExpenseReport {
         val currencyCode = repository.appData.value.settings.currencyCode
         return aiEngine.generateReport(
-            repository.appData.value.transactions,
+            transactionsInDisplayCurrency(currencyCode),
             ReportPeriod.CUSTOM,
             startMillis,
             endMillis,
@@ -803,18 +899,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun analyzeTransactions(startMillis: Long, endMillis: Long, category: String?): String {
         val currencyCode = repository.appData.value.settings.currencyCode
         return aiEngine.generateAnalysis(
-            repository.appData.value.transactions,
+            transactionsInDisplayCurrency(currencyCode),
             startMillis, endMillis, currencyCode, category
         )
     }
 
     fun getWeeklyChartData(): List<Pair<String, Double>> {
         val data = repository.appData.value
+        val appCurrency = data.settings.currencyCode
         return DateUtils.getDaysInRange(DateUtils.getStartOfWeek(), DateUtils.getEndOfWeek()).map { dayStart ->
             val dayEnd = DateUtils.getEndOfDay(dayStart)
             val total = data.transactions
                 .filter { it.type == TransactionType.EXPENSE && it.timestamp in dayStart..dayEnd }
-                .sumOf { it.amount }
+                .sumOf { convertAmount(it, appCurrency) }
             DateUtils.formatDay(dayStart) to total
         }
     }
@@ -835,13 +932,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository.updateSettings(settings)
             CurrencyConverterService.invalidateCache()
 
-            // When currency changes, convert all transaction amounts and budget limits
+            // When currency changes, re-convert all transaction amounts and budget limits.
+            // Transactions with original foreign-currency metadata are converted directly
+            // from the original currency, avoiding compounded rounding errors.
             if (oldCurrency != newCurrency) {
-                val rate = withContext(Dispatchers.IO) {
+                val fallbackRate = withContext(Dispatchers.IO) {
                     CurrencyConverterService.convert(1.0, oldCurrency, newCurrency)
                 }
-                if (rate != null && rate > 0) {
-                    repository.convertAmounts(rate)
+                if (fallbackRate != null && fallbackRate > 0) {
+                    // Collect all distinct original currencies that need rates
+                    val origCurrencies = repository.appData.value.transactions
+                        .filter { it.originalAmount > 0.0 && it.originalCurrencyCode.orEmpty().isNotEmpty() }
+                        .map { it.originalCurrencyCode.orEmpty() }
+                        .distinct()
+
+                    // Pre-fetch rates for each original currency → newCurrency
+                    val origRates = mutableMapOf<String, Double>()
+                    for (oc in origCurrencies) {
+                        if (oc == newCurrency) { origRates[oc] = 1.0; continue }
+                        val r = withContext(Dispatchers.IO) {
+                            CurrencyConverterService.convert(1.0, oc, newCurrency)
+                        }
+                        if (r != null) origRates[oc] = r
+                    }
+
+                    repository.convertAmounts(
+                        newCurrency = newCurrency,
+                        fallbackRate = fallbackRate,
+                        rateFromOriginal = { origRates[it] }
+                    )
                     refreshSuggestions()
                 }
             }
@@ -883,15 +1002,64 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ─── Scheduled Expenses (loans, subscriptions) ──────────────────
+
+    fun addScheduledExpense(expense: com.smartexpense.tracker.data.model.ScheduledExpense) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            repository.updateSettings(
+                settings.copy(scheduledExpenses = settings.scheduledExpenses + expense)
+            )
+            rescheduleExpenseWorker()
+        }
+    }
+
+    fun updateScheduledExpense(expense: com.smartexpense.tracker.data.model.ScheduledExpense) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            repository.updateSettings(
+                settings.copy(
+                    scheduledExpenses = settings.scheduledExpenses.map {
+                        if (it.id == expense.id) expense else it
+                    }
+                )
+            )
+            rescheduleExpenseWorker()
+        }
+    }
+
+    fun deleteScheduledExpense(id: String) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            val updated = settings.scheduledExpenses.filter { it.id != id }
+            repository.updateSettings(settings.copy(scheduledExpenses = updated))
+            rescheduleExpenseWorker()
+        }
+    }
+
+    private fun rescheduleExpenseWorker() {
+        val appContext = getApplication<android.app.Application>().applicationContext
+        val hasEnabled = repository.appData.value.settings.scheduledExpenses.any { it.enabled }
+        if (hasEnabled) {
+            com.smartexpense.tracker.service.scheduler.ScheduledExpenseWorker.schedule(appContext)
+        } else {
+            com.smartexpense.tracker.service.scheduler.ScheduledExpenseWorker.cancel(appContext)
+        }
+    }
+
     // ─── Currency Converter ────────────────────────────────────────
 
+    private var rateRefreshJob: kotlinx.coroutines.Job? = null
+
     /**
-     * Fetches live exchange rates (base = USD) and stores them in [exchangeRates].
-     * Safe to call multiple times — results are cached for 1 hour.
+     * Fetches live exchange rates (base = USD), archives them in rate history,
+     * and stores them in [exchangeRates].
+     * Also persists the fetch timestamp to settings for frequency-based refresh.
      */
     fun fetchExchangeRates() {
         viewModelScope.launch {
             val settings = repository.appData.value.settings
+            val sourceName = settings.rateSource.name
             val rates = withContext(Dispatchers.IO) {
                 when (settings.rateSource) {
                     com.smartexpense.tracker.data.model.RateSource.RATE_AM ->
@@ -902,8 +1070,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             if (rates != null) {
-                // Merge in USD itself so the converter can handle USD→X conversions
-                _exchangeRates.value = rates + ("USD" to 1.0)
+                val fullRates = rates + ("USD" to 1.0)
+                _exchangeRates.value = fullRates
+
+                // Archive this rate snapshot
+                val now = System.currentTimeMillis()
+                repository.addRateHistoryEntry(
+                    RateHistoryEntry(timestamp = now, source = sourceName, rates = fullRates)
+                )
+                // Persist fetch timestamp
+                repository.updateSettings(settings.copy(lastRateUpdateTimestamp = now))
+            }
+        }
+    }
+
+    /**
+     * Starts a repeating background job that refreshes exchange rates at the
+     * interval defined by [AppSettings.rateUpdateFrequency].
+     * Cancels any previous job before starting a new one.
+     */
+    fun scheduleRateRefresh() {
+        rateRefreshJob?.cancel()
+        val settings = repository.appData.value.settings
+        val freq = settings.rateUpdateFrequency
+        if (freq == RateUpdateFrequency.MANUAL || freq.minutes <= 0) return
+
+        rateRefreshJob = viewModelScope.launch {
+            // Check if a refresh is overdue right now
+            val elapsed = System.currentTimeMillis() - settings.lastRateUpdateTimestamp
+            if (elapsed >= freq.minutes * 60_000L) {
+                fetchExchangeRates()
+            }
+            // Then repeat on schedule
+            while (true) {
+                kotlinx.coroutines.delay(freq.minutes * 60_000L)
+                fetchExchangeRates()
             }
         }
     }
@@ -1033,32 +1234,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val parsedCurrency = tx.notes.lines()
                     .find { it.startsWith("parsedCurrency:") }?.removePrefix("parsedCurrency:") ?: ""
 
-                val (finalAmount, conversionNote) = if (
-                    parsedCurrency.isNotEmpty() && parsedCurrency != appCurrency
-                ) {
+                var finalAmount = tx.amount
+                var origAmount = 0.0
+                var origCode = ""
+                var rate = 0.0
+
+                if (parsedCurrency.isNotEmpty() && parsedCurrency != appCurrency) {
                     val converted = withContext(Dispatchers.IO) {
                         com.smartexpense.tracker.service.currency.CurrencyConverterService.convert(
                             tx.amount, parsedCurrency, appCurrency
                         )
                     }
                     if (converted != null) {
-                        val rate = converted / tx.amount
-                        val fromSym = currencyInfoFor(parsedCurrency).symbol
-                        converted to "Original: $fromSym${String.format("%.2f", tx.amount)} $parsedCurrency · 1 $parsedCurrency = ${String.format("%.4f", rate)} $appCurrency"
-                    } else {
-                        tx.amount to ""
+                        rate = converted / tx.amount
+                        origAmount = tx.amount
+                        origCode = parsedCurrency
+                        finalAmount = converted
                     }
-                } else {
-                    tx.amount to ""
                 }
 
-                // Remove parsedCurrency marker, append conversion note if present
+                // Remove parsedCurrency marker from notes
                 val cleanNotes = tx.notes.lines()
                     .filter { !it.startsWith("parsedCurrency:") }
-                    .joinToString("\n")
-                    .let { base -> if (conversionNote.isNotEmpty()) "$base\n$conversionNote".trim() else base.trim() }
+                    .joinToString("\n").trim()
 
-                val finalTx = tx.copy(amount = finalAmount, notes = cleanNotes)
+                val finalTx = tx.copy(
+                    amount = finalAmount,
+                    notes = cleanNotes,
+                    currencyCode = appCurrency,
+                    originalAmount = origAmount,
+                    originalCurrencyCode = origCode,
+                    exchangeRate = rate
+                )
 
                 // Auto-create category if not in the existing list
                 repository.ensureCategoryExists(finalTx.category)

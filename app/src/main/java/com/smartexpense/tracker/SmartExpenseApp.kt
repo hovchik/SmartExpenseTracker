@@ -5,6 +5,7 @@ import com.smartexpense.tracker.data.json.JsonStorageManager
 import com.smartexpense.tracker.data.repository.ExpenseRepository
 import com.smartexpense.tracker.service.notification.ExpenseNotificationHelper
 import com.smartexpense.tracker.service.scheduler.SalarySchedulerWorker
+import com.smartexpense.tracker.service.scheduler.ScheduledExpenseWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,6 +34,9 @@ class SmartExpenseApp : Application() {
             val settings = repository.appData.value.settings
             if (settings.scheduledSalaryEnabled && settings.scheduledSalaryAmount > 0) {
                 SalarySchedulerWorker.schedule(applicationContext)
+            }
+            if (settings.scheduledExpenses.any { it.enabled }) {
+                ScheduledExpenseWorker.schedule(applicationContext)
             }
         }
         // Create notification channels (no-op if already created)

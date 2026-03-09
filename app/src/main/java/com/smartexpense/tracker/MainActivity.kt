@@ -92,11 +92,11 @@ fun MainApp(viewModel: MainViewModel) {
                     title = {
                         Text(
                             when (currentScreen) {
-                                "dashboard"    -> "Smart Expense"
+                                "dashboard"    -> "FlowSense"
                                 "reports"      -> "Reports"
                                 "transactions" -> "Transactions"
                                 "settings"     -> "Settings"
-                                else           -> "Smart Expense"
+                                else           -> "FlowSense"
                             },
                             fontWeight = FontWeight.Bold
                         )
@@ -237,6 +237,8 @@ fun MainApp(viewModel: MainViewModel) {
                             viewModel.addStoreLocation(name, lat, lng, addr)
                         },
                         onDeleteStoreLocation = { id -> viewModel.deleteStoreLocation(id) },
+                        onUpdateStoreLocation = { store -> viewModel.updateStoreLocation(store) },
+                        onClearAllStoreLocations = { viewModel.clearAllStoreLocations() },
                         onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
                     )
                     "ai_analyze" -> AiAnalyzeScreen(
@@ -267,6 +269,9 @@ fun MainApp(viewModel: MainViewModel) {
                         onConfigureSalary = { enabled, amount, day, desc ->
                             viewModel.configureSalaryScheduler(enabled, amount, day, desc)
                         },
+                        onAddScheduledExpense = { viewModel.addScheduledExpense(it) },
+                        onUpdateScheduledExpense = { viewModel.updateScheduledExpense(it) },
+                        onDeleteScheduledExpense = { viewModel.deleteScheduledExpense(it) },
                         discoveredBankingApps = discoveredBankingApps,
                         isScanningBankingApps = isScanningBankingApps,
                         onScanBankingApps = { viewModel.scanForBankingApps() },

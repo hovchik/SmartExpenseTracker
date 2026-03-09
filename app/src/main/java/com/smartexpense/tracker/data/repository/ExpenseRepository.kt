@@ -200,15 +200,71 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         storage.saveData(updated)
     }
 
+    suspend fun clearAllStoreLocations() {
+        val current = _appData.value
+        val updated = current.copy(storeLocations = emptyList())
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    suspend fun updateStoreLocation(updated: StoreLocation) {
+        val current = _appData.value
+        val newData = current.copy(
+            storeLocations = current.storeLocations.map {
+                if (it.id == updated.id) updated else it
+            }
+        )
+        _appData.value = newData
+        storage.saveData(newData)
+    }
+
     /**
-     * Multiplies every transaction amount and budget limit by [rate].
-     * Used when the user switches the app currency.
+     * Converts every transaction amount and budget limit to [newCurrency].
+     *
+     * For transactions that carry original foreign-currency metadata
+     * (originalAmount / originalCurrencyCode), the amount is re-converted
+     * from the *original* currency to [newCurrency] using the provided
+     * [rateFromOriginal] lookup, avoiding compounded rounding errors.
+     *
+     * Transactions without original metadata are multiplied by [fallbackRate]
+     * (the old-currency → new-currency rate).
+     *
+     * @param newCurrency       ISO-4217 code of the new app currency.
+     * @param fallbackRate      1 old-currency = fallbackRate new-currency.
+     * @param rateFromOriginal  Lookup: (originalCurrencyCode) → rate where
+     *                          1 originalCurrency = rate new-currency.
+     *                          Return null when a rate is unavailable.
      */
-    suspend fun convertAmounts(rate: Double) {
+    suspend fun convertAmounts(
+        newCurrency: String,
+        fallbackRate: Double,
+        rateFromOriginal: (String) -> Double?
+    ) {
         val current = _appData.value
         val updated = current.copy(
-            transactions = current.transactions.map { it.copy(amount = it.amount * rate) },
-            budgets = current.budgets.map { it.copy(monthlyLimit = it.monthlyLimit * rate) }
+            transactions = current.transactions.map { tx ->
+                if (tx.originalAmount > 0.0 && tx.originalCurrencyCode.orEmpty().isNotEmpty()) {
+                    val rate = rateFromOriginal(tx.originalCurrencyCode.orEmpty())
+                    if (rate != null) {
+                        tx.copy(
+                            amount = tx.originalAmount * rate,
+                            currencyCode = newCurrency,
+                            exchangeRate = rate
+                        )
+                    } else {
+                        tx.copy(
+                            amount = tx.amount * fallbackRate,
+                            currencyCode = newCurrency
+                        )
+                    }
+                } else {
+                    tx.copy(
+                        amount = tx.amount * fallbackRate,
+                        currencyCode = newCurrency
+                    )
+                }
+            },
+            budgets = current.budgets.map { it.copy(monthlyLimit = it.monthlyLimit * fallbackRate) }
         )
         _appData.value = updated
         storage.saveData(updated)
@@ -297,6 +353,20 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         )
         addInAppNotification(notification)
         return true
+    }
+
+    // ─── Rate History ─────────────────────────────────────────────
+
+    /**
+     * Stores a rate snapshot. Keeps only current (index 0) and previous (index 1).
+     */
+    suspend fun addRateHistoryEntry(entry: com.smartexpense.tracker.data.model.RateHistoryEntry) {
+        val current = _appData.value
+        val updated = current.copy(
+            rateHistory = (listOf(entry) + current.rateHistory).take(2)
+        )
+        _appData.value = updated
+        storage.saveData(updated)
     }
 
     // ─── Export/Import ─────────────────────────────────────────────

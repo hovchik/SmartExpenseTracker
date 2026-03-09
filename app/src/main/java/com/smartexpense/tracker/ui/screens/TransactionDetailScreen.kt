@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import com.smartexpense.tracker.data.model.Transaction
 import com.smartexpense.tracker.data.model.TransactionSource
 import com.smartexpense.tracker.data.model.TransactionType
+import com.smartexpense.tracker.data.model.currencyInfoFor
 import com.smartexpense.tracker.ui.theme.*
 import com.smartexpense.tracker.util.CurrencyUtils
 import kotlinx.coroutines.launch
@@ -134,7 +135,7 @@ fun TransactionDetailDialog(
                     .padding(horizontal = 24.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                val dtDisplay = transaction.dateTime.take(16).replace("T", "  ")
+                val dtDisplay = (transaction.dateTime ?: "").take(16).replace("T", "  ")
                 DetailRow(Icons.Filled.CalendarToday, "Date & Time", dtDisplay)
 
                 if (transaction.merchantName.isNotEmpty()) {
@@ -154,6 +155,64 @@ fun TransactionDetailDialog(
                     TransactionSource.IMPORT -> "Imported from file"
                 }
                 DetailRow(Icons.Filled.Source, "Source", sourceLabel)
+
+                // ── Foreign currency conversion details ──────────
+                if (transaction.originalAmount > 0.0 && transaction.originalCurrencyCode.orEmpty().isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    val origSym = currencyInfoFor(transaction.originalCurrencyCode.orEmpty()).symbol
+                    val appSym = currencyInfoFor(currencyCode).symbol
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Filled.CurrencyExchange, contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    "Currency Conversion",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text("Original amount", fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(
+                                        "${origSym}${String.format("%.2f", transaction.originalAmount)} ${transaction.originalCurrencyCode.orEmpty()}",
+                                        fontSize = 15.sp, fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text("Converted to", fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(
+                                        "${appSym}${String.format("%.2f", transaction.amount)} $currencyCode",
+                                        fontSize = 15.sp, fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                "Rate: 1 ${transaction.originalCurrencyCode.orEmpty()} = ${String.format("%.4f", transaction.exchangeRate)} $currencyCode",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
 
                 if (transaction.tags.isNotEmpty()) {
                     DetailRow(Icons.Filled.Label, "Tags", transaction.tags.joinToString(", "))

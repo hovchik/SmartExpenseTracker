@@ -45,6 +45,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -351,6 +352,43 @@ fun ReportsScreen(
                         Text(
                             if (report.comparisonWithPrevious <= 0) "Spending down" else "Spending up",
                             fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        // ─── Spending History Line Chart ─────────────────
+        if (report.transactionCount > 0) {
+            item {
+                Text("Spending History",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 4.dp))
+            }
+            item {
+                val dailyData = remember(report) {
+                    buildDailyHistory(report)
+                }
+                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        // Legend
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(RedExpense))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Expenses", fontSize = 12.sp)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(GreenIncome))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Income", fontSize = 12.sp)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        DailyHistoryChart(
+                            data = dailyData,
+                            currencyCode = currencyCode
                         )
                     }
                 }
@@ -757,7 +795,7 @@ fun ReportsScreen(
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(tx.description, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                                         Text(
-                                            "${tx.category} · ${tx.dateTime.take(16).replace("T", " ")}",
+                                            "${tx.category} · ${(tx.dateTime ?: "").take(16).replace("T", " ")}",
                                             fontSize = 11.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -871,7 +909,7 @@ fun ReportsScreen(
                                 selectedYear, selectedMonth, monthYearFormatter, periodLabel)
                             val intent = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
-                                putExtra(Intent.EXTRA_SUBJECT, "Smart Expense Report")
+                                putExtra(Intent.EXTRA_SUBJECT, "FlowSense Report")
                                 putExtra(Intent.EXTRA_TEXT, text)
                             }
                             context.startActivity(Intent.createChooser(intent, "Share Report"))
@@ -1085,7 +1123,7 @@ private fun buildShareText(
     }
 
     val sb = StringBuilder()
-    sb.appendLine("📊 Smart Expense Report — $periodLabel")
+    sb.appendLine("📊 FlowSense Report — $periodLabel")
     sb.appendLine("─".repeat(34))
     sb.appendLine("💸 Expenses : ${CurrencyUtils.format(report.totalExpenses, currencyCode)}")
     sb.appendLine("💰 Income   : ${CurrencyUtils.format(report.totalIncome, currencyCode)}")
@@ -1136,7 +1174,7 @@ private fun buildShareText(
     }
 
     sb.appendLine()
-    sb.append("Shared from Smart Expense Tracker")
+    sb.append("Shared from FlowSense")
     return sb.toString()
 }
 
@@ -1172,6 +1210,207 @@ private fun CategoryDonutChart(
                 style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
             )
             startAngle += sweep
+        }
+    }
+}
+
+// ─── Daily Spending History Chart ─────────────────────────────────────
+
+private data class DayPoint(
+    val label: String,
+    val expense: Double,
+    val income: Double,
+    val dayIndex: Int
+)
+
+private fun buildDailyHistory(report: ExpenseReport): List<DayPoint> {
+    val dayFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    val labelFmt = SimpleDateFormat("dd", Locale.US)
+    val cal = Calendar.getInstance().apply {
+        timeInMillis = report.startDate
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    }
+    val end = report.endDate
+    val points = mutableListOf<DayPoint>()
+    var idx = 0
+    while (cal.timeInMillis <= end) {
+        val key = dayFmt.format(cal.time)
+        val txList = report.transactionsByDate[key] ?: emptyList()
+        val exp = txList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+        val inc = txList.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+        points.add(DayPoint(label = labelFmt.format(cal.time), expense = exp, income = inc, dayIndex = idx))
+        cal.add(Calendar.DAY_OF_MONTH, 1)
+        idx++
+    }
+    return points
+}
+
+@Composable
+private fun DailyHistoryChart(
+    data: List<DayPoint>,
+    currencyCode: String
+) {
+    if (data.isEmpty()) return
+
+    val maxVal = data.maxOf { maxOf(it.expense, it.income) }.coerceAtLeast(1.0)
+    val expenseColor = RedExpense
+    val incomeColor = GreenIncome
+    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+
+    // Compute label step: show ~5-7 labels
+    val labelStep = (data.size / 6).coerceAtLeast(1)
+
+    Column {
+        // The chart canvas
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(160.dp)
+        ) {
+            val w = size.width
+            val h = size.height
+            val paddingBottom = 0f
+            val chartH = h - paddingBottom
+            val n = data.size
+
+            if (n < 2) {
+                // Single point: draw a dot
+                val ex = data[0].expense
+                val ey = chartH - (ex / maxVal * chartH).toFloat()
+                drawCircle(color = expenseColor, radius = 6f, center = Offset(w / 2, ey))
+                return@Canvas
+            }
+
+            val stepX = w / (n - 1).toFloat()
+
+            // Grid lines (3 horizontal)
+            for (i in 1..3) {
+                val gy = chartH - (chartH * i / 4f)
+                drawLine(
+                    color = gridColor,
+                    start = Offset(0f, gy),
+                    end = Offset(w, gy),
+                    strokeWidth = 1f
+                )
+            }
+
+            // Expense area fill
+            val expensePath = androidx.compose.ui.graphics.Path().apply {
+                moveTo(0f, chartH)
+                data.forEachIndexed { i, pt ->
+                    val x = i * stepX
+                    val y = chartH - (pt.expense / maxVal * chartH).toFloat()
+                    lineTo(x, y)
+                }
+                lineTo((n - 1) * stepX, chartH)
+                close()
+            }
+            drawPath(
+                path = expensePath,
+                color = expenseColor.copy(alpha = 0.10f)
+            )
+
+            // Expense line
+            for (i in 0 until n - 1) {
+                val x1 = i * stepX
+                val y1 = chartH - (data[i].expense / maxVal * chartH).toFloat()
+                val x2 = (i + 1) * stepX
+                val y2 = chartH - (data[i + 1].expense / maxVal * chartH).toFloat()
+                drawLine(
+                    color = expenseColor,
+                    start = Offset(x1, y1),
+                    end = Offset(x2, y2),
+                    strokeWidth = 3f,
+                    cap = StrokeCap.Round
+                )
+            }
+
+            // Income line (if there's any income at all)
+            val hasIncome = data.any { it.income > 0 }
+            if (hasIncome) {
+                // Income area fill
+                val incomePath = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(0f, chartH)
+                    data.forEachIndexed { i, pt ->
+                        val x = i * stepX
+                        val y = chartH - (pt.income / maxVal * chartH).toFloat()
+                        lineTo(x, y)
+                    }
+                    lineTo((n - 1) * stepX, chartH)
+                    close()
+                }
+                drawPath(
+                    path = incomePath,
+                    color = incomeColor.copy(alpha = 0.08f)
+                )
+
+                for (i in 0 until n - 1) {
+                    val x1 = i * stepX
+                    val y1 = chartH - (data[i].income / maxVal * chartH).toFloat()
+                    val x2 = (i + 1) * stepX
+                    val y2 = chartH - (data[i + 1].income / maxVal * chartH).toFloat()
+                    drawLine(
+                        color = incomeColor,
+                        start = Offset(x1, y1),
+                        end = Offset(x2, y2),
+                        strokeWidth = 2.5f,
+                        cap = StrokeCap.Round
+                    )
+                }
+            }
+
+            // Dots on expense peaks
+            val peakThreshold = maxVal * 0.6
+            data.forEachIndexed { i, pt ->
+                if (pt.expense >= peakThreshold) {
+                    val x = i * stepX
+                    val y = chartH - (pt.expense / maxVal * chartH).toFloat()
+                    drawCircle(color = expenseColor, radius = 4f, center = Offset(x, y))
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // X-axis date labels
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            data.forEachIndexed { i, pt ->
+                if (i % labelStep == 0 || i == data.lastIndex) {
+                    Text(
+                        pt.label,
+                        fontSize = 10.sp,
+                        color = labelColor,
+                        modifier = Modifier.width(24.dp),
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+
+        // Summary row
+        val peakDay = data.maxByOrNull { it.expense }
+        val peakFmt = remember { SimpleDateFormat("MMM dd", Locale.US) }
+        if (peakDay != null && peakDay.expense > 0) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.TrendingUp,
+                    contentDescription = null,
+                    tint = RedExpense,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    "Peak: ${CurrencyUtils.format(peakDay.expense, currencyCode)} on day ${peakDay.label}",
+                    fontSize = 12.sp,
+                    color = labelColor
+                )
+            }
         }
     }
 }
@@ -1310,7 +1549,7 @@ private fun buildEnhancedReportLines(
     includeTransactions: Boolean = false
 ): List<ReportLine> {
     val lines = mutableListOf<ReportLine>()
-    lines += ReportLine("Smart Expense Report", isBold = true)
+    lines += ReportLine("FlowSense Report", isBold = true)
     lines += ReportLine(periodLabel)
     lines += ReportLine("")
     lines += ReportLine("Expenses:   ${CurrencyUtils.format(report.totalExpenses, currencyCode)}")
@@ -1405,7 +1644,7 @@ private fun buildEnhancedReportLines(
     }
 
     lines += ReportLine("")
-    lines += ReportLine("Shared from Smart Expense Tracker")
+    lines += ReportLine("Shared from FlowSense")
     return lines
 }
 
