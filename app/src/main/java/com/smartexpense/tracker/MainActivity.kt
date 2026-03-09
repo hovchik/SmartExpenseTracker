@@ -68,7 +68,17 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     val dashboardSectionOrder by viewModel.dashboardSectionOrder.collectAsState()
     val storeLocations by viewModel.storeLocations.collectAsState()
     val isSubscribed by viewModel.isSubscribed.collectAsState()
+    val billingError by viewModel.subscriptionManager.billingError.collectAsState()
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Show billing errors/confirmations via Snackbar
+    LaunchedEffect(billingError) {
+        billingError?.let { msg ->
+            snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short)
+            viewModel.subscriptionManager.clearBillingError()
+        }
+    }
 
     // Paywall dialog state
     var showPaywall by remember { mutableStateOf(false) }
@@ -94,6 +104,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze")
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             if (showTopBar) {
                 TopAppBar(

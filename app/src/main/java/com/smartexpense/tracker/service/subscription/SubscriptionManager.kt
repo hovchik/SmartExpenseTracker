@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import com.android.billingclient.api.*
+import com.smartexpense.tracker.BuildConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -108,15 +109,50 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
     /**
      * Launch the Google Play purchase flow for the given [plan].
      * Must be called from an Activity context.
+     *
+     * In debug builds, if the billing client cannot connect (e.g. emulator without
+     * Google Play), falls back to activating the subscription directly for testing.
      */
     fun launchPurchaseFlow(activity: Activity, plan: SubscriptionPlan) {
         _billingError.value = null
-        ensureConnected {
+        if (isClientReady) {
             if (plan.isOneTime) {
                 queryAndLaunchInApp(activity, plan)
             } else {
                 queryAndLaunchSubscription(activity, plan)
             }
+        } else {
+            billingClient.startConnection(object : BillingClientStateListener {
+                override fun onBillingSetupFinished(billingResult: BillingResult) {
+                    if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                        isClientReady = true
+                        if (plan.isOneTime) {
+                            queryAndLaunchInApp(activity, plan)
+                        } else {
+                            queryAndLaunchSubscription(activity, plan)
+                        }
+                    } else {
+                        handleBillingUnavailable(plan)
+                    }
+                }
+
+                override fun onBillingServiceDisconnected() {
+                    isClientReady = false
+                    handleBillingUnavailable(plan)
+                }
+            })
+        }
+    }
+
+    private fun handleBillingUnavailable(plan: SubscriptionPlan) {
+        if (BuildConfig.DEBUG) {
+            Log.w(TAG, "Billing unavailable in debug build – activating ${plan.displayName} for testing")
+            val expiryMillis = if (plan.isOneTime) 0L
+            else System.currentTimeMillis() + plan.durationMonths * 30L * 24 * 60 * 60 * 1000
+            activate(expiryMillis, plan)
+            _billingError.value = "DEBUG: ${plan.displayName} plan activated for testing (no real charge)."
+        } else {
+            _billingError.value = "Unable to connect to Google Play. Please check your internet connection and try again."
         }
     }
 
@@ -135,14 +171,14 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
         billingClient.queryProductDetailsAsync(queryParams) { billingResult, productDetailsList ->
             if (billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
                 Log.e(TAG, "Query subs failed: ${billingResult.debugMessage}")
-                _billingError.value = "Could not load plan details. Please try again."
+                handleBillingUnavailable(plan)
                 return@queryProductDetailsAsync
             }
 
             val productDetails = productDetailsList.firstOrNull()
             if (productDetails == null) {
                 Log.e(TAG, "No product details for ${plan.productId}")
-                _billingError.value = "Plan not available. Please try again later."
+                handleBillingUnavailable(plan)
                 return@queryProductDetailsAsync
             }
 
@@ -182,13 +218,13 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
         billingClient.queryProductDetailsAsync(queryParams) { billingResult, productDetailsList ->
             if (billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
                 Log.e(TAG, "Query in-app failed: ${billingResult.debugMessage}")
-                _billingError.value = "Could not load plan details. Please try again."
+                handleBillingUnavailable(plan)
                 return@queryProductDetailsAsync
             }
 
             val productDetails = productDetailsList.firstOrNull()
             if (productDetails == null) {
-                _billingError.value = "Plan not available. Please try again later."
+                handleBillingUnavailable(plan)
                 return@queryProductDetailsAsync
             }
 
