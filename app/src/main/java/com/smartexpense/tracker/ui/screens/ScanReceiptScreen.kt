@@ -44,9 +44,11 @@ fun ScanReceiptScreen(
     onOcrResult: (ocrText: String, qrData: String?) -> Unit,
     onConfirmOcr: (amount: Double, merchantName: String, category: String) -> Unit,
     onClearOcr: () -> Unit,
+    onSaveToSection: (label: String, merchantName: String, items: List<Pair<String, Double>>, totalAmount: Double, rawOcrText: String, detectedLanguages: String) -> Unit,
     ocrParsedData: com.smartexpense.tracker.ui.viewmodel.OcrParsedData?,
     categories: List<String>,
     onNavigateBack: () -> Unit,
+    onNavigateToSections: () -> Unit,
     lastResult: String?
 ) {
     val context = LocalContext.current
@@ -85,9 +87,10 @@ fun ScanReceiptScreen(
             return
         }
 
-        // Create all recognizers
+        // Create all recognizers.
+        // The default Latin recognizer also handles Cyrillic (Russian) and Armenian scripts.
         val recognizers: List<Pair<String, TextRecognizer>> = listOf(
-            "Latin" to TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS),
+            "Latin/Cyrillic/Armenian" to TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS),
             "Chinese" to TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build()),
             "Devanagari" to TextRecognition.getClient(DevanagariTextRecognizerOptions.Builder().build()),
             "Japanese" to TextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build()),
@@ -214,12 +217,12 @@ fun ScanReceiptScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            if (isProcessing) "Scanning in all languages..." else "Capture or select a receipt image",
+            if (isProcessing) "Scanning (Armenian, Russian, Chinese...)" else "Capture or select a receipt image",
             style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            "Supports Latin, Armenian (AMD amounts), Chinese, Japanese, Korean, Devanagari",
+            "Supports Armenian, Russian, Chinese, Latin, Japanese, Korean, Devanagari",
             style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
@@ -379,7 +382,7 @@ fun ScanReceiptScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Save + Discard buttons
+                    // Save + Save to Sections + Discard buttons
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         OutlinedButton(
                             onClick = onClearOcr,
@@ -403,6 +406,31 @@ fun ScanReceiptScreen(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Save", fontWeight = FontWeight.SemiBold)
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Save to Sections button
+                    OutlinedButton(
+                        onClick = {
+                            val amt = editAmount.toDoubleOrNull() ?: 0.0
+                            onSaveToSection(
+                                editMerchant,
+                                editMerchant,
+                                ocrParsedData.items,
+                                amt,
+                                ocrParsedData.rawOcrText,
+                                "" // detectedLanguages filled by caller
+                            )
+                            onClearOcr()
+                            Toast.makeText(context, "Saved to Sections", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth().height(46.dp),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Filled.Inventory2, null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Save to Sections", fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -470,7 +498,20 @@ fun ScanReceiptScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Navigate to Sections
+        OutlinedButton(
+            onClick = onNavigateToSections,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Icon(Icons.Filled.ViewList, null)
+            Spacer(modifier = Modifier.width(10.dp))
+            Text("View Scanned Sections", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Tips
         Card(
@@ -485,7 +526,7 @@ fun ScanReceiptScreen(
                     "Keep the receipt flat and aligned",
                     "Make sure the total amount is visible",
                     "QR codes on receipts are scanned automatically",
-                    "Works with any language or script"
+                    "Works with Armenian, Russian, Chinese & more"
                 ).forEach { tip ->
                     Row(modifier = Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.Check, null, modifier = Modifier.size(14.dp), tint = GreenPrimary)

@@ -102,6 +102,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _ollamaConnecting = MutableStateFlow(false)
     val ollamaConnecting: StateFlow<Boolean> = _ollamaConnecting.asStateFlow()
 
+    /** Saved OCR scan sections (receipts with items and costs). */
+    private val _ocrSections = MutableStateFlow<List<OcrSection>>(emptyList())
+    val ocrSections: StateFlow<List<OcrSection>> = _ocrSections.asStateFlow()
+
     init {
         viewModelScope.launch {
             repository.initialize()
@@ -144,6 +148,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository.appData.collect { data ->
                 _themeMode.value = data.settings.themeMode
                 _inAppNotifications.value = data.inAppNotifications
+                _ocrSections.value = data.ocrSections
                 updateUiState(data)
             }
         }
@@ -813,6 +818,129 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearOcrData() {
         _ocrParsedData.value = null
+    }
+
+    // ─── OCR Sections (scanned goods storage) ───────────────────────
+
+    /**
+     * Saves the current OCR parsed data as a new [OcrSection] for later reference and reporting.
+     * Called when the user confirms the scan and chooses "Save to Sections".
+     */
+    fun saveOcrSection(
+        label: String,
+        merchantName: String,
+        items: List<Pair<String, Double>>,
+        totalAmount: Double,
+        rawOcrText: String,
+        detectedLanguages: String = "",
+        notes: String = ""
+    ) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            val ocrItems = items.map { (name, price) ->
+                val cat = smartCategorize(name)
+                OcrItem(name = name, price = price, category = cat)
+            }
+            val section = OcrSection(
+                label = label.ifBlank { merchantName },
+                merchantName = merchantName,
+                currencyCode = settings.currencyCode,
+                items = ocrItems,
+                totalAmount = totalAmount,
+                detectedLanguages = detectedLanguages,
+                rawOcrText = rawOcrText,
+                notes = notes
+            )
+            repository.addOcrSection(section)
+        }
+    }
+
+    fun deleteOcrSection(id: String) {
+        viewModelScope.launch { repository.deleteOcrSection(id) }
+    }
+
+    fun updateOcrSection(section: OcrSection) {
+        viewModelScope.launch { repository.updateOcrSection(section) }
+    }
+
+    fun clearAllOcrSections() {
+        viewModelScope.launch { repository.clearAllOcrSections() }
+    }
+
+    /**
+     * Generates a text report summarising all goods across OCR sections.
+     * Groups items by category, shows totals, averages, and per-section breakdown.
+     */
+    fun generateOcrSectionsReport(): String {
+        val sections = _ocrSections.value
+        if (sections.isEmpty()) return "No scanned sections available."
+
+        val settings = repository.appData.value.settings
+        val currencySymbol = currencyInfoFor(settings.currencyCode).symbol
+
+        val sb = StringBuilder()
+        sb.appendLine("══════════════════════════════════════")
+        sb.appendLine("       SCANNED GOODS REPORT")
+        sb.appendLine("══════════════════════════════════════")
+        sb.appendLine()
+        sb.appendLine("Total sections: ${sections.size}")
+
+        val allItems = sections.flatMap { it.items }
+        val grandTotal = sections.sumOf { it.totalAmount }
+        sb.appendLine("Total items scanned: ${allItems.size}")
+        sb.appendLine("Grand total: $currencySymbol${String.format("%.2f", grandTotal)}")
+        sb.appendLine()
+
+        // ── Per-category breakdown ──
+        val byCategory = allItems.groupBy { it.category.ifBlank { "Uncategorized" } }
+        sb.appendLine("── Category Breakdown ──")
+        byCategory.entries
+            .sortedByDescending { it.value.sumOf { item -> item.price } }
+            .forEach { (cat, items) ->
+                val catTotal = items.sumOf { it.price }
+                val pct = if (grandTotal > 0) (catTotal / grandTotal * 100) else 0.0
+                sb.appendLine("  $cat: $currencySymbol${String.format("%.2f", catTotal)} (${String.format("%.1f", pct)}%) — ${items.size} items")
+            }
+        sb.appendLine()
+
+        // ── Per-section breakdown ──
+        sb.appendLine("── Section Details ──")
+        val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US)
+        sections.sortedByDescending { it.timestamp }.forEach { section ->
+            sb.appendLine("┌─ ${section.label} (${section.merchantName})")
+            sb.appendLine("│  Date: ${dateFormat.format(java.util.Date(section.timestamp))}")
+            sb.appendLine("│  Languages: ${section.detectedLanguages.ifBlank { "N/A" }}")
+            if (section.items.isNotEmpty()) {
+                section.items.forEach { item ->
+                    sb.appendLine("│  • ${item.name}: $currencySymbol${String.format("%.2f", item.price)}")
+                }
+            }
+            sb.appendLine("│  Total: $currencySymbol${String.format("%.2f", section.totalAmount)}")
+            if (section.notes.isNotBlank()) sb.appendLine("│  Notes: ${section.notes}")
+            sb.appendLine("└──────────────")
+        }
+
+        // ── Most expensive items ──
+        sb.appendLine()
+        sb.appendLine("── Top 10 Most Expensive Items ──")
+        allItems.sortedByDescending { it.price }.take(10).forEachIndexed { i, item ->
+            sb.appendLine("  ${i + 1}. ${item.name}: $currencySymbol${String.format("%.2f", item.price)}")
+        }
+
+        // ── Averages ──
+        sb.appendLine()
+        if (allItems.isNotEmpty()) {
+            val avg = grandTotal / allItems.size
+            sb.appendLine("Average item price: $currencySymbol${String.format("%.2f", avg)}")
+        }
+        if (sections.isNotEmpty()) {
+            val avgPerReceipt = grandTotal / sections.size
+            sb.appendLine("Average per receipt: $currencySymbol${String.format("%.2f", avgPerReceipt)}")
+        }
+
+        sb.appendLine()
+        sb.appendLine("══════════════════════════════════════")
+        return sb.toString()
     }
 
     fun dismissSuggestion(id: String) { viewModelScope.launch { repository.dismissSuggestion(id) } }

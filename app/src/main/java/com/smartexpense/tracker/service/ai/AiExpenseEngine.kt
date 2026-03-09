@@ -1080,7 +1080,11 @@ class AiExpenseEngine {
                 line.length > 2 &&
                 !line.matches(Regex("""^[\d\s/\-:.]+$""")) &&
                 !line.matches(Regex("""(?i)^(receipt|invoice|bill|date|time|tel|phone|fax|www|tid|mid|tarihi|sale|authcode|auth code|approved|visa|mastercard|\*+.*).*""")) &&
-                !line.matches(Regex("""^\*[\d\*\s]+$"""))  // masked card numbers
+                !line.matches(Regex("""^\*[\d\*\s]+$""")) &&  // masked card numbers
+                // Skip Russian receipt boilerplate
+                !line.matches(Regex("""(?i)^(чек|кассовый чек|ИНН|КПП|ИТОГО|итого|сумма|дата|время|ККТ|ФН|ФД|ФП|КАССА|КАССИР).*""")) &&
+                // Skip Chinese receipt boilerplate
+                !line.matches(Regex("""^(收据|发票|日期|时间|合计|总计|小计|税额|收银员|谢谢).*"""))
             }?.take(50) ?: "Unknown Store"
 
             // ── Build currency-specific amount patterns ───────────────
@@ -1131,7 +1135,13 @@ class AiExpenseEngine {
                             !name.lowercase().let { n ->
                                 n.contains("total") || n.contains("subtotal") ||
                                 n.contains("tax") || n.contains("change") || n.contains("cash") ||
-                                n.contains("balance") || n.contains("due")
+                                n.contains("balance") || n.contains("due") ||
+                                // Russian total/tax keywords
+                                n.contains("итого") || n.contains("сумма") || n.contains("налог") ||
+                                n.contains("сдача") || n.contains("к оплате") || n.contains("всего") ||
+                                // Chinese total/tax keywords
+                                n.contains("合计") || n.contains("总计") || n.contains("小计") ||
+                                n.contains("税额") || n.contains("实收") || n.contains("找零")
                             }
                         ) {
                             items.add(name to price)
@@ -1157,8 +1167,16 @@ class AiExpenseEngine {
                     Regex("""(?:֏|AMD|դрам)[:\s]+([0-9][0-9\s,]*\.?[0-9]*)""", RegexOption.IGNORE_CASE)
                 )
                 "RUB" -> listOf(
-                    Regex("""(?:ИТОГО|итого|total)[:\s]*(?:₽|руб\.?)?\s*([\d,\s]+\.?\d*)""", RegexOption.IGNORE_CASE),
-                    Regex("""(?:₽|руб\.?)\s*([\d,\s]+\.?\d*)""")
+                    Regex("""(?:ИТОГО|итого|СУММА|сумма|total)[:\s]*(?:₽|руб\.?)?\s*([\d,\s]+\.?\d*)""", RegexOption.IGNORE_CASE),
+                    Regex("""(?:₽|руб\.?)\s*([\d,\s]+\.?\d*)"""),
+                    // Russian receipt: "К ОПЛАТЕ: 1 234.56"
+                    Regex("""(?:К ОПЛАТЕ|к оплате|ВСЕГО|всего)[:\s]*(?:₽|руб\.?)?\s*([\d,\s]+\.?\d*)""", RegexOption.IGNORE_CASE)
+                )
+                "CNY" -> listOf(
+                    // Chinese receipt totals: "合计: ¥123.45", "总计 123.45", "实收 123.45"
+                    Regex("""(?:合计|总计|实收|应收|小计)[:\s：]*(?:¥|￥|元|RMB)?\s*([\d,]+\.?\d*)"""),
+                    Regex("""(?:¥|￥)\s*([\d,]+\.\d{2})"""),
+                    Regex("""(?:total|grand\s*total)[:\s]*(?:¥|￥|cny|rmb)?\s*([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE)
                 )
                 "USD" -> listOf(
                     Regex("""(?:grand\s*total|total\s*due|amount\s*due|balance\s*due|total)[:\s]*\$?\s*([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
@@ -1175,7 +1193,9 @@ class AiExpenseEngine {
                 Regex("""(?:TOTAL|Total|GRAND TOTAL)\s*:?\s*[$₹€£֏¥₽₺₩]?\s?([\d,]+\.\d{2})"""),
                 Regex("""(?:total)[:\s]*(?:rs\.?|₹|\$|€|£|֏|[A-Z]{3})?\s?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
                 Regex("""(?:TOTAL)\s+[$₹€£֏¥₽₺₩]?([\d,]+\.?\d{0,2})"""),
-                Regex("""(?:ИТОГО|итого)[:\s]*([\d,\s]+\.?\d*)""")
+                Regex("""(?:ИТОГО|итого|СУММА|сумма|К ОПЛАТЕ|к оплате)[:\s]*([\d,\s]+\.?\d*)"""),
+                // Chinese total keywords (generic fallback)
+                Regex("""(?:合计|总计|实收|应收)[:\s：]*(?:¥|￥|元)?\s*([\d,]+\.?\d*)""")
             )
 
             var total: Double? = null
