@@ -1,5 +1,6 @@
 package com.smartexpense.tracker
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -20,6 +21,7 @@ import com.smartexpense.tracker.ui.components.SubscriptionPaywallDialog
 import com.smartexpense.tracker.ui.screens.*
 import com.smartexpense.tracker.ui.theme.SmartExpenseTheme
 import com.smartexpense.tracker.ui.viewmodel.MainViewModel
+import com.smartexpense.tracker.service.subscription.SubscriptionPlan
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -30,7 +32,7 @@ class MainActivity : ComponentActivity() {
             val viewModel: MainViewModel = viewModel()
             val themeMode by viewModel.themeMode.collectAsState()
             SmartExpenseTheme(themeMode = themeMode) {
-                MainApp(viewModel = viewModel)
+                MainApp(viewModel = viewModel, activity = this@MainActivity)
             }
         }
     }
@@ -38,7 +40,7 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainApp(viewModel: MainViewModel) {
+fun MainApp(viewModel: MainViewModel, activity: Activity) {
     val uiState by viewModel.uiState.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
     val reportPeriod by viewModel.reportPeriod.collectAsState()
@@ -338,11 +340,9 @@ fun MainApp(viewModel: MainViewModel) {
         SubscriptionPaywallDialog(
             featureName = paywallFeatureName,
             onDismiss = { showPaywall = false },
-            onSubscribe = {
+            onSubscribe = { plan ->
                 showPaywall = false
-                // TODO: Launch billing flow here.
-                // For now, activate subscription directly for testing:
-                // viewModel.subscriptionManager.activate()
+                viewModel.subscriptionManager.launchPurchaseFlow(activity, plan)
             }
         )
     }
