@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.smartexpense.tracker.ui.components.SubscriptionPaywallDialog
 import com.smartexpense.tracker.ui.screens.*
 import com.smartexpense.tracker.ui.theme.SmartExpenseTheme
 import com.smartexpense.tracker.ui.viewmodel.MainViewModel
@@ -64,7 +65,12 @@ fun MainApp(viewModel: MainViewModel) {
     val ollamaConnecting by viewModel.ollamaConnecting.collectAsState()
     val dashboardSectionOrder by viewModel.dashboardSectionOrder.collectAsState()
     val storeLocations by viewModel.storeLocations.collectAsState()
+    val isSubscribed by viewModel.isSubscribed.collectAsState()
     val scope = rememberCoroutineScope()
+
+    // Paywall dialog state
+    var showPaywall by remember { mutableStateOf(false) }
+    var paywallFeatureName by remember { mutableStateOf("") }
 
     // Shortcut to always-up-to-date currency code
     val currencyCode = uiState.settings.currencyCode
@@ -102,7 +108,14 @@ fun MainApp(viewModel: MainViewModel) {
                         )
                     },
                     actions = {
-                        IconButton(onClick = { currentScreen = "store_map" }) {
+                        IconButton(onClick = {
+                            if (isSubscribed) {
+                                currentScreen = "store_map"
+                            } else {
+                                paywallFeatureName = "Store Map"
+                                showPaywall = true
+                            }
+                        }) {
                             Icon(Icons.Filled.Map, contentDescription = "Store Map")
                         }
                         NotificationBell(
@@ -192,7 +205,14 @@ fun MainApp(viewModel: MainViewModel) {
                                 category = category, type = type, source = source,
                                 merchantName = merchant, notes = notes, timestamp = timestamp)
                         },
-                        onScanReceipt = { currentScreen = "scan" },
+                        onScanReceipt = {
+                            if (isSubscribed) {
+                                currentScreen = "scan"
+                            } else {
+                                paywallFeatureName = "OCR Receipt Scanner"
+                                showPaywall = true
+                            }
+                        },
                         onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) },
                         currencyCode = currencyCode
                     )
@@ -250,6 +270,11 @@ fun MainApp(viewModel: MainViewModel) {
                     "settings" -> SettingsScreen(
                         settings = uiState.settings,
                         storageInfo = viewModel.getStorageInfoText(),
+                        isSubscribed = isSubscribed,
+                        onShowPaywall = { feature ->
+                            paywallFeatureName = feature
+                            showPaywall = true
+                        },
                         onUpdateSettings = { s -> viewModel.updateSettings(s) },
                         onExportToUri = { uri -> viewModel.exportDataToUri(uri) },
                         onImportFromUri = { uri -> viewModel.importDataFromUri(uri) },
@@ -306,5 +331,19 @@ fun MainApp(viewModel: MainViewModel) {
                 }
             }
         }
+    }
+
+    // ─── Subscription Paywall Dialog ─────────────────────────────────
+    if (showPaywall) {
+        SubscriptionPaywallDialog(
+            featureName = paywallFeatureName,
+            onDismiss = { showPaywall = false },
+            onSubscribe = {
+                showPaywall = false
+                // TODO: Launch billing flow here.
+                // For now, activate subscription directly for testing:
+                // viewModel.subscriptionManager.activate()
+            }
+        )
     }
 }
