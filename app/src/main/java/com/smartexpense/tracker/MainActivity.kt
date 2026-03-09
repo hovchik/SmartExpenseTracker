@@ -350,6 +350,11 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     if (showPaywall) {
         SubscriptionPaywallDialog(
             featureName = paywallFeatureName,
+            isTrialEligible = viewModel.subscriptionManager.isTrialEligible,
+            onStartTrial = {
+                showPaywall = false
+                viewModel.subscriptionManager.startFreeTrial()
+            },
             onDismiss = { showPaywall = false },
             onSubscribe = { plan ->
                 showPaywall = false

@@ -35,6 +35,8 @@ private val GoldGradient = Brush.linearGradient(listOf(GoldLight, GoldDark))
 @Composable
 fun SubscriptionPaywallDialog(
     featureName: String,
+    isTrialEligible: Boolean = false,
+    onStartTrial: () -> Unit = {},
     onDismiss: () -> Unit,
     onSubscribe: (SubscriptionPlan) -> Unit
 ) {
@@ -97,7 +99,75 @@ fun SubscriptionPaywallDialog(
                 PremiumFeatureRow(Icons.Filled.Category, "Custom categories")
                 PremiumFeatureRow(Icons.Filled.EventRepeat, "Scheduled expenses")
 
-                Spacer(modifier = Modifier.height(20.dp))
+                // Free trial banner
+                if (isTrialEligible) {
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF4CAF50).copy(alpha = 0.1f))
+                            .border(1.dp, Color(0xFF4CAF50), RoundedCornerShape(12.dp))
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.CardGiftcard,
+                            contentDescription = null,
+                            tint = Color(0xFF4CAF50),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Try Premium free for 3 days",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF2E7D32)
+                            )
+                            Text(
+                                "Full access to all features. No charge.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF388E3C)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Button(
+                        onClick = onStartTrial,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    ) {
+                        Icon(
+                            Icons.Filled.PlayArrow,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Start 3-Day Free Trial", fontWeight = FontWeight.SemiBold)
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        HorizontalDivider(modifier = Modifier.weight(1f))
+                        Text(
+                            "  or choose a plan  ",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        HorizontalDivider(modifier = Modifier.weight(1f))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // Plan selection
                 Text(

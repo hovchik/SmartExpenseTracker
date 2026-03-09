@@ -36,6 +36,9 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
         private const val KEY_IS_SUBSCRIBED = "is_subscribed"
         private const val KEY_SUBSCRIPTION_EXPIRY = "subscription_expiry"
         private const val KEY_ACTIVE_PLAN_ID = "active_plan_id"
+        private const val KEY_FREE_TRIAL_USED = "free_trial_used"
+        private const val KEY_IS_TRIAL = "is_trial"
+        private const val FREE_TRIAL_DAYS = 3
     }
 
     private val prefs: SharedPreferences =
@@ -49,6 +52,12 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
 
     private val _billingError = MutableStateFlow<String?>(null)
     val billingError: StateFlow<String?> = _billingError.asStateFlow()
+
+    private val _isTrialActive = MutableStateFlow(loadTrialState())
+    val isTrialActive: StateFlow<Boolean> = _isTrialActive.asStateFlow()
+
+    val isTrialEligible: Boolean
+        get() = !prefs.getBoolean(KEY_FREE_TRIAL_USED, false) && !_isSubscribed.value
 
     private var billingClient: BillingClient = BillingClient.newBuilder(context)
         .setListener(this)
@@ -339,6 +348,35 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
         ensureConnected { queryExistingPurchases() }
     }
 
+    // ─── Free Trial ────────────────────────────────────────────────
+
+    /**
+     * Starts a 3-day free trial. Can only be used once per device.
+     * Returns `true` if the trial was started, `false` if already used.
+     */
+    fun startFreeTrial(): Boolean {
+        if (prefs.getBoolean(KEY_FREE_TRIAL_USED, false)) return false
+        if (_isSubscribed.value) return false
+
+        val expiryMillis = System.currentTimeMillis() + FREE_TRIAL_DAYS * 24L * 60 * 60 * 1000
+        prefs.edit()
+            .putBoolean(KEY_IS_SUBSCRIBED, true)
+            .putBoolean(KEY_FREE_TRIAL_USED, true)
+            .putBoolean(KEY_IS_TRIAL, true)
+            .putLong(KEY_SUBSCRIPTION_EXPIRY, expiryMillis)
+            .remove(KEY_ACTIVE_PLAN_ID)
+            .apply()
+        _isSubscribed.value = true
+        _isTrialActive.value = true
+        _activePlan.value = null
+        Log.d(TAG, "Free trial started, expires in $FREE_TRIAL_DAYS days")
+        return true
+    }
+
+    private fun loadTrialState(): Boolean {
+        return prefs.getBoolean(KEY_IS_TRIAL, false) && loadSubscriptionState()
+    }
+
     // ─── Local State Management ────────────────────────────────────
 
     private fun loadSubscriptionState(): Boolean {
@@ -371,11 +409,13 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
         prefs.edit()
             .putBoolean(KEY_IS_SUBSCRIBED, true)
             .putLong(KEY_SUBSCRIPTION_EXPIRY, expiryMillis)
+            .putBoolean(KEY_IS_TRIAL, false) // real purchase clears trial state
             .apply {
                 if (plan != null) putString(KEY_ACTIVE_PLAN_ID, plan.productId)
             }
             .apply()
         _isSubscribed.value = true
+        _isTrialActive.value = false
         _activePlan.value = plan
     }
 
@@ -385,16 +425,19 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
     fun deactivate() {
         prefs.edit()
             .putBoolean(KEY_IS_SUBSCRIBED, false)
+            .putBoolean(KEY_IS_TRIAL, false)
             .remove(KEY_SUBSCRIPTION_EXPIRY)
             .remove(KEY_ACTIVE_PLAN_ID)
             .apply()
         _isSubscribed.value = false
+        _isTrialActive.value = false
         _activePlan.value = null
     }
 
     /** Re-check stored state (e.g. after returning from billing flow). */
     fun refresh() {
         _isSubscribed.value = loadSubscriptionState()
+        _isTrialActive.value = loadTrialState()
         _activePlan.value = loadActivePlan()
     }
 
