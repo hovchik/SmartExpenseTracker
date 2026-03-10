@@ -216,6 +216,8 @@ data class AppData(
     val suggestions: List<AiSuggestion> = emptyList(),
     val inAppNotifications: List<InAppNotification> = emptyList(),
     val storeLocations: List<StoreLocation> = emptyList(),
+    /** Saved OCR scan sections (receipts with items and costs). */
+    val ocrSections: List<OcrSection> = emptyList(),
     /** Exchange rates: current (index 0) and previous (index 1). Max 2 entries. */
     val rateHistory: List<RateHistoryEntry> = emptyList(),
     val settings: AppSettings = AppSettings(),
@@ -306,6 +308,59 @@ data class StoreLocation(
     val latitude: Double,
     val longitude: Double,
     val address: String = ""
+)
+
+// ─── OCR Scan Session & Sections ────────────────────────────────
+
+/**
+ * A single item detected by OCR on a receipt: name + price.
+ */
+data class OcrItem(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val price: Double,
+    /** Optional category for this item (auto-detected or user-assigned). */
+    val category: String = ""
+)
+
+/**
+ * A section groups OCR-scanned items from a single receipt scan.
+ * Think of it as one scanned receipt stored for future reference and reporting.
+ */
+data class OcrSection(
+    val id: String = UUID.randomUUID().toString(),
+    /** Label the user gives to this section (e.g. "Grocery 03/09", "Restaurant dinner"). */
+    val label: String = "",
+    /** Merchant name detected from the receipt. */
+    val merchantName: String = "Unknown",
+    /** ISO-4217 currency code for this scan. */
+    val currencyCode: String = "AMD",
+    /** Items scanned from the receipt. */
+    val items: List<OcrItem> = emptyList(),
+    /** Total amount (may differ from sum of items if receipt has tax/discount). */
+    val totalAmount: Double = 0.0,
+    /** Detected language(s) used during OCR (e.g. "Armenian, Russian"). */
+    val detectedLanguages: String = "",
+    /** Raw OCR text preserved for debugging / re-parsing. */
+    val rawOcrText: String = "",
+    /** Timestamp when the scan was performed. */
+    val timestamp: Long = System.currentTimeMillis(),
+    /** Optional notes from the user. */
+    val notes: String = ""
+) {
+    /** Computed sum of item prices. */
+    val itemsTotal: Double get() = items.sumOf { it.price }
+}
+
+/**
+ * Aggregated info for a single item across multiple receipts — used in goods reports.
+ * Example: "Cheese" bought 3 times totalling 2000 AMD.
+ */
+data class GoodsReportItem(
+    val name: String,
+    val count: Int,
+    val totalSpent: Double,
+    val category: String = ""
 )
 
 /**

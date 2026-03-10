@@ -355,6 +355,44 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         return true
     }
 
+    // ─── OCR Sections ─────────────────────────────────────────────
+
+    suspend fun addOcrSection(section: com.smartexpense.tracker.data.model.OcrSection) {
+        val current = _appData.value
+        val updated = current.copy(
+            ocrSections = current.ocrSections + section
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    suspend fun updateOcrSection(section: com.smartexpense.tracker.data.model.OcrSection) {
+        val current = _appData.value
+        val updated = current.copy(
+            ocrSections = current.ocrSections.map {
+                if (it.id == section.id) section else it
+            }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    suspend fun deleteOcrSection(id: String) {
+        val current = _appData.value
+        val updated = current.copy(
+            ocrSections = current.ocrSections.filter { it.id != id }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    suspend fun clearAllOcrSections() {
+        val current = _appData.value
+        val updated = current.copy(ocrSections = emptyList())
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
     // ─── Rate History ─────────────────────────────────────────────
 
     /**

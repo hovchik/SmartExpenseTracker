@@ -35,6 +35,7 @@ import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 import com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.smartexpense.tracker.ui.theme.*
+import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -44,9 +45,11 @@ fun ScanReceiptScreen(
     onOcrResult: (ocrText: String, qrData: String?) -> Unit,
     onConfirmOcr: (amount: Double, merchantName: String, category: String) -> Unit,
     onClearOcr: () -> Unit,
+    onSaveToSection: (label: String, merchantName: String, items: List<Pair<String, Double>>, totalAmount: Double, rawOcrText: String, detectedLanguages: String) -> Unit,
     ocrParsedData: com.smartexpense.tracker.ui.viewmodel.OcrParsedData?,
     categories: List<String>,
     onNavigateBack: () -> Unit,
+    onNavigateToSections: () -> Unit,
     lastResult: String?
 ) {
     val context = LocalContext.current
@@ -66,10 +69,15 @@ fun ScanReceiptScreen(
         } catch (_: Exception) { null }
     }
 
+    // Multi-language Tesseract OCR service — created once per screen lifecycle
+    val tesseractOcr = remember { com.smartexpense.tracker.service.ocr.ArmenianOcrService(context) }
+    val coroutineScope = rememberCoroutineScope()
+
     /**
      * Runs OCR using ALL available ML Kit recognizers in parallel,
-     * plus barcode/QR scanning. QR data is passed alongside OCR text
-     * so the ViewModel can use it as a fallback if OCR parsing fails.
+     * plus Tesseract for Armenian/Russian, plus barcode/QR scanning.
+     * QR data is passed alongside OCR text so the ViewModel can use
+     * it as a fallback if OCR parsing fails.
      */
     fun processImageMultiLang(uri: Uri) {
         isProcessing = true
@@ -85,9 +93,9 @@ fun ScanReceiptScreen(
             return
         }
 
-        // Create all recognizers
+        // Create all ML Kit recognizers.
         val recognizers: List<Pair<String, TextRecognizer>> = listOf(
-            "Latin" to TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS),
+            "Latin/Cyrillic" to TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS),
             "Chinese" to TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build()),
             "Devanagari" to TextRecognition.getClient(DevanagariTextRecognizerOptions.Builder().build()),
             "Japanese" to TextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build()),
@@ -95,20 +103,41 @@ fun ScanReceiptScreen(
         )
 
         val results = mutableMapOf<String, String>()
-        // +1 for barcode scanner
-        val remaining = AtomicInteger(recognizers.size + 1)
+        // +1 for barcode scanner, +1 for Tesseract multi-lang
+        val remaining = AtomicInteger(recognizers.size + 2)
         var qrResult: String? = null
 
         fun onAllDone() {
             if (remaining.get() > 0) return
 
-            val nonEmpty = results.entries
-                .filter { it.value.isNotBlank() }
+            // Prioritize Tesseract results first — it handles Armenian and
+            // produces better Cyrillic/CJK output when ML Kit misses characters.
+            // Then add ML Kit results, skipping duplicate lines.
+            val tesseractKey = "Tesseract"
+            val tesseractEntries = results.entries.filter { it.key.contains(tesseractKey) }
+            val mlKitEntries = results.entries
+                .filter { !it.key.contains(tesseractKey) && it.value.isNotBlank() }
                 .sortedByDescending { it.value.length }
 
             val mergedLines = mutableListOf<String>()
             val seenLines = mutableSetOf<String>()
-            for ((name, text) in nonEmpty) {
+
+            // Add Tesseract lines first (best for Armenian, Georgian, Arabic, etc.)
+            for ((name, text) in tesseractEntries) {
+                if (text.isBlank()) continue
+                var addedFromThis = 0
+                for (line in text.lines()) {
+                    val trimmed = line.trim()
+                    if (trimmed.isNotEmpty() && seenLines.add(trimmed.lowercase())) {
+                        mergedLines.add(trimmed)
+                        addedFromThis++
+                    }
+                }
+                Log.d("OCR", "$name: ${text.length} chars, $addedFromThis new lines merged (priority)")
+            }
+
+            // Add ML Kit lines, skipping duplicates
+            for ((name, text) in mlKitEntries) {
                 var addedFromThis = 0
                 for (line in text.lines()) {
                     val trimmed = line.trim()
@@ -171,6 +200,24 @@ fun ScanReceiptScreen(
                     if (remaining.decrementAndGet() == 0) onAllDone()
                 }
         }
+
+        // Run Tesseract multi-language OCR in parallel (background coroutine)
+        coroutineScope.launch {
+            try {
+                val source = android.graphics.ImageDecoder.createSource(context.contentResolver, uri)
+                val bitmap = android.graphics.ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                    decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+                }
+                val tessText = tesseractOcr.recognizeText(bitmap)
+                if (tessText.isNotBlank()) {
+                    synchronized(results) { results["Tesseract Multi-Lang"] = tessText }
+                    Log.d("OCR", "Tesseract multi-lang: ${tessText.length} chars")
+                }
+            } catch (e: Exception) {
+                Log.w("OCR", "Tesseract OCR failed: ${e.message}")
+            }
+            if (remaining.decrementAndGet() == 0) onAllDone()
+        }
     }
 
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
@@ -214,12 +261,12 @@ fun ScanReceiptScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            if (isProcessing) "Scanning in all languages..." else "Capture or select a receipt image",
+            if (isProcessing) "Scanning (Armenian, Russian, Chinese...)" else "Capture or select a receipt image",
             style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            "Supports Latin, Armenian (AMD amounts), Chinese, Japanese, Korean, Devanagari",
+            "Supports Armenian, Russian, Chinese, Latin, Japanese, Korean, Devanagari",
             style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
@@ -276,6 +323,13 @@ fun ScanReceiptScreen(
             var editMerchant by remember(ocrParsedData) { mutableStateOf(ocrParsedData.merchantName) }
             var editCategory by remember(ocrParsedData) { mutableStateOf(ocrParsedData.category) }
             var categoryExpanded by remember { mutableStateOf(false) }
+            // Editable items list — initialized from OCR-parsed items
+            var editableItems by remember(ocrParsedData) {
+                mutableStateOf(ocrParsedData.items.mapIndexed { idx, (name, price) ->
+                    Triple(idx, name, String.format("%.2f", price))
+                })
+            }
+            var nextItemId by remember(ocrParsedData) { mutableIntStateOf(ocrParsedData.items.size) }
 
             Spacer(modifier = Modifier.height(16.dp))
             Card(
@@ -296,6 +350,31 @@ fun ScanReceiptScreen(
                                 Text("QR", fontSize = 10.sp, color = BluePrimary,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                            }
+                        }
+                        if (ocrParsedData.isTerminalReceipt) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = OrangeWarning.copy(alpha = 0.15f)
+                            ) {
+                                Text("Terminal", fontSize = 10.sp, color = OrangeWarning,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                            }
+                        }
+                        if (ocrParsedData.detectedCurrencyCode.isNotBlank()) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = GreenPrimary.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    "${ocrParsedData.currencySymbol} ${ocrParsedData.detectedCurrencyCode}",
+                                    fontSize = 10.sp, color = GreenPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
                             }
                         }
                     }
@@ -360,26 +439,101 @@ fun ScanReceiptScreen(
                         }
                     }
 
-                    // Items breakdown (read-only)
-                    if (ocrParsedData.items.isNotEmpty()) {
+                    // Terminal receipt notice
+                    if (ocrParsedData.isTerminalReceipt) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Card(
+                            shape = RoundedCornerShape(8.dp),
+                            colors = CardDefaults.cardColors(containerColor = OrangeWarning.copy(alpha = 0.1f))
+                        ) {
+                            Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.CreditCard, null, tint = OrangeWarning, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    "Bank terminal receipt detected — no goods to track. You can still save the payment as a transaction.",
+                                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    lineHeight = 16.sp
+                                )
+                            }
+                        }
+                    }
+
+                    // Editable items list
+                    if (editableItems.isNotEmpty() || ocrParsedData.items.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text("Items detected:", fontWeight = FontWeight.Medium, fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Items (${editableItems.size}):", fontWeight = FontWeight.Medium,
+                                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(modifier = Modifier.weight(1f))
+                            TextButton(
+                                onClick = {
+                                    editableItems = editableItems + Triple(nextItemId, "", "0.00")
+                                    nextItemId++
+                                },
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                            ) {
+                                Icon(Icons.Filled.Add, null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text("Add Item", fontSize = 11.sp)
+                            }
+                        }
                         Spacer(modifier = Modifier.height(4.dp))
-                        ocrParsedData.items.forEach { (name, price) ->
-                            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(name, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.weight(1f))
-                                Text("${ocrParsedData.currencySymbol}${String.format("%.2f", price)}",
-                                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        editableItems.forEach { (itemId, itemName, itemPrice) ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = itemName,
+                                    onValueChange = { newName ->
+                                        editableItems = editableItems.map {
+                                            if (it.first == itemId) Triple(it.first, newName, it.third) else it
+                                        }
+                                    },
+                                    placeholder = { Text("Item name", fontSize = 12.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                OutlinedTextField(
+                                    value = itemPrice,
+                                    onValueChange = { newPrice ->
+                                        editableItems = editableItems.map {
+                                            if (it.first == itemId) Triple(it.first, it.second, newPrice) else it
+                                        }
+                                    },
+                                    placeholder = { Text("0.00", fontSize = 12.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier.width(80.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    textStyle = LocalTextStyle.current.copy(fontSize = 13.sp, textAlign = TextAlign.End)
+                                )
+                                IconButton(
+                                    onClick = { editableItems = editableItems.filter { it.first != itemId } },
+                                    modifier = Modifier.size(30.dp)
+                                ) {
+                                    Icon(Icons.Filled.Close, null, tint = RedExpense, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                        // Items sum
+                        if (editableItems.isNotEmpty()) {
+                            val itemsSum = editableItems.sumOf { it.third.toDoubleOrNull() ?: 0.0 }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Items sum:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("${ocrParsedData.currencySymbol}${String.format("%.2f", itemsSum)}",
+                                    fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Save + Discard buttons
+                    // Save + Save to Sections + Discard buttons
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         OutlinedButton(
                             onClick = onClearOcr,
@@ -402,6 +556,36 @@ fun ScanReceiptScreen(
                             Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Save", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+
+                    // Save to Sections button — hidden for terminal receipts (no goods to track)
+                    if (!ocrParsedData.isTerminalReceipt) {
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                val amt = editAmount.toDoubleOrNull() ?: 0.0
+                                val finalItems = editableItems
+                                    .filter { it.second.isNotBlank() }
+                                    .map { it.second to (it.third.toDoubleOrNull() ?: 0.0) }
+                                onSaveToSection(
+                                    editMerchant,
+                                    editMerchant,
+                                    finalItems,
+                                    amt,
+                                    ocrParsedData.rawOcrText,
+                                    "" // detectedLanguages filled by caller
+                                )
+                                onClearOcr()
+                                Toast.makeText(context, "Saved to Sections", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.fillMaxWidth().height(46.dp),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Filled.Inventory2, null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Save to Sections", fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -435,16 +619,30 @@ fun ScanReceiptScreen(
             }
         }
 
-        // OCR raw text
+        // OCR raw text — show full text with scroll support for Armenian/multi-script
         if (ocrText.isNotEmpty()) {
             Spacer(modifier = Modifier.height(12.dp))
+            var showFullText by remember { mutableStateOf(false) }
             Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    Text("Extracted Text", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Extracted Text", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Spacer(modifier = Modifier.weight(1f))
+                        TextButton(onClick = { showFullText = !showFullText }) {
+                            Text(if (showFullText) "Show Less" else "Show All", fontSize = 11.sp)
+                        }
+                    }
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text(ocrText.take(400) + if (ocrText.length > 400) "..." else "",
+                    val displayText = if (showFullText) ocrText
+                        else ocrText.take(800) + if (ocrText.length > 800) "\n..." else ""
+                    Text(
+                        displayText,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        // Use default (sans-serif) font — Android's Noto fonts
+                        // include Armenian, Cyrillic, CJK, Arabic, Georgian glyphs
+                        lineHeight = 18.sp
+                    )
                 }
             }
         }
@@ -470,7 +668,20 @@ fun ScanReceiptScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Navigate to Sections
+        OutlinedButton(
+            onClick = onNavigateToSections,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Icon(Icons.Filled.ViewList, null)
+            Spacer(modifier = Modifier.width(10.dp))
+            Text("View Scanned Sections", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Tips
         Card(
@@ -485,7 +696,7 @@ fun ScanReceiptScreen(
                     "Keep the receipt flat and aligned",
                     "Make sure the total amount is visible",
                     "QR codes on receipts are scanned automatically",
-                    "Works with any language or script"
+                    "Works with Armenian, Russian, Chinese & more"
                 ).forEach { tip ->
                     Row(modifier = Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.Check, null, modifier = Modifier.size(14.dp), tint = GreenPrimary)
