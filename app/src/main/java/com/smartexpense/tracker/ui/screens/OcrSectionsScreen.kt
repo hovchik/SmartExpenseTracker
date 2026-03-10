@@ -431,11 +431,11 @@ private fun EditSectionDialog(
                                     if (it.first == itemId) Triple(it.first, newName, it.third) else it
                                 }
                             },
-                            placeholder = { Text("Name", fontSize = 11.sp) },
+                            placeholder = { Text("Name", fontSize = 12.sp) },
                             singleLine = true,
-                            modifier = Modifier.weight(1f).height(46.dp),
+                            modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(8.dp),
-                            textStyle = LocalTextStyle.current.copy(fontSize = 12.sp)
+                            textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         OutlinedTextField(
@@ -445,11 +445,11 @@ private fun EditSectionDialog(
                                     if (it.first == itemId) Triple(it.first, it.second, newPrice) else it
                                 }
                             },
-                            placeholder = { Text("0.00", fontSize = 11.sp) },
+                            placeholder = { Text("0.00", fontSize = 12.sp) },
                             singleLine = true,
-                            modifier = Modifier.width(72.dp).height(46.dp),
+                            modifier = Modifier.width(80.dp),
                             shape = RoundedCornerShape(8.dp),
-                            textStyle = LocalTextStyle.current.copy(fontSize = 12.sp, textAlign = TextAlign.End)
+                            textStyle = LocalTextStyle.current.copy(fontSize = 13.sp, textAlign = TextAlign.End)
                         )
                         IconButton(
                             onClick = { editableItems = editableItems.filter { it.first != itemId } },
