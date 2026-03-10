@@ -1056,37 +1056,61 @@ class AiExpenseEngine {
         val upper = ocrText.uppercase()
 
         // Explicit ISO currency codes next to amounts (most reliable)
-        val currencyPatterns = listOf(
-            Regex("""[\d,.]+\s*AMD\b""") to "AMD",
-            Regex("""\bAMD\s*[\d,.]+""") to "AMD",
-            Regex("""[\d,.]+\s*USD\b""") to "USD",
-            Regex("""\bUSD\s*[\d,.]+""") to "USD",
-            Regex("""[\d,.]+\s*EUR\b""") to "EUR",
-            Regex("""\bEUR\s*[\d,.]+""") to "EUR",
-            Regex("""[\d,.]+\s*RUB\b""") to "RUB",
-            Regex("""\bRUB\s*[\d,.]+""") to "RUB",
-            Regex("""[\d,.]+\s*GBP\b""") to "GBP",
-            Regex("""\bGBP\s*[\d,.]+""") to "GBP",
-            Regex("""[\d,.]+\s*CNY\b""") to "CNY",
-            Regex("""\bCNY\s*[\d,.]+""") to "CNY",
-            Regex("""[\d,.]+\s*JPY\b""") to "JPY",
-            Regex("""\bJPY\s*[\d,.]+""") to "JPY",
-            Regex("""[\d,.]+\s*TRY\b""") to "TRY",
-            Regex("""\bTRY\s*[\d,.]+""") to "TRY"
+        val isoCodes = listOf(
+            "AMD", "USD", "EUR", "RUB", "GBP", "CNY", "JPY", "TRY",
+            "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF", "RON",
+            "BRL", "ARS", "MXN", "COP", "PEN", "CLP",
+            "INR", "PKR", "BDT", "LKR", "NPR",
+            "KRW", "THB", "VND", "MYR", "SGD", "PHP", "IDR",
+            "AED", "SAR", "QAR", "KWD", "BHD", "OMR", "JOD", "ILS",
+            "ZAR", "KES", "NGN", "EGP", "MAD",
+            "AUD", "NZD", "CAD", "HKD", "TWD"
         )
-        for ((pattern, code) in currencyPatterns) {
-            if (pattern.containsMatchIn(upper)) return code
+        for (code in isoCodes) {
+            if (Regex("""[\d,.]+\s*${code}\b""").containsMatchIn(upper) ||
+                Regex("""\b${code}\s*[\d,.]+""").containsMatchIn(upper)) {
+                return code
+            }
         }
 
-        // Currency symbols
+        // Currency symbols (unambiguous first)
         if (ocrText.contains("֏")) return "AMD"
         if (ocrText.contains("€")) return "EUR"
         if (ocrText.contains("₽")) return "RUB"
         if (ocrText.contains("₹")) return "INR"
         if (ocrText.contains("₺")) return "TRY"
         if (ocrText.contains("₩")) return "KRW"
-        // $ is ambiguous — could be USD, CAD, AUD, etc.
-        if (Regex("""\$\s?\d""").containsMatchIn(ocrText)) return "USD"
+        if (ocrText.contains("₫")) return "VND"
+        if (ocrText.contains("฿")) return "THB"
+        if (ocrText.contains("₱")) return "PHP"
+        if (ocrText.contains("₪")) return "ILS"
+        if (ocrText.contains("RM") && Regex("""RM\s?\d""").containsMatchIn(ocrText)) return "MYR"
+        if (ocrText.contains("R$") || Regex("""R\$\s?\d""").containsMatchIn(ocrText)) return "BRL"
+        if (ocrText.contains("Fr.") || ocrText.contains("CHF")) return "CHF"
+        if (Regex("""(?i)\bRs\.?\s?\d""").containsMatchIn(ocrText)) return "INR"
+        // "kr" for Scandinavian (disambiguation by context)
+        if (Regex("""(?i)\b\d[\d\s.,]*\s*kr\b""").containsMatchIn(ocrText)) {
+            return when {
+                upper.contains("SEK") || upper.contains("KVITTO") || upper.contains("MOMS") && upper.contains("SUMMA") -> "SEK"
+                upper.contains("NOK") || upper.contains("KVITTERING") -> "NOK"
+                upper.contains("DKK") || upper.contains("KVITTERING") && upper.contains("MOMS") -> "DKK"
+                else -> "SEK" // default Scandinavian
+            }
+        }
+        // £ can be GBP or EGP — default GBP
+        if (ocrText.contains("£")) return "GBP"
+        // $ is ambiguous — could be USD, CAD, AUD, MXN, ARS, COP, etc.
+        if (Regex("""\$\s?\d""").containsMatchIn(ocrText)) {
+            return when {
+                upper.contains("CA\$") || upper.contains("CAD") -> "CAD"
+                upper.contains("A\$") || upper.contains("AUD") -> "AUD"
+                upper.contains("S\$") || upper.contains("SGD") -> "SGD"
+                upper.contains("HK\$") || upper.contains("HKD") -> "HKD"
+                upper.contains("MX\$") || upper.contains("MXN") -> "MXN"
+                upper.contains("AR\$") || upper.contains("ARS") -> "ARS"
+                else -> "USD"
+            }
+        }
 
         // Armenian context clues (Armenian script + bank names)
         val hasArmenianChars = ocrText.any { it.code in 0x0530..0x058F }
@@ -1095,10 +1119,65 @@ class AiExpenseEngine {
             return "AMD"
         }
 
-        // German/European receipt context clues (EUR)
-        val germanKeywords = listOf("SUMME", "ZU BEZAHLEN", "KARTENZAHLUNG", "BARGELDAUSZAHLUNG",
-            "RÜCKGELD", "MWST", "KUNDENBELEG", "IHR EINKAUF", "VIELEN DANK")
-        if (germanKeywords.any { upper.contains(it) }) return "EUR"
+        // German/Austrian/Swiss receipt context clues (EUR)
+        val eurKeywords = listOf("SUMME", "ZU BEZAHLEN", "KARTENZAHLUNG", "BARGELDAUSZAHLUNG",
+            "RÜCKGELD", "MWST", "KUNDENBELEG", "IHR EINKAUF", "VIELEN DANK",
+            "GUTEN TAG", "KASSENBON", "EINKAUF", "DANKE FÜR")
+        if (eurKeywords.any { upper.contains(it) }) return "EUR"
+
+        // French receipt context clues (EUR)
+        val frenchKeywords = listOf("MONTANT", "A PAYER", "TICKET DE CAISSE", "TVA", "MERCI DE VOTRE VISITE",
+            "ESPÈCES", "ESPECES", "RENDU", "SOUS-TOTAL")
+        if (frenchKeywords.count { upper.contains(it) } >= 2) return "EUR"
+
+        // Spanish receipt context clues (EUR — for Spain; Latin America uses different currencies)
+        val spanishKeywords = listOf("IMPORTE", "A PAGAR", "TICKET DE COMPRA", "GRACIAS POR SU COMPRA")
+        if (spanishKeywords.count { upper.contains(it) } >= 2) return "EUR"
+
+        // Italian receipt context clues (EUR)
+        val italianKeywords = listOf("TOTALE", "SCONTRINO", "IMPORTO", "DA PAGARE", "GRAZIE")
+        if (italianKeywords.count { upper.contains(it) } >= 2) return "EUR"
+
+        // Dutch receipt context clues (EUR)
+        if (upper.contains("TOTAAL") && (upper.contains("BTW") || upper.contains("TE BETALEN"))) return "EUR"
+
+        // Polish receipt context clues (PLN)
+        if (upper.contains("RAZEM") || upper.contains("DO ZAPŁATY") || (upper.contains("SUMA") && upper.contains("PTU"))) return "PLN"
+        if (Regex("""[\d,.]+\s*(?:ZŁ|ZL|PLN)""").containsMatchIn(upper)) return "PLN"
+
+        // Czech receipt context clues (CZK)
+        if (upper.contains("CELKEM") || upper.contains("K ÚHRADĚ")) return "CZK"
+        if (Regex("""[\d,.]+\s*(?:KČ|KC|CZK)""").containsMatchIn(upper)) return "CZK"
+
+        // Hungarian receipt context clues (HUF)
+        if (upper.contains("ÖSSZESEN") || upper.contains("FIZETENDŐ")) return "HUF"
+        if (Regex("""[\d,.]+\s*(?:FT|HUF)""").containsMatchIn(upper)) return "HUF"
+
+        // Turkish receipt context clues (TRY)
+        if (upper.contains("TOPLAM") || upper.contains("KDV")) return "TRY"
+        if (Regex("""[\d,.]+\s*TL\b""").containsMatchIn(upper)) return "TRY"
+
+        // Japanese context clues (JPY)
+        if (ocrText.contains("合計") && (ocrText.contains("円") || ocrText.contains("¥"))) return "JPY"
+        if (ocrText.contains("税込") || ocrText.contains("お釣り")) return "JPY"
+
+        // Korean context clues (KRW)
+        if (ocrText.contains("합계") || ocrText.contains("총계")) return "KRW"
+        if (ocrText.any { it.code in 0xAC00..0xD7AF }) return "KRW" // Hangul syllables
+
+        // Thai context clues (THB)
+        if (ocrText.contains("รวม") || ocrText.contains("ยอดรวม")) return "THB"
+        if (ocrText.any { it.code in 0x0E00..0x0E7F }) return "THB" // Thai script
+
+        // Arabic context clues (check for specific currencies)
+        if (ocrText.contains("المجموع") || ocrText.contains("الإجمالي")) {
+            return when {
+                upper.contains("AED") || upper.contains("درهم") -> "AED"
+                upper.contains("SAR") || upper.contains("ريال") -> "SAR"
+                upper.contains("EGP") || upper.contains("جنيه") -> "EGP"
+                else -> "AED" // default Arabic
+            }
+        }
 
         // Russian context clues
         if (upper.contains("ИТОГО") || upper.contains("СУММА") || ocrText.contains("руб")) return "RUB"
@@ -1112,18 +1191,89 @@ class AiExpenseEngine {
     // ─── Receipt OCR Text Parsing ──────────────────────────────────
 
     /**
-     * Parses a price string handling both European (comma-decimal: "1,92", "1.234,56")
-     * and English (period-decimal: "1.92", "1,234.56") formats.
+     * Parses a price string handling worldwide decimal/thousands conventions:
+     *  - European comma-decimal:  "1,92", "78,32", "1.234,56"
+     *  - English period-decimal:  "1.92", "1,234.56"
+     *  - Swiss apostrophe thousands: "1'234.56", "1'234,56"
+     *  - Space as thousands (French/Slavic): "1 234,56", "1 234.56"
+     *  - Whole numbers (JPY/KRW): "1299"
      */
     private fun parseReceiptPrice(raw: String): Double? {
-        val s = raw.trim()
+        var s = raw.trim()
         if (s.isEmpty()) return null
+        // Strip leading/trailing currency text that may have leaked in
+        s = s.replace(Regex("""^[A-Za-z]{0,3}\s+"""), "").replace(Regex("""\s+[A-Za-z]{0,3}$"""), "")
+        // Normalise thousands separators: apostrophe → nothing, thin/non-breaking space → nothing
+        s = s.replace("'", "").replace("\u00A0", "").replace("\u202F", "")
         // European format: comma as decimal separator (e.g. "1,92", "78,32", "1.234,56")
         if (Regex("""^-?\d[\d.]*,\d{1,2}$""").matches(s)) {
             return s.replace(".", "").replace(",", ".").toDoubleOrNull()
         }
         // English/default: period as decimal, comma as thousands (e.g. "1.92", "1,234.56")
         return s.replace(",", "").toDoubleOrNull()
+    }
+
+    /** All worldwide skip keywords for item names — used to reject totals/tax/payment lines. */
+    private val itemSkipKeywords: Set<String> by lazy {
+        setOf(
+            // English
+            "total", "subtotal", "sub-total", "grand total", "tax", "change", "cash",
+            "balance", "due", "amount due", "tendered", "payment", "credit card",
+            "debit card", "visa", "mastercard", "amex",
+            // German
+            "summe", "zwischensumme", "zw-summe", "kartenzahlung", "bargeld",
+            "rückgeld", "ruckgeld", "betrag", "zahlung", "zu bezahlen",
+            "mwst", "steuer", "netto", "brutto", "ersparnis", "gutschein",
+            "mengenvorteil", "coupon", "aktionsersparnis", "app-joker",
+            "pfand", "leergut", "bargeldauszahlung",
+            // French
+            "total", "sous-total", "montant", "a payer", "net a payer",
+            "tva", "espèces", "especes", "rendu", "carte", "remise",
+            // Spanish
+            "total", "subtotal", "importe", "a pagar", "iva", "efectivo",
+            "cambio", "tarjeta", "descuento",
+            // Italian
+            "totale", "subtotale", "importo", "da pagare", "contanti",
+            "resto", "carta", "sconto",
+            // Portuguese
+            "total", "subtotal", "valor total", "a pagar", "troco",
+            "dinheiro", "cartão", "cartao", "desconto",
+            // Dutch
+            "totaal", "subtotaal", "te betalen", "btw", "contant",
+            "wisselgeld", "pin", "korting",
+            // Scandinavian (Swedish/Norwegian/Danish)
+            "totalt", "summa", "att betala", "moms", "kontant",
+            "kort", "rabatt", "å betale", "i alt",
+            // Turkish
+            "toplam", "genel toplam", "ara toplam", "kdv", "nakit",
+            "para üstü", "kart",
+            // Polish
+            "suma", "razem", "do zapłaty", "do zaplaty", "gotówka",
+            "gotowka", "reszta", "karta", "rabat",
+            // Czech
+            "celkem", "mezisoučet", "k úhradě", "k uhrade", "hotově",
+            "hotove", "sleva",
+            // Hungarian
+            "összesen", "osszesen", "fizetendő", "fizetendo", "kedvezmény",
+            "kedvezmeny",
+            // Japanese
+            "合計", "小計", "税込", "税", "お釣り", "現金", "カード",
+            // Korean
+            "합계", "총계", "소계", "부가세", "거스름", "카드",
+            // Thai
+            "รวม", "ยอดรวม", "ภาษี", "เงินสด", "ทอน",
+            // Russian
+            "итого", "сумма", "налог", "сдача", "к оплате", "всего",
+            "наличные", "карта", "скидка",
+            // Chinese
+            "合计", "总计", "小计", "税额", "实收", "找零",
+            // Arabic
+            "المجموع", "الإجمالي", "الضريبة", "نقد",
+            // Armenian (Unicode)
+            "\u0538\u0576\u0564\u0561\u0574\u0565\u0576\u0568",
+            "\u0533\u0578\u0582\u0574\u0561\u0580",
+            "\u0540\u0561\u0576\u0580\u0561\u0563\u0578\u0582\u0574\u0561\u0580"
+        )
     }
 
     data class ParsedReceipt(
@@ -1177,12 +1327,30 @@ class AiExpenseEngine {
             val merchantName = lines.firstOrNull { line ->
                 line.length > 2 &&
                 !line.matches(Regex("""^[\d\s/\-:.]+$""")) &&
-                !line.matches(Regex("""(?i)^(receipt|invoice|bill|date|time|tel|phone|fax|www|tid|mid|tarihi|sale|authcode|auth code|approved|visa|mastercard|\*+.*).*""")) &&
+                !line.matches(Regex("""(?i)^(receipt|invoice|bill|date|time|tel|phone|fax|www|tid|mid|tarihi|sale|authcode|auth code|approved|visa|mastercard|total|subtotal|tax|change|cash|payment|\*+.*).*""")) &&
                 !line.matches(Regex("""^\*[\d\*\s]+$""")) &&  // masked card numbers
                 // Skip Russian receipt boilerplate
                 !line.matches(Regex("""(?i)^(чек|кассовый чек|ИНН|КПП|ИТОГО|итого|сумма|дата|время|ККТ|ФН|ФД|ФП|КАССА|КАССИР).*""")) &&
-                // Skip Chinese receipt boilerplate
-                !line.matches(Regex("""^(收据|发票|日期|时间|合计|总计|小计|税额|收银员|谢谢).*""")) &&
+                // Skip Chinese/Japanese/Korean receipt boilerplate
+                !line.matches(Regex("""^(收据|发票|日期|时间|合计|总计|小计|税额|收银员|谢谢|合計|小計|税込|お釣り|레시트|합계|총계|영수증).*""")) &&
+                // Skip French receipt boilerplate
+                !line.matches(Regex("""(?i)^(ticket de caisse|montant|sous-total|tva|total|a payer|net a payer|espèces|especes|rendu|merci).*""")) &&
+                // Skip Spanish receipt boilerplate
+                !line.matches(Regex("""(?i)^(ticket de compra|importe|subtotal|iva|total|a pagar|efectivo|cambio|gracias).*""")) &&
+                // Skip Italian receipt boilerplate
+                !line.matches(Regex("""(?i)^(scontrino|totale|subtotale|importo|iva|contanti|resto|grazie).*""")) &&
+                // Skip Dutch receipt boilerplate
+                !line.matches(Regex("""(?i)^(kassabon|totaal|subtotaal|btw|te betalen|contant|wisselgeld|pin|bedankt).*""")) &&
+                // Skip Turkish receipt boilerplate
+                !line.matches(Regex("""(?i)^(toplam|genel toplam|ara toplam|kdv|nakit|kart|teşekkür).*""")) &&
+                // Skip Scandinavian receipt boilerplate
+                !line.matches(Regex("""(?i)^(kvitto|kvittering|summa|totalt|moms|kontant|kort|tack|takk).*""")) &&
+                // Skip Polish/Czech/Hungarian receipt boilerplate
+                !line.matches(Regex("""(?i)^(paragon|razem|suma|celkem|összesen|fizetendő|do zapłaty).*""")) &&
+                // Skip Thai receipt boilerplate
+                !line.matches(Regex("""^(ใบเสร็จ|รวม|ยอดรวม|ภาษี|เงินสด|ขอบคุณ).*""")) &&
+                // Skip Arabic receipt boilerplate
+                !line.matches(Regex("""^(المجموع|الإجمالي|الضريبة|فاتورة|إيصال|شكراً).*""")) &&
                 // Skip Armenian POS boilerplate
                 armenianBoilerplate.none { kw -> line.uppercase().contains(kw) } &&
                 // Skip common POS terminal lines
@@ -1215,75 +1383,114 @@ class AiExpenseEngine {
                 "SGD" -> """(?:S\$|sgd)\s*"""
                 "HKD" -> """(?:HK\$|hkd)\s*"""
                 "AED" -> """(?:د\.إ|aed|dirham)\s*"""
-                else  -> """(?:${Regex.escape(currencyCode)}|[$₹€£֏¥₽₺₩])\s*"""
+                "SAR" -> """(?:ر\.س|sar|riyal)\s*"""
+                "THB" -> """(?:฿|thb|baht)\s*"""
+                "VND" -> """(?:₫|vnd|đồng)\s*"""
+                "PHP" -> """(?:₱|php|peso)\s*"""
+                "MYR" -> """(?:RM|myr|ringgit)\s*"""
+                "IDR" -> """(?:Rp\.?|idr|rupiah)\s*"""
+                "ILS" -> """(?:₪|ils|nis)\s*"""
+                "SEK" -> """(?:kr\.?|sek)\s*"""
+                "NOK" -> """(?:kr\.?|nok)\s*"""
+                "DKK" -> """(?:kr\.?|dkk)\s*"""
+                "PLN" -> """(?:zł|pln)\s*"""
+                "CZK" -> """(?:Kč|czk)\s*"""
+                "HUF" -> """(?:Ft|huf)\s*"""
+                "RON" -> """(?:lei|ron)\s*"""
+                "ZAR" -> """(?:R\s|zar|rand)\s*"""
+                "EGP" -> """(?:E£|egp|جنيه)\s*"""
+                "TWD" -> """(?:NT\$|twd)\s*"""
+                "NZD" -> """(?:NZ\$|nzd)\s*"""
+                "MXN" -> """(?:MX\$|mxn)\s*"""
+                else  -> """(?:${Regex.escape(currencyCode)}|[$₹€£֏¥₽₺₩₫฿₱₪])\s*"""
             }
 
             // Generic "any supported symbol" fallback used in item-line matching
-            val anySymbol = """[$₹€£֏¥₽₺₩]?"""
+            val anySymbol = """[$₹€£֏¥₽₺₩₫฿₱₪]?"""
 
             // Extract items
             val items = mutableListOf<Pair<String, Double>>()
             val itemPatterns = listOf(
-                // Item   <currency>AMOUNT  (period-decimal)
+                // ── Period-decimal patterns (US, UK, Asia, etc.) ──
+                // Item   <currency>AMOUNT  e.g. "Coffee  $4.99" / "Coffee  €4.99"
                 Regex("""(.{3,40}?)\s+${currencySymbolPattern}([\d,]+\.\d{2})\s*$""", RegexOption.IGNORE_CASE),
-                // Item   AMOUNT (period-decimal, no symbol)
+                // Item   AMOUNT (no symbol) e.g. "Coffee  4.99"
                 Regex("""(.{3,40}?)\s+(\d+\.\d{2})"""),
-                // Item    <any-symbol>AMOUNT (period-decimal, wider match)
+                // Item    <any-symbol>AMOUNT (wider match, 2+ spaces)
                 Regex("""^(.+?)\s{2,}${anySymbol}\s?([\d,]+\.\d{2})"""),
-                // European: [article#] ItemName   price[,]dd [tax-letter]
+
+                // ── European comma-decimal patterns ──
+                // [article#] ItemName   price[,.]dd [tax-letter]
                 // e.g. "462913 Birne Abate lose  1,92 A" or "Volvic Naturelle  2,94 A"
                 Regex("""^(?:\d{5,7}\s+)?(.{3,40}?)\s{2,}(-?\d{1,6}[,.]\d{2})\s*[A-Ba-b]?\s*$"""),
-                // European Müller-style: qty name origPrice discount finalPrice[tax-letter]
+                // Müller-style: qty name origPrice discount finalPrice[tax]
                 // e.g. "1 HOCHGENUSS STUDENTE 1,49 -0,15 1,34b"
                 Regex("""^\d+\s+(.{3,30}?)\s+\d+[,.]\d{2}\s+-?\d+[,.]\d{2}\s+(\d+[,.]\d{2})\s*[A-Ba-b]?\s*$"""),
-                // Whole-number items: "Item  500"
+
+                // ── Currency-after-price (European style) ──
+                // e.g. "Coffee  4,99 €" / "Coffee  4.99 EUR"
+                Regex("""^(.{3,40}?)\s{2,}(-?\d[\d.,]*\d)\s*(?:€|£|₽|₺|Fr\.?|kr|zł|Kč|Ft|TL|лв)\s*$""", RegexOption.IGNORE_CASE),
+
+                // ── Price-before-name (some Asian / Middle East) ──
+                // e.g. "¥150  おにぎり" / "₹120  Dal Rice"
+                // NOTE: groups are (price)(name) — handled by priceBeforeNamePattern below
+                Regex("""^[$₹€£֏¥₽₺₩₫฿₱₪]?\s?(\d[\d,.]*)\s{2,}(.{3,40})\s*$"""),
+
+                // ── Qty x Name  Price ──
+                // e.g. "2 x Coffee  9.98" / "3x Bread  5.97"
+                Regex("""^\d+\s*[xX×]\s+(.{3,35}?)\s{2,}${anySymbol}\s?(\d[\d,.]*\d?)\s*[A-Ba-b]?\s*$"""),
+
+                // ── Japanese / Korean whole-number with ¥/₩ ──
+                // e.g. "おにぎり  ¥150" / "김밥  ₩3500"
+                Regex("""^(.{2,40}?)\s{2,}[¥₩]\s?(\d{1,7})\s*$"""),
+
+                // ── Whole-number items (general): "Item  500" ──
                 Regex("""^(.{3,40}?)\s{2,}${anySymbol}\s?(\d{1,7})(?:\s*${'$'})""")
             )
             // Lines to skip: quantity/weight calculations, sub-totals, payment info
             val skipLinePatterns = listOf(
                 Regex("""^\s*\d+[,.]\d+\s*kg\s*x""", RegexOption.IGNORE_CASE),    // "0,742 kg x 2,59 EUR/kg"
-                Regex("""^\s*\d+\s*[xX*]\s+\d"""),                                 // "3 x  1,99"
-                Regex("""EUR/(?:kg|Stk|St)""", RegexOption.IGNORE_CASE),           // price-per-unit lines
+                Regex("""^\s*\d+\s*[xX×*]\s+\d"""),                                // "3 x  1,99"
+                Regex("""(?:EUR|USD|GBP)/(?:kg|Stk|St|lb|oz|pcs?)""", RegexOption.IGNORE_CASE), // price-per-unit
                 Regex("""^\s*\d+\s*[*]\s*\d"""),                                   // "2 * 0,59"
                 Regex("""^-?K-U-N-D-E""", RegexOption.IGNORE_CASE),               // customer section separator
-                Regex("""^={3,}|^-{3,}|^\*{3,}""")                                // separator lines
+                Regex("""^={3,}|^-{3,}|^\*{3,}"""),                               // separator lines
+                Regex("""(?i)^(tax|vat|tva|mwst|iva|kdv|btw|moms|ptu|gst|hst|pst)\s"""),  // tax detail lines
+                Regex("""(?i)^(steuern?|impuesto|taxe)\s"""),                     // tax labels
+                Regex("""^\s*\d+[,.]\d+\s*(?:lb|oz|pcs?|st|stk)\s*[x×@]""", RegexOption.IGNORE_CASE) // weight/qty
             )
+            // Track which pattern is the price-before-name one (groups are swapped)
+            val priceBeforeNamePattern = itemPatterns.firstOrNull {
+                it.pattern.startsWith("^[\$₹€£֏¥₽₺₩₫฿₱₪]")
+            }
             for (line in lines) {
                 // Skip calculation/separator lines
                 if (skipLinePatterns.any { it.containsMatchIn(line) }) continue
                 for (pattern in itemPatterns) {
                     val match = pattern.find(line)
-                    if (match != null) {
-                        var name = match.groupValues[1].trim()
+                    if (match != null && match.groupValues.size >= 3) {
+                        var name: String
+                        var priceStr: String
+                        if (pattern === priceBeforeNamePattern) {
+                            // Price-before-name: group1=price, group2=name
+                            priceStr = match.groupValues[1]
+                            name = match.groupValues[2].trim()
+                        } else {
+                            name = match.groupValues[1].trim()
+                            priceStr = match.groupValues[2]
+                        }
                         // Strip leading article numbers (e.g. "462913 Birne" → "Birne")
                         name = name.replace(Regex("""^\d{5,7}\s+"""), "")
-                        val price = parseReceiptPrice(match.groupValues[2])
+                        // Strip trailing tax code letters that may have leaked into name
+                        name = name.replace(Regex("""\s+[A-Ba-b]$"""), "")
+                        val price = parseReceiptPrice(priceStr)
                         if (price != null && price > 0 && price < 100000 &&
+                            name.length >= 2 &&
+                            // Not just digits/quantity markers
+                            !name.matches(Regex("""^\d+\s*[xX×*]?\s*$""")) &&
+                            // Not a total/tax/payment keyword in any supported language
                             !name.lowercase().let { n ->
-                                n.contains("total") || n.contains("subtotal") ||
-                                n.contains("tax") || n.contains("change") || n.contains("cash") ||
-                                n.contains("balance") || n.contains("due") ||
-                                // German total/payment/tax keywords
-                                n.contains("summe") || n.contains("zwischensumme") || n.contains("zw-summe") ||
-                                n.contains("kartenzahlung") || n.contains("bargeld") || n.contains("rückgeld") ||
-                                n.contains("ruckgeld") || n.contains("betrag") || n.contains("zahlung") ||
-                                n.contains("zu bezahlen") || n.contains("mwst") || n.contains("steuer") ||
-                                n.contains("netto") || n.contains("brutto") || n.contains("ersparnis") ||
-                                n.contains("gutschein") || n.contains("mengenvorteil") || n.contains("coupon") ||
-                                n.contains("aktionsersparnis") || n.contains("app-joker") ||
-                                // Russian total/tax keywords
-                                n.contains("итого") || n.contains("сумма") || n.contains("налог") ||
-                                n.contains("сдача") || n.contains("к оплате") || n.contains("всего") ||
-                                // Chinese total/tax keywords
-                                n.contains("合计") || n.contains("总计") || n.contains("小计") ||
-                                n.contains("税额") || n.contains("实收") || n.contains("找零") ||
-                                // Armenian total/tax keywords (Unicode)
-                                n.contains("\u0538\u0576\u0564\u0561\u0574\u0565\u0576\u0568") ||
-                                n.contains("\u0533\u0578\u0582\u0574\u0561\u0580") ||
-                                n.contains("\u0540\u0561\u0576\u0580\u0561\u0563\u0578\u0582\u0574\u0561\u0580") ||
-                                // Short junk names (just numbers, single chars, quantity markers)
-                                n.matches(Regex("""^\d+\s*[xX*]?\s*$""")) ||
-                                n.length < 2
+                                itemSkipKeywords.any { kw -> n.contains(kw) }
                             }
                         ) {
                             items.add(name to price)
@@ -1337,22 +1544,107 @@ class AiExpenseEngine {
                     Regex("""(?:grand\s*total|total\s*due|amount\s*due|balance\s*due|total)[:\s]*\$?\s*([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
                     Regex("""\$\s*([\d,]+\.\d{2})""")
                 )
+                "GBP" -> listOf(
+                    Regex("""(?:grand\s*total|total\s*due|total|amount)[:\s]*£?\s*([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
+                    Regex("""£\s*([\d,]+\.\d{2})""")
+                )
+                "TRY" -> listOf(
+                    // Turkish: "TOPLAM: ₺123,45" or "TOPLAM 123,45 TL"
+                    Regex("""(?:TOPLAM|GENEL TOPLAM|TOTAL)[:\s]*(?:₺|TL)?\s*([\d.,]+)""", RegexOption.IGNORE_CASE),
+                    Regex("""([\d.,]+)\s*(?:TL|₺)"""),
+                    Regex("""₺\s*([\d.,]+)""")
+                )
+                "JPY" -> listOf(
+                    // Japanese: "合計  ¥1,299" or "合計 1299円"
+                    Regex("""(?:合計|合计|小計|税込合計|total)[:\s]*¥?\s*([\d,]+)""", RegexOption.IGNORE_CASE),
+                    Regex("""¥\s*([\d,]+)"""),
+                    Regex("""([\d,]+)\s*円""")
+                )
+                "KRW" -> listOf(
+                    // Korean: "합계  ₩25,000" or "합계 25000원"
+                    Regex("""(?:합계|총계|total)[:\s]*₩?\s*([\d,]+)""", RegexOption.IGNORE_CASE),
+                    Regex("""₩\s*([\d,]+)"""),
+                    Regex("""([\d,]+)\s*원""")
+                )
+                "INR" -> listOf(
+                    Regex("""(?:grand\s*total|total|amount)[:\s]*(?:₹|Rs\.?)\s*([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
+                    Regex("""(?:₹|Rs\.?)\s*([\d,]+\.\d{2})""")
+                )
+                "CHF" -> listOf(
+                    // Swiss: "Total CHF 45.90" or "Total Fr. 45.90"
+                    Regex("""(?:Total|Betrag|Summe)[:\s]*(?:Fr\.?|CHF)\s*([\d.,'\s]+)""", RegexOption.IGNORE_CASE),
+                    Regex("""(?:Fr\.?|CHF)\s*([\d.,'\s]+\d)""")
+                )
+                "THB" -> listOf(
+                    Regex("""(?:รวม|ยอดรวม|total)[:\s]*(?:฿)?\s*([\d.,]+)""", RegexOption.IGNORE_CASE),
+                    Regex("""฿\s*([\d.,]+)""")
+                )
+                "PLN" -> listOf(
+                    Regex("""(?:RAZEM|SUMA|DO ZAPŁATY|DO ZAPLATY|TOTAL)[:\s]*(?:zł|PLN)?\s*([\d.,\s]+)""", RegexOption.IGNORE_CASE),
+                    Regex("""([\d.,]+)\s*(?:zł|PLN)""", RegexOption.IGNORE_CASE)
+                )
+                "CZK" -> listOf(
+                    Regex("""(?:CELKEM|K ÚHRADĚ|TOTAL)[:\s]*(?:Kč|CZK)?\s*([\d.,\s]+)""", RegexOption.IGNORE_CASE),
+                    Regex("""([\d.,]+)\s*(?:Kč|CZK)""", RegexOption.IGNORE_CASE)
+                )
+                "HUF" -> listOf(
+                    Regex("""(?:ÖSSZESEN|FIZETENDŐ|TOTAL)[:\s]*(?:Ft|HUF)?\s*([\d.,\s]+)""", RegexOption.IGNORE_CASE),
+                    Regex("""([\d.,]+)\s*(?:Ft|HUF)""", RegexOption.IGNORE_CASE)
+                )
+                "SEK", "NOK", "DKK" -> listOf(
+                    Regex("""(?:TOTALT|SUMMA|ATT BETALA|Å BETALE|I ALT|TOTAL)[:\s]*(?:kr\.?)?\s*([\d.,\s]+)""", RegexOption.IGNORE_CASE),
+                    Regex("""([\d.,]+)\s*kr""", RegexOption.IGNORE_CASE)
+                )
+                "BRL" -> listOf(
+                    Regex("""(?:TOTAL|VALOR TOTAL|A PAGAR)[:\s]*(?:R\$)?\s*([\d.,]+)""", RegexOption.IGNORE_CASE),
+                    Regex("""R\$\s*([\d.,]+)""")
+                )
+                "AED" -> listOf(
+                    Regex("""(?:total|المجموع|الإجمالي)[:\s]*(?:AED|د\.إ)?\s*([\d.,]+)""", RegexOption.IGNORE_CASE),
+                    Regex("""(?:AED|د\.إ)\s*([\d.,]+)""")
+                )
                 else -> listOf(
                     Regex("""(?:grand\s*total|total\s*due|total)[:\s]*${currencySymbolPattern}?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE)
                 )
             }
 
-            // Priority-2: generic total patterns (catch-all)
+            // Priority-2: generic total patterns — worldwide catch-all
             val genericTotalPatterns = listOf(
+                // English
                 Regex("""(?:grand\s*total|total\s*due|amount\s*due|total\s*amount|balance\s*due)[:\s]*[$₹€£֏¥₽₺₩]?\s?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
                 Regex("""(?:TOTAL|Total|GRAND TOTAL)\s*:?\s*[$₹€£֏¥₽₺₩]?\s?([\d,]+\.\d{2})"""),
                 Regex("""(?:total)[:\s]*(?:rs\.?|₹|\$|€|£|֏|[A-Z]{3})?\s?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
                 Regex("""(?:TOTAL)\s+[$₹€£֏¥₽₺₩]?([\d,]+\.?\d{0,2})"""),
+                // Russian
                 Regex("""(?:ИТОГО|итого|СУММА|сумма|К ОПЛАТЕ|к оплате)[:\s]*([\d,\s]+\.?\d*)"""),
-                // Chinese total keywords (generic fallback)
-                Regex("""(?:合计|总计|实收|应收)[:\s：]*(?:¥|￥|元)?\s*([\d,]+\.?\d*)"""),
-                // German total keywords (generic fallback)
-                Regex("""(?:SUMME|Summe|ZU BEZAHLEN|Gesamtbetrag|Gesamtsumme)[:\s]*(?:€|EUR)?\s*([\d.,]+)""", RegexOption.IGNORE_CASE)
+                // Chinese / Japanese
+                Regex("""(?:合计|总计|实收|应收|合計|小計)[:\s：]*(?:¥|￥|元)?\s*([\d,]+\.?\d*)"""),
+                // German
+                Regex("""(?:SUMME|Summe|ZU BEZAHLEN|Gesamtbetrag|Gesamtsumme)[:\s]*(?:€|EUR)?\s*([\d.,]+)""", RegexOption.IGNORE_CASE),
+                // French
+                Regex("""(?:TOTAL|MONTANT|A PAYER|NET A PAYER)[:\s]*(?:€|EUR)?\s*([\d.,\s]+)""", RegexOption.IGNORE_CASE),
+                // Spanish
+                Regex("""(?:TOTAL|IMPORTE|A PAGAR)[:\s]*(?:€|EUR|\$)?\s*([\d.,\s]+)""", RegexOption.IGNORE_CASE),
+                // Italian
+                Regex("""(?:TOTALE|IMPORTO|DA PAGARE)[:\s]*(?:€|EUR)?\s*([\d.,\s]+)""", RegexOption.IGNORE_CASE),
+                // Dutch
+                Regex("""(?:TOTAAL|TE BETALEN)[:\s]*(?:€|EUR)?\s*([\d.,\s]+)""", RegexOption.IGNORE_CASE),
+                // Scandinavian
+                Regex("""(?:TOTALT|SUMMA|ATT BETALA|Å BETALE|I ALT)[:\s]*(?:kr\.?)?\s*([\d.,\s]+)""", RegexOption.IGNORE_CASE),
+                // Turkish
+                Regex("""(?:TOPLAM|GENEL TOPLAM)[:\s]*(?:₺|TL)?\s*([\d.,\s]+)""", RegexOption.IGNORE_CASE),
+                // Polish
+                Regex("""(?:RAZEM|SUMA|DO ZAPŁATY|DO ZAPLATY)[:\s]*(?:zł|PLN)?\s*([\d.,\s]+)""", RegexOption.IGNORE_CASE),
+                // Czech
+                Regex("""(?:CELKEM|K ÚHRADĚ|K UHRADE)[:\s]*(?:Kč|CZK)?\s*([\d.,\s]+)""", RegexOption.IGNORE_CASE),
+                // Hungarian
+                Regex("""(?:ÖSSZESEN|OSSZESEN|FIZETENDŐ|FIZETENDO)[:\s]*(?:Ft|HUF)?\s*([\d.,\s]+)""", RegexOption.IGNORE_CASE),
+                // Korean
+                Regex("""(?:합계|총계)[:\s]*(?:₩)?\s*([\d,]+)"""),
+                // Thai
+                Regex("""(?:รวม|ยอดรวม)[:\s]*(?:฿)?\s*([\d.,]+)"""),
+                // Arabic
+                Regex("""(?:المجموع|الإجمالي)[:\s]*([\d.,\s]+)""")
             )
 
             var total: Double? = null
@@ -1388,9 +1680,13 @@ class AiExpenseEngine {
                 total = amountCandidates.maxOrNull()
             }
 
-            // Date — also recognises "Tarihi: DD/MM/YY" found on Armenian/Turkish POS terminals
+            // Date — supports worldwide formats
             val datePatterns = listOf(
-                Regex("""(?:tarihi|date|dated?)[:\s]*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})""", RegexOption.IGNORE_CASE),
+                // Labelled: "Date: 09/03/26", "Tarihi: 01.02.2024", "Datum: 23.07.2024", "Fecha: 01/02/2024", "Data: 01/02/2024", "日付: 2024/01/02"
+                Regex("""(?:tarihi|date|dated?|datum|fecha|data|日付|날짜)[:\s]*(\d{1,2}[/\-\.]\d{1,2}[/\-\.]\d{2,4})""", RegexOption.IGNORE_CASE),
+                // European dot-separated: "23.07.2024"
+                Regex("""\d{1,2}\.\d{1,2}\.\d{2,4}"""),
+                // Slash/dash separated: "09/03/26", "2024-01-15"
                 Regex("""\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}"""),
                 Regex("""\d{4}[/\-]\d{1,2}[/\-]\d{1,2}""")
             )
@@ -1423,15 +1719,31 @@ class AiExpenseEngine {
                 "karte 1", "genehmigungsnr", "genehmigung karte",
                 "bitte beleg aufbewahren", "geprueft", "gepr\u00fcft",
                 "verarbeitung ok",
+                // French POS terminal keywords
+                "autorisation", "carte bancaire", "sans contact",
+                "paiement accepté", "paiement accepte",
+                // Spanish POS terminal keywords
+                "autorización", "autorizacion", "tarjeta",
+                "pago aprobado", "sin contacto",
+                // Italian POS terminal keywords
+                "autorizzazione", "carta di credito", "pagamento approvato",
+                // Turkish POS terminal keywords
+                "onay", "onay kodu", "kart no", "temassız",
+                // Japanese POS terminal keywords
+                "承認", "カード番号", "端末",
+                // Korean POS terminal keywords
+                "승인", "카드번호", "단말기",
                 // Armenian POS terminal keywords
-                "\u0540\u0531\u054D\u054F\u0531\u054F\u054E\u0531\u053E", // ՀԱdelays (confirmed)
-                "\u054E\u0561\u0573\u0561\u057C\u0584",                   // վdelays (sale)
-                "\u0554\u0561\u0580\u057F",                               // Քdelays (card)
+                "\u0540\u0531\u054D\u054F\u0531\u054F\u054E\u0531\u053E",
+                "\u054E\u0561\u0573\u0561\u057C\u0584",
+                "\u0554\u0561\u0580\u057F",
                 // Russian POS terminal keywords
-                "\u043e\u0434\u043e\u0431\u0440\u0435\u043d\u043e",       // одобрено (approved)
-                "\u043a\u0430\u0440\u0442\u0430",                         // карта (card)
-                "\u0442\u0435\u0440\u043c\u0438\u043d\u0430\u043b",       // терминал (terminal)
-                "\u0430\u0432\u0442\u043e\u0440\u0438\u0437\u0430\u0446\u0438\u044f" // авторизация (authorization)
+                "\u043e\u0434\u043e\u0431\u0440\u0435\u043d\u043e",       // одобрено
+                "\u043a\u0430\u0440\u0442\u0430",                         // карта
+                "\u0442\u0435\u0440\u043c\u0438\u043d\u0430\u043b",       // терминал
+                "\u0430\u0432\u0442\u043e\u0440\u0438\u0437\u0430\u0446\u0438\u044f", // авторизация
+                // Arabic POS terminal keywords
+                "الموافقة", "رقم البطاقة", "بدون تلامس"
             )
             val maskedCardPattern = Regex("""\*{2,}\d{2,4}|\d{4}\s*\*{4,}|#{3,}\d{2,4}|X{4}\s+X{4}""")
             val lowerText = ocrText.lowercase()
