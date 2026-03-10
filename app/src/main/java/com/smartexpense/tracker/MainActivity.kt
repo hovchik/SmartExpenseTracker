@@ -274,7 +274,9 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         onDeleteSection = { viewModel.deleteOcrSection(it) },
                         onClearAll = { viewModel.clearAllOcrSections() },
                         onGenerateReport = { since -> viewModel.generateOcrSectionsReport(since) },
-                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+                        onGetGoodsReportItems = { since -> viewModel.getGoodsReportItems(since) },
+                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) },
+                        onNavigateToScan = { currentScreen = "scan" }
                     )
                     "sms_scan" -> SmsScanScreen(
                         scanState = smsScanState,

@@ -353,6 +353,17 @@ data class OcrSection(
 }
 
 /**
+ * Aggregated info for a single item across multiple receipts — used in goods reports.
+ * Example: "Cheese" bought 3 times totalling 2000 AMD.
+ */
+data class GoodsReportItem(
+    val name: String,
+    val count: Int,
+    val totalSpent: Double,
+    val category: String = ""
+)
+
+/**
  * A recurring expense (e.g. loan payment, subscription) that fires a reminder
  * notification on the last working day (Mon–Fri) before the payment day.
  */

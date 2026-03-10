@@ -69,8 +69,8 @@ fun ScanReceiptScreen(
         } catch (_: Exception) { null }
     }
 
-    // Armenian OCR service (Tesseract) — created once per screen lifecycle
-    val armenianOcr = remember { com.smartexpense.tracker.service.ocr.ArmenianOcrService(context) }
+    // Multi-language Tesseract OCR service — created once per screen lifecycle
+    val tesseractOcr = remember { com.smartexpense.tracker.service.ocr.ArmenianOcrService(context) }
     val coroutineScope = rememberCoroutineScope()
 
     /**
@@ -93,10 +93,9 @@ fun ScanReceiptScreen(
             return
         }
 
-        // Create all recognizers.
-        // The default Latin recognizer also handles Cyrillic (Russian) and Armenian scripts.
+        // Create all ML Kit recognizers.
         val recognizers: List<Pair<String, TextRecognizer>> = listOf(
-            "Latin/Cyrillic/Armenian" to TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS),
+            "Latin/Cyrillic" to TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS),
             "Chinese" to TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build()),
             "Devanagari" to TextRecognition.getClient(DevanagariTextRecognizerOptions.Builder().build()),
             "Japanese" to TextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build()),
@@ -104,20 +103,41 @@ fun ScanReceiptScreen(
         )
 
         val results = mutableMapOf<String, String>()
-        // +1 for barcode scanner, +1 for Tesseract Armenian/Russian
+        // +1 for barcode scanner, +1 for Tesseract multi-lang
         val remaining = AtomicInteger(recognizers.size + 2)
         var qrResult: String? = null
 
         fun onAllDone() {
             if (remaining.get() > 0) return
 
-            val nonEmpty = results.entries
-                .filter { it.value.isNotBlank() }
+            // Prioritize Tesseract results first — it handles Armenian and
+            // produces better Cyrillic/CJK output when ML Kit misses characters.
+            // Then add ML Kit results, skipping duplicate lines.
+            val tesseractKey = "Tesseract"
+            val tesseractEntries = results.entries.filter { it.key.contains(tesseractKey) }
+            val mlKitEntries = results.entries
+                .filter { !it.key.contains(tesseractKey) && it.value.isNotBlank() }
                 .sortedByDescending { it.value.length }
 
             val mergedLines = mutableListOf<String>()
             val seenLines = mutableSetOf<String>()
-            for ((name, text) in nonEmpty) {
+
+            // Add Tesseract lines first (best for Armenian, Georgian, Arabic, etc.)
+            for ((name, text) in tesseractEntries) {
+                if (text.isBlank()) continue
+                var addedFromThis = 0
+                for (line in text.lines()) {
+                    val trimmed = line.trim()
+                    if (trimmed.isNotEmpty() && seenLines.add(trimmed.lowercase())) {
+                        mergedLines.add(trimmed)
+                        addedFromThis++
+                    }
+                }
+                Log.d("OCR", "$name: ${text.length} chars, $addedFromThis new lines merged (priority)")
+            }
+
+            // Add ML Kit lines, skipping duplicates
+            for ((name, text) in mlKitEntries) {
                 var addedFromThis = 0
                 for (line in text.lines()) {
                     val trimmed = line.trim()
@@ -181,21 +201,20 @@ fun ScanReceiptScreen(
                 }
         }
 
-        // Run Tesseract Armenian/Russian OCR in parallel (background coroutine)
+        // Run Tesseract multi-language OCR in parallel (background coroutine)
         coroutineScope.launch {
             try {
-                // Load bitmap from URI for Tesseract
                 val source = android.graphics.ImageDecoder.createSource(context.contentResolver, uri)
                 val bitmap = android.graphics.ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
                     decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
                 }
-                val tessText = armenianOcr.recognizeText(bitmap)
+                val tessText = tesseractOcr.recognizeText(bitmap)
                 if (tessText.isNotBlank()) {
-                    synchronized(results) { results["Armenian/Russian (Tesseract)"] = tessText }
-                    Log.d("OCR", "Tesseract Armenian/Russian: ${tessText.length} chars")
+                    synchronized(results) { results["Tesseract Multi-Lang"] = tessText }
+                    Log.d("OCR", "Tesseract multi-lang: ${tessText.length} chars")
                 }
             } catch (e: Exception) {
-                Log.w("OCR", "Tesseract Armenian OCR failed: ${e.message}")
+                Log.w("OCR", "Tesseract OCR failed: ${e.message}")
             }
             if (remaining.decrementAndGet() == 0) onAllDone()
         }
@@ -488,16 +507,30 @@ fun ScanReceiptScreen(
             }
         }
 
-        // OCR raw text
+        // OCR raw text — show full text with scroll support for Armenian/multi-script
         if (ocrText.isNotEmpty()) {
             Spacer(modifier = Modifier.height(12.dp))
+            var showFullText by remember { mutableStateOf(false) }
             Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    Text("Extracted Text", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Extracted Text", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Spacer(modifier = Modifier.weight(1f))
+                        TextButton(onClick = { showFullText = !showFullText }) {
+                            Text(if (showFullText) "Show Less" else "Show All", fontSize = 11.sp)
+                        }
+                    }
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text(ocrText.take(400) + if (ocrText.length > 400) "..." else "",
+                    val displayText = if (showFullText) ocrText
+                        else ocrText.take(800) + if (ocrText.length > 800) "\n..." else ""
+                    Text(
+                        displayText,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        // Use default (sans-serif) font — Android's Noto fonts
+                        // include Armenian, Cyrillic, CJK, Arabic, Georgian glyphs
+                        lineHeight = 18.sp
+                    )
                 }
             }
         }

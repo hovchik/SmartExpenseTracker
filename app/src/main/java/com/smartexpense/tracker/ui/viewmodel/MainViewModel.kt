@@ -872,6 +872,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * When [sinceTimestamp] is non-null, only sections scanned after that time are included.
      * Groups items by category, shows totals, averages, and per-section breakdown.
      */
+    /**
+     * Returns aggregated goods data: items grouped by name with purchase count and total spend.
+     * Used by the UI to render diagrams and frequency tables.
+     */
+    fun getGoodsReportItems(sinceTimestamp: Long? = null): List<GoodsReportItem> {
+        val allSections = _ocrSections.value
+        val sections = if (sinceTimestamp != null) {
+            allSections.filter { it.timestamp >= sinceTimestamp }
+        } else allSections
+        if (sections.isEmpty()) return emptyList()
+
+        val allItems = sections.flatMap { it.items }
+        // Group by normalised item name (lowercase, trimmed)
+        return allItems.groupBy { it.name.trim().lowercase() }
+            .map { (_, items) ->
+                GoodsReportItem(
+                    name = items.first().name.trim(), // keep original casing from first occurrence
+                    count = items.size,
+                    totalSpent = items.sumOf { it.price },
+                    category = items.first().category
+                )
+            }
+            .sortedByDescending { it.totalSpent }
+    }
+
     fun generateOcrSectionsReport(sinceTimestamp: Long? = null): String {
         val allSections = _ocrSections.value
         val sections = if (sinceTimestamp != null) {
@@ -895,6 +920,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         sb.appendLine("Grand total: $currencySymbol${String.format("%.2f", grandTotal)}")
         sb.appendLine()
 
+        // ── Goods frequency breakdown (most requested feature) ──
+        val goodsReport = getGoodsReportItems(sinceTimestamp)
+        sb.appendLine("── Goods Frequency ──")
+        goodsReport.take(20).forEach { item ->
+            val avg = item.totalSpent / item.count
+            sb.appendLine("  ${item.name}: bought ${item.count}x, total $currencySymbol${String.format("%.0f", item.totalSpent)}, avg $currencySymbol${String.format("%.0f", avg)}")
+        }
+        sb.appendLine()
+
         // ── Per-category breakdown ──
         val byCategory = allItems.groupBy { it.category.ifBlank { "Uncategorized" } }
         sb.appendLine("── Category Breakdown ──")
@@ -908,19 +942,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         sb.appendLine()
 
         // ── Per-section breakdown ──
-        sb.appendLine("── Section Details ──")
+        sb.appendLine("── Receipt Details ──")
         val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US)
         sections.sortedByDescending { it.timestamp }.forEach { section ->
             sb.appendLine("┌─ ${section.label} (${section.merchantName})")
             sb.appendLine("│  Date: ${dateFormat.format(java.util.Date(section.timestamp))}")
-            sb.appendLine("│  Languages: ${section.detectedLanguages.ifBlank { "N/A" }}")
             if (section.items.isNotEmpty()) {
                 section.items.forEach { item ->
                     sb.appendLine("│  • ${item.name}: $currencySymbol${String.format("%.2f", item.price)}")
                 }
             }
             sb.appendLine("│  Total: $currencySymbol${String.format("%.2f", section.totalAmount)}")
-            if (section.notes.isNotBlank()) sb.appendLine("│  Notes: ${section.notes}")
             sb.appendLine("└──────────────")
         }
 

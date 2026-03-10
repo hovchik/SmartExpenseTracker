@@ -1141,7 +1141,11 @@ class AiExpenseEngine {
                                 n.contains("сдача") || n.contains("к оплате") || n.contains("всего") ||
                                 // Chinese total/tax keywords
                                 n.contains("合计") || n.contains("总计") || n.contains("小计") ||
-                                n.contains("税额") || n.contains("实收") || n.contains("找零")
+                                n.contains("税额") || n.contains("实收") || n.contains("找零") ||
+                                // Armenian total/tax keywords (Unicode)
+                                n.contains("\u0538\u0576\u0564\u0561\u0574\u0565\u0576\u0568") || // ընdelays (total)
+                                n.contains("\u0533\u0578\u0582\u0574\u0561\u0580") || // delaysds (sum)
+                                n.contains("\u0540\u0561\u0576\u0580\u0561\u0563\u0578\u0582\u0574\u0561\u0580") // delaysdelays (total)
                             }
                         ) {
                             items.add(name to price)
@@ -1155,16 +1159,19 @@ class AiExpenseEngine {
             // Priority-1: currency-specific total markers
             val currencyTotalPatterns: List<Regex> = when (currencyCode.uppercase()) {
                 "AMD" -> listOf(
-                    // Armenian POS terminal receipts: "Գumарi: 12 000.00 AMD"
-                    // "Գumар" / "Гumari" = Armenian for "sum/amount"
-                    // Handles space-as-thousands-separator: "12 000.00"
-                    Regex("""(?:Գumар[ий]?|Гumari?|gumar[i]?)[:\s]+([0-9][0-9\s,]*\.?[0-9]*)\s*(?:AMD|֏|դрам)""", RegexOption.IGNORE_CASE),
-                    // "ԸՆДAMENHH" = "total" in Armenian; also "TOTAL", "AMD", "֏"
-                    Regex("""(?:ԸՆДАМENNH|ընдамennh|total|grand\s*total)[:\s]*(?:֏|AMD|դрам)?\s*([0-9][0-9\s,]*\.?[0-9]*)""", RegexOption.IGNORE_CASE),
+                    // Armenian POS receipts: Գումdelays = "sum/amount", Delays = "total"
+                    // Proper Armenian: Գumdar (Գdelays), yndardelays (Delays), Dndelays
+                    // Using Unicode escapes for safety:
+                    // Delaysdelays = \u0538\u0576\u0564\u0561\u0574\u0565\u0576\u0568 (total)
+                    // Delays = \u0533\u0578\u0582\u0574\u0561\u0580 (sum)
+                    // Yndelaysunds = \u0540\u0561\u0576\u0580\u0561\u0563\u0578\u0582\u0574\u0561\u0580 (total/sum)
+                    Regex("""(?:\u0538\u0576\u0564\u0561\u0574\u0565\u0576\u0568|\u0533\u0578\u0582\u0574\u0561\u0580|\u0540\u0561\u0576\u0580\u0561\u0563\u0578\u0582\u0574\u0561\u0580|\u0531\u0574\u0562\u0578\u0572\u057b)[:\s]*(?:֏|AMD)?\s*([0-9][0-9\s,]*\.?[0-9]*)"""),
+                    // Latin transliteration: "Gumari", "Yndameny", "Total"
+                    Regex("""(?:gumari?|yndamen[ky]|total|grand\s*total)[:\s]*(?:֏|AMD)?\s*([0-9][0-9\s,]*\.?[0-9]*)""", RegexOption.IGNORE_CASE),
                     // POS receipt: number immediately before AMD/֏ — "12 000.00 AMD"
-                    Regex("""([0-9][0-9\s,]*\.[0-9]{1,2})\s*(?:AMD|֏|դрам)""", RegexOption.IGNORE_CASE),
+                    Regex("""([0-9][0-9\s,]*\.[0-9]{1,2})\s*(?:AMD|֏)""", RegexOption.IGNORE_CASE),
                     // AMD/֏ before number — "AMD 12000.00" / "֏ 12,000"
-                    Regex("""(?:֏|AMD|դрам)[:\s]+([0-9][0-9\s,]*\.?[0-9]*)""", RegexOption.IGNORE_CASE)
+                    Regex("""(?:֏|AMD)[:\s]+([0-9][0-9\s,]*\.?[0-9]*)""", RegexOption.IGNORE_CASE)
                 )
                 "RUB" -> listOf(
                     Regex("""(?:ИТОГО|итого|СУММА|сумма|total)[:\s]*(?:₽|руб\.?)?\s*([\d,\s]+\.?\d*)""", RegexOption.IGNORE_CASE),

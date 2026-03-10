@@ -1,6 +1,7 @@
 package com.smartexpense.tracker.ui.screens
 
 import android.widget.Toast
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,6 +14,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -22,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.smartexpense.tracker.data.model.GoodsReportItem
 import com.smartexpense.tracker.data.model.OcrSection
 import com.smartexpense.tracker.data.model.currencyInfoFor
 import com.smartexpense.tracker.ui.theme.*
@@ -35,7 +42,7 @@ private enum class ReportPeriod(val label: String, val daysBack: Long?) {
     WEEK("1 Week", 7),
     MONTH("1 Month", 30),
     YEAR("1 Year", 365),
-    ALL("All Time", null);
+    CUSTOM("Custom", null);
 
     fun sinceTimestamp(): Long? {
         val d = daysBack ?: return null
@@ -50,52 +57,65 @@ fun OcrSectionsScreen(
     onDeleteSection: (String) -> Unit,
     onClearAll: () -> Unit,
     onGenerateReport: (sinceTimestamp: Long?) -> String,
-    onNavigateBack: () -> Unit
+    onGetGoodsReportItems: (sinceTimestamp: Long?) -> List<GoodsReportItem>,
+    onNavigateBack: () -> Unit,
+    onNavigateToScan: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var showClearAllConfirm by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Header
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onNavigateBack) {
-                Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+    Scaffold(
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onNavigateToScan,
+                containerColor = GreenPrimary
+            ) {
+                Icon(Icons.Filled.CameraAlt, contentDescription = "Scan Receipt")
             }
-            Text(
-                "Scanned Sections",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.weight(1f))
-            if (sections.isNotEmpty()) {
-                IconButton(onClick = { showClearAllConfirm = true }) {
-                    Icon(Icons.Filled.DeleteSweep, contentDescription = "Clear All", tint = RedExpense)
+        }
+    ) { scaffoldPadding ->
+        Column(modifier = Modifier.fillMaxSize().padding(scaffoldPadding)) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onNavigateBack) {
+                    Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                }
+                Text(
+                    "Scanned Sections",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                if (sections.isNotEmpty()) {
+                    IconButton(onClick = { showClearAllConfirm = true }) {
+                        Icon(Icons.Filled.DeleteSweep, contentDescription = "Clear All", tint = RedExpense)
+                    }
                 }
             }
-        }
 
-        // Tabs
-        TabRow(selectedTabIndex = selectedTab) {
-            Tab(
-                selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
-                text = { Text("Scanned Goods", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal) },
-                icon = { Icon(Icons.Filled.Inventory2, null, modifier = Modifier.size(18.dp)) }
-            )
-            Tab(
-                selected = selectedTab == 1,
-                onClick = { selectedTab = 1 },
-                text = { Text("Reports", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) },
-                icon = { Icon(Icons.Filled.Assessment, null, modifier = Modifier.size(18.dp)) }
-            )
-        }
+            // Tabs
+            TabRow(selectedTabIndex = selectedTab) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = { Text("Scanned Goods", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal) },
+                    icon = { Icon(Icons.Filled.Inventory2, null, modifier = Modifier.size(18.dp)) }
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = { Text("Reports", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) },
+                    icon = { Icon(Icons.Filled.Assessment, null, modifier = Modifier.size(18.dp)) }
+                )
+            }
 
-        when (selectedTab) {
-            0 -> ScannedGoodsTab(sections, onDeleteSection)
-            1 -> ReportsTab(sections, onGenerateReport)
+            when (selectedTab) {
+                0 -> ScannedGoodsTab(sections, onDeleteSection)
+                1 -> ReportsTab(sections, onGenerateReport, onGetGoodsReportItems)
+            }
         }
     }
 
@@ -137,7 +157,7 @@ private fun ScannedGoodsTab(
                 Text("No scanned sections yet", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "Scan a receipt and choose \"Save to Sections\"\nto store items and costs here.",
+                    "Tap the camera button to scan a receipt\nand save items here.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     textAlign = TextAlign.Center
@@ -255,7 +275,7 @@ private fun ScannedGoodsTab(
                     }
                 }
             }
-            item { Spacer(modifier = Modifier.height(16.dp)) }
+            item { Spacer(modifier = Modifier.height(80.dp)) } // space for FAB
         }
     }
 
@@ -275,44 +295,153 @@ private fun ScannedGoodsTab(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReportsTab(
     sections: List<OcrSection>,
-    onGenerateReport: (sinceTimestamp: Long?) -> String
+    onGenerateReport: (sinceTimestamp: Long?) -> String,
+    onGetGoodsReportItems: (sinceTimestamp: Long?) -> List<GoodsReportItem>
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
-    var selectedPeriod by remember { mutableStateOf(ReportPeriod.ALL) }
+    var selectedPeriod by remember { mutableStateOf(ReportPeriod.WEEK) }
     var reportText by remember { mutableStateOf<String?>(null) }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    // Custom date range state
+    var customStartMillis by remember { mutableStateOf<Long?>(null) }
+    var customEndMillis by remember { mutableStateOf<Long?>(null) }
+    var showStartPicker by remember { mutableStateOf(false) }
+    var showEndPicker by remember { mutableStateOf(false) }
+    val dateFmt = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
+
+    // Compute the effective sinceTimestamp for the selected period
+    val sinceTimestamp = remember(selectedPeriod, customStartMillis) {
+        if (selectedPeriod == ReportPeriod.CUSTOM) customStartMillis
+        else selectedPeriod.sinceTimestamp()
+    }
+
+    // Filter sections based on period
+    val filteredSections = remember(sections, sinceTimestamp, customEndMillis, selectedPeriod) {
+        val since = sinceTimestamp
+        if (selectedPeriod == ReportPeriod.CUSTOM && since != null) {
+            val end = customEndMillis ?: System.currentTimeMillis()
+            sections.filter { it.timestamp in since..end }
+        } else if (since != null) {
+            sections.filter { it.timestamp >= since }
+        } else sections
+    }
+
+    // Goods frequency data
+    val goodsItems = remember(filteredSections, sinceTimestamp) {
+        onGetGoodsReportItems(sinceTimestamp)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
         // Period selector chips
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             ReportPeriod.entries.forEach { period ->
                 FilterChip(
                     selected = selectedPeriod == period,
                     onClick = { selectedPeriod = period; reportText = null },
-                    label = { Text(period.label, fontSize = 12.sp) },
+                    label = { Text(period.label, fontSize = 11.sp) },
                     modifier = Modifier.height(32.dp)
                 )
             }
         }
 
-        // Filtered summary
-        val filteredSections = remember(sections, selectedPeriod) {
-            val since = selectedPeriod.sinceTimestamp()
-            if (since != null) sections.filter { it.timestamp >= since } else sections
+        // Custom date range pickers
+        if (selectedPeriod == ReportPeriod.CUSTOM) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { showStartPicker = true },
+                    modifier = Modifier.weight(1f).height(42.dp),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Filled.CalendarMonth, null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        if (customStartMillis != null) dateFmt.format(Date(customStartMillis!!)) else "Start Date",
+                        fontSize = 12.sp
+                    )
+                }
+                OutlinedButton(
+                    onClick = { showEndPicker = true },
+                    modifier = Modifier.weight(1f).height(42.dp),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Filled.CalendarMonth, null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        if (customEndMillis != null) dateFmt.format(Date(customEndMillis!!)) else "End Date",
+                        fontSize = 12.sp
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        // Date picker dialogs
+        if (showStartPicker) {
+            val datePickerState = rememberDatePickerState(
+                initialSelectedDateMillis = customStartMillis ?: System.currentTimeMillis()
+            )
+            DatePickerDialog(
+                onDismissRequest = { showStartPicker = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        customStartMillis = datePickerState.selectedDateMillis
+                        showStartPicker = false
+                        reportText = null
+                    }) { Text("OK") }
+                },
+                dismissButton = { TextButton(onClick = { showStartPicker = false }) { Text("Cancel") } }
+            ) {
+                DatePicker(state = datePickerState)
+            }
+        }
+        if (showEndPicker) {
+            val datePickerState = rememberDatePickerState(
+                initialSelectedDateMillis = customEndMillis ?: System.currentTimeMillis()
+            )
+            DatePickerDialog(
+                onDismissRequest = { showEndPicker = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        customEndMillis = datePickerState.selectedDateMillis
+                        showEndPicker = false
+                        reportText = null
+                    }) { Text("OK") }
+                },
+                dismissButton = { TextButton(onClick = { showEndPicker = false }) { Text("Cancel") } }
+            ) {
+                DatePicker(state = datePickerState)
+            }
         }
 
         if (filteredSections.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(200.dp),
+                contentAlignment = Alignment.Center
+            ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Filled.Assessment, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), modifier = Modifier.size(56.dp))
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text("No scanned data for ${selectedPeriod.label.lowercase()}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        if (selectedPeriod == ReportPeriod.CUSTOM && customStartMillis == null)
+                            "Select a date range above"
+                        else "No scanned data for this period",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         } else {
@@ -327,21 +456,106 @@ private fun ReportsTab(
             ) {
                 SummaryCard("Receipts", "${filteredSections.size}", Modifier.weight(1f))
                 SummaryCard("Items", "$totalItems", Modifier.weight(1f))
-                SummaryCard("Total", "$symbol${String.format("%.2f", totalAmount)}", Modifier.weight(1.4f), valueColor = GreenPrimary)
+                SummaryCard("Total", "$symbol${String.format("%.0f", totalAmount)}", Modifier.weight(1.4f), valueColor = GreenPrimary)
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            // ── Goods Spending Diagram (horizontal bar chart) ──
+            if (goodsItems.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    "Top Goods by Spending",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                GoodsBarChart(
+                    items = goodsItems.take(8),
+                    currencySymbol = symbol,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height((goodsItems.take(8).size * 44 + 16).dp)
+                        .padding(horizontal = 16.dp)
+                )
 
-            // Generate report button
+                // Frequency table
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    "Purchase Frequency",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        // Header row
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Item", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1.5f))
+                            Text("Count", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(45.dp), textAlign = TextAlign.Center)
+                            Text("Total", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(80.dp), textAlign = TextAlign.End)
+                            Text("Avg", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(70.dp), textAlign = TextAlign.End)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(4.dp))
+                        goodsItems.take(15).forEach { item ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    item.name,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1.5f)
+                                )
+                                Text(
+                                    "${item.count}x",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = BluePrimary,
+                                    modifier = Modifier.width(45.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                                Text(
+                                    "$symbol${String.format("%.0f", item.totalSpent)}",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.width(80.dp),
+                                    textAlign = TextAlign.End
+                                )
+                                Text(
+                                    "$symbol${String.format("%.0f", item.totalSpent / item.count)}",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.width(70.dp),
+                                    textAlign = TextAlign.End
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Generate full report button
             Button(
-                onClick = { reportText = onGenerateReport(selectedPeriod.sinceTimestamp()) },
+                onClick = { reportText = onGenerateReport(sinceTimestamp) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(48.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary)
             ) {
                 Icon(Icons.Filled.Assessment, null, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Generate ${selectedPeriod.label} Report", fontWeight = FontWeight.SemiBold)
+                Text("Generate Full Report", fontWeight = FontWeight.SemiBold)
             }
 
             // Show report text
@@ -363,7 +577,7 @@ private fun ReportsTab(
                 }
 
                 Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).weight(1f),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 ) {
@@ -371,11 +585,92 @@ private fun ReportsTab(
                         reportText!!,
                         style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(12.dp).fillMaxSize().verticalScroll(rememberScrollState())
+                        modifier = Modifier.padding(12.dp),
+                        lineHeight = 16.sp
                     )
                 }
+            }
 
-                Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(80.dp)) // space for FAB
+        }
+    }
+}
+
+/** Horizontal bar chart showing top goods by total spending. */
+@Composable
+private fun GoodsBarChart(
+    items: List<GoodsReportItem>,
+    currencySymbol: String,
+    modifier: Modifier = Modifier
+) {
+    val barColors = listOf(
+        GreenPrimary, BluePrimary, OrangeWarning, RedExpense,
+        Color(0xFF9C27B0), Color(0xFF00BCD4), Color(0xFFFF9800), Color(0xFF607D8B)
+    )
+    val maxSpent = items.maxOfOrNull { it.totalSpent } ?: 1.0
+    val textColor = MaterialTheme.colorScheme.onSurface
+
+    Canvas(modifier = modifier) {
+        val barHeight = 28f
+        val spacing = 16f
+        val labelWidth = size.width * 0.30f  // 30% for labels
+        val valueWidth = size.width * 0.18f  // 18% for values on right
+        val chartWidth = size.width - labelWidth - valueWidth
+
+        items.forEachIndexed { i, item ->
+            val y = i * (barHeight + spacing)
+            val barW = (item.totalSpent / maxSpent * chartWidth).toFloat().coerceAtLeast(4f)
+            val color = barColors[i % barColors.size]
+
+            // Item name label (left)
+            drawContext.canvas.nativeCanvas.apply {
+                val paint = android.graphics.Paint().apply {
+                    this.color = textColor.hashCode()
+                    textSize = 28f
+                    isAntiAlias = true
+                }
+                val label = if (item.name.length > 14) item.name.take(13) + ".." else item.name
+                drawText(label, 0f, y + barHeight * 0.75f, paint)
+            }
+
+            // Bar
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(labelWidth, y),
+                size = Size(barW, barHeight),
+                cornerRadius = CornerRadius(6f, 6f)
+            )
+
+            // Count badge on bar
+            if (item.count > 1) {
+                drawContext.canvas.nativeCanvas.apply {
+                    val paint = android.graphics.Paint().apply {
+                        this.color = android.graphics.Color.WHITE
+                        textSize = 22f
+                        isFakeBoldText = true
+                        isAntiAlias = true
+                    }
+                    if (barW > 50f) {
+                        drawText("${item.count}x", labelWidth + 6f, y + barHeight * 0.72f, paint)
+                    }
+                }
+            }
+
+            // Value label (right)
+            drawContext.canvas.nativeCanvas.apply {
+                val paint = android.graphics.Paint().apply {
+                    this.color = textColor.hashCode()
+                    textSize = 24f
+                    isFakeBoldText = true
+                    isAntiAlias = true
+                    textAlign = android.graphics.Paint.Align.RIGHT
+                }
+                drawText(
+                    "$currencySymbol${String.format("%.0f", item.totalSpent)}",
+                    size.width,
+                    y + barHeight * 0.75f,
+                    paint
+                )
             }
         }
     }
@@ -386,7 +681,7 @@ private fun SummaryCard(
     title: String,
     value: String,
     modifier: Modifier = Modifier,
-    valueColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface
+    valueColor: Color = MaterialTheme.colorScheme.onSurface
 ) {
     Card(
         modifier = modifier,
