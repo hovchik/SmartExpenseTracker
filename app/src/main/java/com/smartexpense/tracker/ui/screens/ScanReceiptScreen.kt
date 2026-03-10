@@ -35,6 +35,7 @@ import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 import com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.smartexpense.tracker.ui.theme.*
+import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -68,10 +69,15 @@ fun ScanReceiptScreen(
         } catch (_: Exception) { null }
     }
 
+    // Armenian OCR service (Tesseract) — created once per screen lifecycle
+    val armenianOcr = remember { com.smartexpense.tracker.service.ocr.ArmenianOcrService(context) }
+    val coroutineScope = rememberCoroutineScope()
+
     /**
      * Runs OCR using ALL available ML Kit recognizers in parallel,
-     * plus barcode/QR scanning. QR data is passed alongside OCR text
-     * so the ViewModel can use it as a fallback if OCR parsing fails.
+     * plus Tesseract for Armenian/Russian, plus barcode/QR scanning.
+     * QR data is passed alongside OCR text so the ViewModel can use
+     * it as a fallback if OCR parsing fails.
      */
     fun processImageMultiLang(uri: Uri) {
         isProcessing = true
@@ -98,8 +104,8 @@ fun ScanReceiptScreen(
         )
 
         val results = mutableMapOf<String, String>()
-        // +1 for barcode scanner
-        val remaining = AtomicInteger(recognizers.size + 1)
+        // +1 for barcode scanner, +1 for Tesseract Armenian/Russian
+        val remaining = AtomicInteger(recognizers.size + 2)
         var qrResult: String? = null
 
         fun onAllDone() {
@@ -173,6 +179,25 @@ fun ScanReceiptScreen(
                     synchronized(results) { results[name] = "" }
                     if (remaining.decrementAndGet() == 0) onAllDone()
                 }
+        }
+
+        // Run Tesseract Armenian/Russian OCR in parallel (background coroutine)
+        coroutineScope.launch {
+            try {
+                // Load bitmap from URI for Tesseract
+                val source = android.graphics.ImageDecoder.createSource(context.contentResolver, uri)
+                val bitmap = android.graphics.ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                    decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+                }
+                val tessText = armenianOcr.recognizeText(bitmap)
+                if (tessText.isNotBlank()) {
+                    synchronized(results) { results["Armenian/Russian (Tesseract)"] = tessText }
+                    Log.d("OCR", "Tesseract Armenian/Russian: ${tessText.length} chars")
+                }
+            } catch (e: Exception) {
+                Log.w("OCR", "Tesseract Armenian OCR failed: ${e.message}")
+            }
+            if (remaining.decrementAndGet() == 0) onAllDone()
         }
     }
 

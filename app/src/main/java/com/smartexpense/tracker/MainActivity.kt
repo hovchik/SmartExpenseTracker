@@ -97,7 +97,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
         when (currentScreen) {
             "sms_scan"      -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
             "store_map"     -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
-            "ocr_sections"  -> { currentScreen = "scan" }
+            "ocr_sections"  -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
             else            -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
         }
     }
@@ -132,6 +132,16 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                             }
                         }) {
                             Icon(Icons.Filled.Map, contentDescription = "Store Map")
+                        }
+                        IconButton(onClick = {
+                            if (isSubscribed) {
+                                currentScreen = "ocr_sections"
+                            } else {
+                                paywallFeatureName = "Scanned Sections"
+                                showPaywall = true
+                            }
+                        }) {
+                            Icon(Icons.Filled.Inventory2, contentDescription = "Scanned Sections")
                         }
                         NotificationBell(
                             notifications  = inAppNotifications,
@@ -263,8 +273,8 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         sections = ocrSections,
                         onDeleteSection = { viewModel.deleteOcrSection(it) },
                         onClearAll = { viewModel.clearAllOcrSections() },
-                        onGenerateReport = { viewModel.generateOcrSectionsReport() },
-                        onNavigateBack = { currentScreen = "scan" }
+                        onGenerateReport = { since -> viewModel.generateOcrSectionsReport(since) },
+                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
                     )
                     "sms_scan" -> SmsScanScreen(
                         scanState = smsScanState,

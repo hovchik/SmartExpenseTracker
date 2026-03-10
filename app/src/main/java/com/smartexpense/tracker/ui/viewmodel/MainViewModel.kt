@@ -868,12 +868,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Generates a text report summarising all goods across OCR sections.
+     * Generates a text report summarising goods across OCR sections.
+     * When [sinceTimestamp] is non-null, only sections scanned after that time are included.
      * Groups items by category, shows totals, averages, and per-section breakdown.
      */
-    fun generateOcrSectionsReport(): String {
-        val sections = _ocrSections.value
-        if (sections.isEmpty()) return "No scanned sections available."
+    fun generateOcrSectionsReport(sinceTimestamp: Long? = null): String {
+        val allSections = _ocrSections.value
+        val sections = if (sinceTimestamp != null) {
+            allSections.filter { it.timestamp >= sinceTimestamp }
+        } else allSections
+        if (sections.isEmpty()) return "No scanned sections in this period."
 
         val settings = repository.appData.value.settings
         val currencySymbol = currencyInfoFor(settings.currencyCode).symbol
