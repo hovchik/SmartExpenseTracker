@@ -1095,6 +1095,11 @@ class AiExpenseEngine {
             return "AMD"
         }
 
+        // German/European receipt context clues (EUR)
+        val germanKeywords = listOf("SUMME", "ZU BEZAHLEN", "KARTENZAHLUNG", "BARGELDAUSZAHLUNG",
+            "RÜCKGELD", "MWST", "KUNDENBELEG", "IHR EINKAUF", "VIELEN DANK")
+        if (germanKeywords.any { upper.contains(it) }) return "EUR"
+
         // Russian context clues
         if (upper.contains("ИТОГО") || upper.contains("СУММА") || ocrText.contains("руб")) return "RUB"
 
@@ -1105,6 +1110,21 @@ class AiExpenseEngine {
     }
 
     // ─── Receipt OCR Text Parsing ──────────────────────────────────
+
+    /**
+     * Parses a price string handling both European (comma-decimal: "1,92", "1.234,56")
+     * and English (period-decimal: "1.92", "1,234.56") formats.
+     */
+    private fun parseReceiptPrice(raw: String): Double? {
+        val s = raw.trim()
+        if (s.isEmpty()) return null
+        // European format: comma as decimal separator (e.g. "1,92", "78,32", "1.234,56")
+        if (Regex("""^-?\d[\d.]*,\d{1,2}$""").matches(s)) {
+            return s.replace(".", "").replace(",", ".").toDoubleOrNull()
+        }
+        // English/default: period as decimal, comma as thousands (e.g. "1.92", "1,234.56")
+        return s.replace(",", "").toDoubleOrNull()
+    }
 
     data class ParsedReceipt(
         val totalAmount: Double?,
@@ -1168,7 +1188,11 @@ class AiExpenseEngine {
                 // Skip common POS terminal lines
                 !line.matches(Regex("""(?i)^(AID:|Cless|RRN:|Authorization|Response|On device|Card:|EXP:).*""")) &&
                 // Skip lines like "KTRON 7043", "TID:22013678", "MID:22003678"
-                !line.matches(Regex("""(?i)^(KTRON|TID|MID|KTON)\s*[:\s]?\d+.*"""))
+                !line.matches(Regex("""(?i)^(KTRON|TID|MID|KTON)\s*[:\s]?\d+.*""")) &&
+                // Skip German receipt boilerplate
+                !line.matches(Regex("""(?i)^(Summe|SUMME|Zwischensumme|Zw-Summe|ZU BEZAHLEN|Betrag|Kartenzahlung|Bargeld|R.ckgeld|Steuer|MwSt|Netto|Brutto|Firma:|Filiale:|Ihr Einkauf|Vielen Dank|Bitte Beleg|Unsere .ffnungszeiten|Genehmigung|Ust-Id|Kassen?-?Nr|TSE|Bon-Nr|TA-Nr|Beleg-Nr|K-U-N-D-E-N|Digitale Rechnung|Pferdemarkt|Hegaustra|Werrestr|Radetzkystr|Albstra).*""")) &&
+                // Skip lines that are just article numbers
+                !line.matches(Regex("""^\d{5,13}\s*$"""))
             }?.take(50) ?: "Unknown Store"
 
             // ── Build currency-specific amount patterns ───────────────
@@ -1200,26 +1224,53 @@ class AiExpenseEngine {
             // Extract items
             val items = mutableListOf<Pair<String, Double>>()
             val itemPatterns = listOf(
-                // Item   <currency>AMOUNT
+                // Item   <currency>AMOUNT  (period-decimal)
                 Regex("""(.{3,40}?)\s+${currencySymbolPattern}([\d,]+\.\d{2})\s*$""", RegexOption.IGNORE_CASE),
-                // Item   AMOUNT (no symbol)
+                // Item   AMOUNT (period-decimal, no symbol)
                 Regex("""(.{3,40}?)\s+(\d+\.\d{2})"""),
-                // Item    <any-symbol>AMOUNT (wider match)
+                // Item    <any-symbol>AMOUNT (period-decimal, wider match)
                 Regex("""^(.+?)\s{2,}${anySymbol}\s?([\d,]+\.\d{2})"""),
+                // European: [article#] ItemName   price[,]dd [tax-letter]
+                // e.g. "462913 Birne Abate lose  1,92 A" or "Volvic Naturelle  2,94 A"
+                Regex("""^(?:\d{5,7}\s+)?(.{3,40}?)\s{2,}(-?\d{1,6}[,.]\d{2})\s*[A-Ba-b]?\s*$"""),
+                // European Müller-style: qty name origPrice discount finalPrice[tax-letter]
+                // e.g. "1 HOCHGENUSS STUDENTE 1,49 -0,15 1,34b"
+                Regex("""^\d+\s+(.{3,30}?)\s+\d+[,.]\d{2}\s+-?\d+[,.]\d{2}\s+(\d+[,.]\d{2})\s*[A-Ba-b]?\s*$"""),
                 // Whole-number items: "Item  500"
                 Regex("""^(.{3,40}?)\s{2,}${anySymbol}\s?(\d{1,7})(?:\s*${'$'})""")
             )
+            // Lines to skip: quantity/weight calculations, sub-totals, payment info
+            val skipLinePatterns = listOf(
+                Regex("""^\s*\d+[,.]\d+\s*kg\s*x""", RegexOption.IGNORE_CASE),    // "0,742 kg x 2,59 EUR/kg"
+                Regex("""^\s*\d+\s*[xX*]\s+\d"""),                                 // "3 x  1,99"
+                Regex("""EUR/(?:kg|Stk|St)""", RegexOption.IGNORE_CASE),           // price-per-unit lines
+                Regex("""^\s*\d+\s*[*]\s*\d"""),                                   // "2 * 0,59"
+                Regex("""^-?K-U-N-D-E""", RegexOption.IGNORE_CASE),               // customer section separator
+                Regex("""^={3,}|^-{3,}|^\*{3,}""")                                // separator lines
+            )
             for (line in lines) {
+                // Skip calculation/separator lines
+                if (skipLinePatterns.any { it.containsMatchIn(line) }) continue
                 for (pattern in itemPatterns) {
                     val match = pattern.find(line)
                     if (match != null) {
-                        val name = match.groupValues[1].trim()
-                        val price = match.groupValues[2].replace(",", "").toDoubleOrNull()
+                        var name = match.groupValues[1].trim()
+                        // Strip leading article numbers (e.g. "462913 Birne" → "Birne")
+                        name = name.replace(Regex("""^\d{5,7}\s+"""), "")
+                        val price = parseReceiptPrice(match.groupValues[2])
                         if (price != null && price > 0 && price < 100000 &&
                             !name.lowercase().let { n ->
                                 n.contains("total") || n.contains("subtotal") ||
                                 n.contains("tax") || n.contains("change") || n.contains("cash") ||
                                 n.contains("balance") || n.contains("due") ||
+                                // German total/payment/tax keywords
+                                n.contains("summe") || n.contains("zwischensumme") || n.contains("zw-summe") ||
+                                n.contains("kartenzahlung") || n.contains("bargeld") || n.contains("rückgeld") ||
+                                n.contains("ruckgeld") || n.contains("betrag") || n.contains("zahlung") ||
+                                n.contains("zu bezahlen") || n.contains("mwst") || n.contains("steuer") ||
+                                n.contains("netto") || n.contains("brutto") || n.contains("ersparnis") ||
+                                n.contains("gutschein") || n.contains("mengenvorteil") || n.contains("coupon") ||
+                                n.contains("aktionsersparnis") || n.contains("app-joker") ||
                                 // Russian total/tax keywords
                                 n.contains("итого") || n.contains("сумма") || n.contains("налог") ||
                                 n.contains("сдача") || n.contains("к оплате") || n.contains("всего") ||
@@ -1227,9 +1278,12 @@ class AiExpenseEngine {
                                 n.contains("合计") || n.contains("总计") || n.contains("小计") ||
                                 n.contains("税额") || n.contains("实收") || n.contains("找零") ||
                                 // Armenian total/tax keywords (Unicode)
-                                n.contains("\u0538\u0576\u0564\u0561\u0574\u0565\u0576\u0568") || // ընdelays (total)
-                                n.contains("\u0533\u0578\u0582\u0574\u0561\u0580") || // delaysds (sum)
-                                n.contains("\u0540\u0561\u0576\u0580\u0561\u0563\u0578\u0582\u0574\u0561\u0580") // delaysdelays (total)
+                                n.contains("\u0538\u0576\u0564\u0561\u0574\u0565\u0576\u0568") ||
+                                n.contains("\u0533\u0578\u0582\u0574\u0561\u0580") ||
+                                n.contains("\u0540\u0561\u0576\u0580\u0561\u0563\u0578\u0582\u0574\u0561\u0580") ||
+                                // Short junk names (just numbers, single chars, quantity markers)
+                                n.matches(Regex("""^\d+\s*[xX*]?\s*$""")) ||
+                                n.length < 2
                             }
                         ) {
                             items.add(name to price)
@@ -1269,6 +1323,16 @@ class AiExpenseEngine {
                     Regex("""(?:¥|￥)\s*([\d,]+\.\d{2})"""),
                     Regex("""(?:total|grand\s*total)[:\s]*(?:¥|￥|cny|rmb)?\s*([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE)
                 )
+                "EUR" -> listOf(
+                    // German: "Summe  78,32", "SUMME:  35,88", "ZU BEZAHLEN  17,92", "Betrag  278,32"
+                    Regex("""(?:SUMME|Summe|ZU BEZAHLEN|Zu bezahlen|GESAMTBETRAG|Gesamtbetrag|Gesamtsumme)[:\s]*(?:€|EUR)?\s*([\d.,]+)""", RegexOption.IGNORE_CASE),
+                    // "Betrag  EUR  78,32" or "Betrag  78,32"
+                    Regex("""(?:Betrag)[:\s]*(?:€|EUR)?\s*([\d.,]+)""", RegexOption.IGNORE_CASE),
+                    // € symbol with amount
+                    Regex("""(?:€|EUR)\s*([\d.,]+)"""),
+                    // English fallback
+                    Regex("""(?:total|grand\s*total)[:\s]*(?:€|EUR)?\s*([\d.,]+)""", RegexOption.IGNORE_CASE)
+                )
                 "USD" -> listOf(
                     Regex("""(?:grand\s*total|total\s*due|amount\s*due|balance\s*due|total)[:\s]*\$?\s*([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
                     Regex("""\$\s*([\d,]+\.\d{2})""")
@@ -1286,14 +1350,17 @@ class AiExpenseEngine {
                 Regex("""(?:TOTAL)\s+[$₹€£֏¥₽₺₩]?([\d,]+\.?\d{0,2})"""),
                 Regex("""(?:ИТОГО|итого|СУММА|сумма|К ОПЛАТЕ|к оплате)[:\s]*([\d,\s]+\.?\d*)"""),
                 // Chinese total keywords (generic fallback)
-                Regex("""(?:合计|总计|实收|应收)[:\s：]*(?:¥|￥|元)?\s*([\d,]+\.?\d*)""")
+                Regex("""(?:合计|总计|实收|应收)[:\s：]*(?:¥|￥|元)?\s*([\d,]+\.?\d*)"""),
+                // German total keywords (generic fallback)
+                Regex("""(?:SUMME|Summe|ZU BEZAHLEN|Gesamtbetrag|Gesamtsumme)[:\s]*(?:€|EUR)?\s*([\d.,]+)""", RegexOption.IGNORE_CASE)
             )
 
             var total: Double? = null
             for (pattern in currencyTotalPatterns + genericTotalPatterns) {
                 val match = pattern.findAll(ocrText).lastOrNull()
                 if (match != null) {
-                    total = match.groupValues[1].replace(Regex("""[\s,]"""), "").toDoubleOrNull()
+                    val rawTotal = match.groupValues[1].replace(Regex("""\s"""), "")
+                    total = parseReceiptPrice(rawTotal)
                     if (total != null && total > 0) break
                     total = null
                 }
@@ -1313,7 +1380,7 @@ class AiExpenseEngine {
                 val amountCandidates = lines.mapNotNull { line ->
                     // Match "12 000.00", "12000.00", "12000", "12,000.00" — typical AMD receipt amounts
                     val m = Regex("""([0-9][0-9\s,]*\.?[0-9]{0,2})""").findAll(line)
-                        .mapNotNull { it.groupValues[1].replace(Regex("""[\s,]"""), "").toDoubleOrNull() }
+                        .mapNotNull { parseReceiptPrice(it.groupValues[1].replace(Regex("""\s"""), "")) }
                         .filter { it >= 100 }   // AMD amounts are almost always ≥ 100
                         .maxOrNull()
                     m
@@ -1350,9 +1417,15 @@ class AiExpenseEngine {
                 "contactless", "cless", "chip", "swipe",
                 "terminal", "pos terminal",
                 "on device", "response code",
+                // German POS terminal keywords
+                "genehmigung", "autorisierung", "autorisierungsnr",
+                "terminal-id", "kundenbeleg", "emv-aid", "emv-daten",
+                "karte 1", "genehmigungsnr", "genehmigung karte",
+                "bitte beleg aufbewahren", "geprueft", "gepr\u00fcft",
+                "verarbeitung ok",
                 // Armenian POS terminal keywords
-                "\u0540\u0531\u054D\u054F\u0531\u054F\u054E\u0531\u053E", // ՀԱՍՏԱՏdelays (confirmed)
-                "\u054E\u0561\u0573\u0561\u057C\u0584",                   // վdelaysdelays (sale)
+                "\u0540\u0531\u054D\u054F\u0531\u054F\u054E\u0531\u053E", // ՀԱdelays (confirmed)
+                "\u054E\u0561\u0573\u0561\u057C\u0584",                   // վdelays (sale)
                 "\u0554\u0561\u0580\u057F",                               // Քdelays (card)
                 // Russian POS terminal keywords
                 "\u043e\u0434\u043e\u0431\u0440\u0435\u043d\u043e",       // одобрено (approved)
@@ -1360,7 +1433,7 @@ class AiExpenseEngine {
                 "\u0442\u0435\u0440\u043c\u0438\u043d\u0430\u043b",       // терминал (terminal)
                 "\u0430\u0432\u0442\u043e\u0440\u0438\u0437\u0430\u0446\u0438\u044f" // авторизация (authorization)
             )
-            val maskedCardPattern = Regex("""\*{2,}\d{2,4}|\d{4}\s*\*{4,}""")
+            val maskedCardPattern = Regex("""\*{2,}\d{2,4}|\d{4}\s*\*{4,}|#{3,}\d{2,4}|X{4}\s+X{4}""")
             val lowerText = ocrText.lowercase()
             val terminalHits = terminalIndicators.count { lowerText.contains(it) }
             val hasMaskedCard = maskedCardPattern.containsMatchIn(ocrText)
