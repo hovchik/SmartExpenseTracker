@@ -95,9 +95,10 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     // are handled explicitly in the when-branch below.
     BackHandler(enabled = currentScreen != "dashboard") {
         when (currentScreen) {
-            "sms_scan"  -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
-            "store_map" -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
-            else        -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+            "sms_scan"      -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
+            "store_map"     -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+            "ocr_sections"  -> { currentScreen = "scan" }
+            else            -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
         }
     }
 

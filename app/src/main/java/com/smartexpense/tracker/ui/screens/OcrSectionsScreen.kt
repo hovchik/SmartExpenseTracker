@@ -4,7 +4,9 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -23,6 +25,7 @@ import com.smartexpense.tracker.data.model.currencyInfoFor
 import com.smartexpense.tracker.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Locale
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -345,7 +348,7 @@ fun OcrSectionsScreen(
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                         modifier = Modifier
                             .heightIn(max = 400.dp)
-                            .verticalScroll(androidx.compose.foundation.rememberScrollState())
+                            .verticalScroll(rememberScrollState())
                     )
                 }
             },
