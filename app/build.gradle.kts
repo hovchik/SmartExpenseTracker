@@ -86,7 +86,8 @@ dependencies {
     implementation("com.google.mlkit:text-recognition-korean:16.0.1")       // Korean
 
     // Tesseract OCR for Armenian script (ML Kit has no Armenian model)
-    implementation("com.rmtheis:tess-two:9.1.0")
+    // Tesseract4Android wraps Tesseract 5.x — modern, actively maintained replacement for tess-two
+    implementation("cz.adaptech.tesseract4android:tesseract4android:4.7.0")
 
     // ML Kit Barcode scanning — for QR codes on receipts
     implementation("com.google.mlkit:barcode-scanning:17.3.0")

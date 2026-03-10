@@ -12,11 +12,10 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Multi-language on-device OCR using Tesseract (tess-two).
+ * Multi-language on-device OCR using Tesseract4Android (Tesseract 5.x).
  *
  * Supplements ML Kit by supporting scripts ML Kit cannot handle (Armenian)
- * and providing a Tesseract-based fallback for others (Russian, Chinese,
- * Japanese, Korean, Arabic, Georgian, Thai, etc.).
+ * and providing a Tesseract-based fallback for Russian and other scripts.
  *
  * Trained data files are downloaded from GitHub tessdata_fast on first use
  * and cached in the app's internal storage.
@@ -29,11 +28,8 @@ class ArmenianOcrService(private val context: Context) {
 
         /**
          * Languages to download.
-         * Key = Tesseract language code, Value = GitHub tessdata_fast URL.
          *
-         * IMPORTANT: Loading too many languages at once makes Tesseract slow and
-         * error-prone. We download the Armenian + English core set, plus optional
-         * supplementary languages. Recognition runs in focused passes:
+         * Recognition runs in focused passes for reliability:
          *  - Pass 1: hye+eng (Armenian + English — for Armenian POS receipts)
          *  - Pass 2: rus (Russian — for Cyrillic-heavy receipts)
          * ML Kit handles Chinese, Japanese, Korean, Devanagari natively.
@@ -65,30 +61,27 @@ class ArmenianOcrService(private val context: Context) {
 
     /**
      * Downloads any missing trained data files.
-     * Core languages are downloaded first; supplementary ones are downloaded
-     * in the background afterward.
-     * Returns `true` if at least the core languages are available.
+     * Core languages are downloaded first; supplementary ones follow.
+     * Returns `true` if at least Armenian is available.
      */
     suspend fun ensureTrainedData(): Boolean = withContext(Dispatchers.IO) {
         val tessDir = File(dataPath, TESSDATA_DIR)
         if (!tessDir.exists()) tessDir.mkdirs()
 
-        // Download core languages first (required for basic operation)
+        // Download core languages first
         for (lang in CORE_LANGS) {
             val url = LANG_FILES[lang] ?: continue
             if (!downloadIfMissing(tessDir, lang, url)) {
                 Log.e(TAG, "Failed to download core language: $lang")
-                // Continue with whatever we have
             }
         }
 
-        // Download supplementary languages (non-blocking failures are OK)
+        // Download supplementary languages (failures are OK)
         for ((lang, url) in LANG_FILES) {
             if (lang in CORE_LANGS) continue
             downloadIfMissing(tessDir, lang, url)
         }
 
-        // Return true if we have at least Armenian (the primary purpose)
         File(tessDir, "hye.traineddata").exists()
     }
 
@@ -132,7 +125,6 @@ class ArmenianOcrService(private val context: Context) {
      * 1. Armenian + English (hye+eng) — primary pass for Armenian POS receipts
      * 2. Russian (rus) — secondary pass for Cyrillic text
      *
-     * Loading fewer languages per pass makes Tesseract faster and more stable.
      * Results from both passes are merged (deduped by line).
      */
     suspend fun recognizeText(bitmap: Bitmap): String = withContext(Dispatchers.IO) {
@@ -175,20 +167,25 @@ class ArmenianOcrService(private val context: Context) {
 
     /**
      * Single Tesseract recognition pass with specified language(s).
+     * Uses Tesseract4Android (Tesseract 5.x) API.
      */
     private fun runTesseractPass(bitmap: Bitmap, langs: String): String {
         Log.d(TAG, "Running Tesseract pass: $langs")
         val tess = TessBaseAPI()
         return try {
-            val initOk = tess.init(dataPath, langs)
-            if (!initOk) {
-                Log.e(TAG, "Tesseract init failed for $langs")
+            // Tesseract4Android init() throws on failure instead of returning boolean
+            try {
+                tess.init(dataPath, langs)
+            } catch (e: IllegalArgumentException) {
+                Log.e(TAG, "Tesseract init failed for $langs: ${e.message}")
                 return ""
             }
 
+            // Page segmentation: fully automatic, no OSD
             tess.pageSegMode = TessBaseAPI.PageSegMode.PSM_AUTO
             tess.setImage(bitmap)
 
+            // Tesseract4Android uses getUTF8Text()
             val result = tess.utF8Text ?: ""
             val confidence = tess.meanConfidence()
             Log.d(TAG, "Tesseract $langs: ${result.length} chars, confidence=$confidence")
@@ -197,7 +194,8 @@ class ArmenianOcrService(private val context: Context) {
             Log.e(TAG, "Tesseract $langs pass failed", e)
             ""
         } finally {
-            tess.end()
+            // Tesseract4Android uses recycle() to free native resources
+            try { tess.recycle() } catch (_: Exception) {}
         }
     }
 }
