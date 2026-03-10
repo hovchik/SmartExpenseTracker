@@ -30,38 +30,28 @@ class ArmenianOcrService(private val context: Context) {
         /**
          * Languages to download.
          * Key = Tesseract language code, Value = GitHub tessdata_fast URL.
-         * Armenian (hye) is the primary reason for Tesseract; the rest are
-         * supplementary fallbacks that improve recognition on mixed-script receipts.
+         *
+         * IMPORTANT: Loading too many languages at once makes Tesseract slow and
+         * error-prone. We download the Armenian + English core set, plus optional
+         * supplementary languages. Recognition runs in focused passes:
+         *  - Pass 1: hye+eng (Armenian + English — for Armenian POS receipts)
+         *  - Pass 2: rus (Russian — for Cyrillic-heavy receipts)
+         * ML Kit handles Chinese, Japanese, Korean, Devanagari natively.
          */
         private val LANG_FILES = mapOf(
             "hye" to "https://github.com/tesseract-ocr/tessdata_fast/raw/main/hye.traineddata",
+            "eng" to "https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata",
             "rus" to "https://github.com/tesseract-ocr/tessdata_fast/raw/main/rus.traineddata",
-            "chi_sim" to "https://github.com/tesseract-ocr/tessdata_fast/raw/main/chi_sim.traineddata",
-            "chi_tra" to "https://github.com/tesseract-ocr/tessdata_fast/raw/main/chi_tra.traineddata",
-            "jpn" to "https://github.com/tesseract-ocr/tessdata_fast/raw/main/jpn.traineddata",
-            "kor" to "https://github.com/tesseract-ocr/tessdata_fast/raw/main/kor.traineddata",
-            "ara" to "https://github.com/tesseract-ocr/tessdata_fast/raw/main/ara.traineddata",
             "kat" to "https://github.com/tesseract-ocr/tessdata_fast/raw/main/kat.traineddata",
-            "tha" to "https://github.com/tesseract-ocr/tessdata_fast/raw/main/tha.traineddata",
-            "hin" to "https://github.com/tesseract-ocr/tessdata_fast/raw/main/hin.traineddata",
+            "ara" to "https://github.com/tesseract-ocr/tessdata_fast/raw/main/ara.traineddata",
+            "tur" to "https://github.com/tesseract-ocr/tessdata_fast/raw/main/tur.traineddata",
             "fra" to "https://github.com/tesseract-ocr/tessdata_fast/raw/main/fra.traineddata",
             "deu" to "https://github.com/tesseract-ocr/tessdata_fast/raw/main/deu.traineddata",
-            "spa" to "https://github.com/tesseract-ocr/tessdata_fast/raw/main/spa.traineddata",
-            "tur" to "https://github.com/tesseract-ocr/tessdata_fast/raw/main/tur.traineddata"
+            "spa" to "https://github.com/tesseract-ocr/tessdata_fast/raw/main/spa.traineddata"
         )
 
         /** The core set always downloaded on first use. */
-        private val CORE_LANGS = setOf("hye", "rus", "chi_sim", "jpn", "kor")
-
-        /** Builds the Tesseract language string from available trained data files. */
-        fun availableLangsString(dataPath: String): String {
-            val tessDir = File(dataPath, TESSDATA_DIR)
-            if (!tessDir.exists()) return "hye+rus"
-            return LANG_FILES.keys
-                .filter { File(tessDir, "$it.traineddata").exists() }
-                .joinToString("+")
-                .ifEmpty { "hye+rus" }
-        }
+        private val CORE_LANGS = setOf("hye", "eng", "rus")
     }
 
     /** Root directory for Tesseract — must contain a `tessdata/` subdirectory. */
@@ -136,8 +126,14 @@ class ArmenianOcrService(private val context: Context) {
     }
 
     /**
-     * Runs Tesseract OCR on the given bitmap using all available language models.
-     * Returns the recognised text, or empty string on failure.
+     * Runs Tesseract OCR on the given bitmap.
+     *
+     * Uses focused language passes for reliability:
+     * 1. Armenian + English (hye+eng) — primary pass for Armenian POS receipts
+     * 2. Russian (rus) — secondary pass for Cyrillic text
+     *
+     * Loading fewer languages per pass makes Tesseract faster and more stable.
+     * Results from both passes are merged (deduped by line).
      */
     suspend fun recognizeText(bitmap: Bitmap): String = withContext(Dispatchers.IO) {
         if (!isReady()) {
@@ -148,28 +144,57 @@ class ArmenianOcrService(private val context: Context) {
             }
         }
 
-        val langs = availableLangsString(dataPath)
-        Log.d(TAG, "Running Tesseract with languages: $langs")
+        val results = mutableListOf<String>()
 
+        // Pass 1: Armenian + English (primary)
+        val pass1 = runTesseractPass(bitmap, "hye+eng")
+        if (pass1.isNotBlank()) results.add(pass1)
+
+        // Pass 2: Russian (if trained data available)
+        val tessDir = File(dataPath, TESSDATA_DIR)
+        if (File(tessDir, "rus.traineddata").exists()) {
+            val pass2 = runTesseractPass(bitmap, "rus")
+            if (pass2.isNotBlank()) results.add(pass2)
+        }
+
+        // Merge results, dedup by line
+        if (results.isEmpty()) return@withContext ""
+        val seenLines = mutableSetOf<String>()
+        val merged = mutableListOf<String>()
+        for (text in results) {
+            for (line in text.lines()) {
+                val trimmed = line.trim()
+                if (trimmed.isNotEmpty() && seenLines.add(trimmed.lowercase())) {
+                    merged.add(trimmed)
+                }
+            }
+        }
+        Log.d(TAG, "Tesseract merged: ${merged.size} lines from ${results.size} passes")
+        merged.joinToString("\n")
+    }
+
+    /**
+     * Single Tesseract recognition pass with specified language(s).
+     */
+    private fun runTesseractPass(bitmap: Bitmap, langs: String): String {
+        Log.d(TAG, "Running Tesseract pass: $langs")
         val tess = TessBaseAPI()
-        try {
+        return try {
             val initOk = tess.init(dataPath, langs)
             if (!initOk) {
                 Log.e(TAG, "Tesseract init failed for $langs")
-                return@withContext ""
+                return ""
             }
 
-            // Page segmentation mode 3 = "Fully automatic page segmentation, but no OSD"
             tess.pageSegMode = TessBaseAPI.PageSegMode.PSM_AUTO
             tess.setImage(bitmap)
 
             val result = tess.utF8Text ?: ""
             val confidence = tess.meanConfidence()
-            Log.d(TAG, "Tesseract result: ${result.length} chars, confidence=$confidence")
-
+            Log.d(TAG, "Tesseract $langs: ${result.length} chars, confidence=$confidence")
             result
         } catch (e: Exception) {
-            Log.e(TAG, "Tesseract recognition failed", e)
+            Log.e(TAG, "Tesseract $langs pass failed", e)
             ""
         } finally {
             tess.end()

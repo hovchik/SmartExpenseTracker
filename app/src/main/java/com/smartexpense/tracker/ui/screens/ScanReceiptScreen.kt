@@ -345,6 +345,20 @@ fun ScanReceiptScreen(
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                             }
                         }
+                        if (ocrParsedData.detectedCurrencyCode.isNotBlank()) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = GreenPrimary.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    "${ocrParsedData.currencySymbol} ${ocrParsedData.detectedCurrencyCode}",
+                                    fontSize = 10.sp, color = GreenPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text("Edit the details below before saving",

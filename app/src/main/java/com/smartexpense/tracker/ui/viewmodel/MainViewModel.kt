@@ -700,11 +700,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val settings = repository.appData.value.settings
-                val currencyCode = settings.currencyCode
-                val currencySymbol = currencyInfoFor(currencyCode).symbol
+                val appCurrencyCode = settings.currencyCode
 
-                val ocrParsed = if (ocrText.isNotBlank()) aiEngine.parseReceiptText(ocrText, currencyCode) else null
+                val ocrParsed = if (ocrText.isNotBlank()) aiEngine.parseReceiptText(ocrText, appCurrencyCode) else null
                 val ocrAmount = (ocrParsed?.totalAmount ?: ocrParsed?.items?.sumOf { it.second }) ?: 0.0
+
+                // Use detected currency from receipt text, fallback to app default
+                val detectedCurrency = ocrParsed?.detectedCurrencyCode ?: appCurrencyCode
+                val currencySymbol = currencyInfoFor(detectedCurrency).symbol
 
                 val qrParsed = if (!qrData.isNullOrBlank()) aiEngine.parseQrCodeString(qrData) else null
                 val qrAmount = qrParsed?.totalAmount ?: 0.0
@@ -735,7 +738,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         items = parsed.items,
                         fromQr = fromQr,
                         rawOcrText = ocrText,
-                        currencySymbol = currencySymbol
+                        currencySymbol = currencySymbol,
+                        detectedCurrencyCode = detectedCurrency
                     )
                     _uiState.value = _uiState.value.copy(lastOcrResult = null)
                 } else {
@@ -759,9 +763,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val settings = repository.appData.value.settings
-                val currencyCode = settings.currencyCode
-                val currencySymbol = currencyInfoFor(currencyCode).symbol
                 val data = _ocrParsedData.value
+                // Use detected currency from OCR if available, otherwise app default
+                val currencyCode = data?.detectedCurrencyCode?.takeIf { it.isNotBlank() } ?: settings.currencyCode
+                val currencySymbol = currencyInfoFor(currencyCode).symbol
 
                 val items = data?.items ?: emptyList()
                 val fromQr = data?.fromQr ?: false
@@ -798,7 +803,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     timestamp = now,
                     dateTime = dtFormatter.format(Date(now)),
                     notes = listOf(itemsNote, sourceNote, aiNote).filter { it.isNotBlank() }.joinToString("\n"),
-                    location = geoLoc
+                    location = geoLoc,
+                    currencyCode = currencyCode
                 ))
                 autoCreateStoreIfNeeded(merchantName, geoLoc)
 
@@ -1655,7 +1661,9 @@ data class OcrParsedData(
     val items: List<Pair<String, Double>> = emptyList(),
     val fromQr: Boolean = false,
     val rawOcrText: String = "",
-    val currencySymbol: String = "$"
+    val currencySymbol: String = "$",
+    /** ISO-4217 currency code detected from the receipt (e.g. "AMD", "USD", "EUR"). */
+    val detectedCurrencyCode: String = ""
 )
 
 data class UiState(

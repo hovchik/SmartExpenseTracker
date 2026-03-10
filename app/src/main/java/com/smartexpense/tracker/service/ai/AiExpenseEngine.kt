@@ -1045,13 +1045,74 @@ class AiExpenseEngine {
         }
     }
 
+    // ─── Currency Auto-Detection ──────────────────────────────────
+
+    /**
+     * Scans OCR text for explicit currency markers and returns the ISO 4217 code.
+     * Returns null if no currency is confidently detected.
+     * Priority: explicit "AMD"/"USD"/"EUR" strings > currency symbols > Armenian context clues.
+     */
+    private fun detectCurrencyFromText(ocrText: String, fallback: String): String? {
+        val upper = ocrText.uppercase()
+
+        // Explicit ISO currency codes next to amounts (most reliable)
+        val currencyPatterns = listOf(
+            Regex("""[\d,.]+\s*AMD\b""") to "AMD",
+            Regex("""\bAMD\s*[\d,.]+""") to "AMD",
+            Regex("""[\d,.]+\s*USD\b""") to "USD",
+            Regex("""\bUSD\s*[\d,.]+""") to "USD",
+            Regex("""[\d,.]+\s*EUR\b""") to "EUR",
+            Regex("""\bEUR\s*[\d,.]+""") to "EUR",
+            Regex("""[\d,.]+\s*RUB\b""") to "RUB",
+            Regex("""\bRUB\s*[\d,.]+""") to "RUB",
+            Regex("""[\d,.]+\s*GBP\b""") to "GBP",
+            Regex("""\bGBP\s*[\d,.]+""") to "GBP",
+            Regex("""[\d,.]+\s*CNY\b""") to "CNY",
+            Regex("""\bCNY\s*[\d,.]+""") to "CNY",
+            Regex("""[\d,.]+\s*JPY\b""") to "JPY",
+            Regex("""\bJPY\s*[\d,.]+""") to "JPY",
+            Regex("""[\d,.]+\s*TRY\b""") to "TRY",
+            Regex("""\bTRY\s*[\d,.]+""") to "TRY"
+        )
+        for ((pattern, code) in currencyPatterns) {
+            if (pattern.containsMatchIn(upper)) return code
+        }
+
+        // Currency symbols
+        if (ocrText.contains("֏")) return "AMD"
+        if (ocrText.contains("€")) return "EUR"
+        if (ocrText.contains("₽")) return "RUB"
+        if (ocrText.contains("₹")) return "INR"
+        if (ocrText.contains("₺")) return "TRY"
+        if (ocrText.contains("₩")) return "KRW"
+        // $ is ambiguous — could be USD, CAD, AUD, etc.
+        if (Regex("""\$\s?\d""").containsMatchIn(ocrText)) return "USD"
+
+        // Armenian context clues (Armenian script + bank names)
+        val hasArmenianChars = ocrText.any { it.code in 0x0530..0x058F }
+        val armenianBankNames = listOf("evocaBANK", "EVOCABANK", "AMERIABANK", "ARDSHINBANK", "INECOBANK", "ARMSWISSBANK", "ACBA", "ID BANK", "CONVERSE BANK")
+        if (hasArmenianChars || armenianBankNames.any { upper.contains(it.uppercase()) }) {
+            return "AMD"
+        }
+
+        // Russian context clues
+        if (upper.contains("ИТОГО") || upper.contains("СУММА") || ocrText.contains("руб")) return "RUB"
+
+        // Chinese context clues
+        if (ocrText.contains("合计") || ocrText.contains("总计") || ocrText.contains("¥")) return "CNY"
+
+        return null
+    }
+
     // ─── Receipt OCR Text Parsing ──────────────────────────────────
 
     data class ParsedReceipt(
         val totalAmount: Double?,
         val items: List<Pair<String, Double>>,
         val merchantName: String,
-        val date: String?
+        val date: String?,
+        /** Currency code detected from the receipt text (e.g. "AMD", "USD", "EUR"). Null = not detected. */
+        val detectedCurrencyCode: String? = null
     )
 
     /**
@@ -1072,10 +1133,25 @@ class AiExpenseEngine {
         try {
             val lines = ocrText.lines().map { it.trim() }.filter { it.isNotEmpty() }
 
+            // ── Auto-detect currency from receipt text ──
+            val detectedCurrency = detectCurrencyFromText(ocrText, currencyCode)
+            val effectiveCurrency = detectedCurrency ?: currencyCode
+
+            // Armenian POS boilerplate keywords to skip in merchant detection
+            val armenianBoilerplate = listOf(
+                "\u0533\u0548\u0552\u0544\u0531\u054C",       // ԳՈՒՄDELAYS (sum/amount)
+                "\u054E\u0561\u0573\u0561\u057C\u0584",       // delaysdelays (sale)
+                "\u0540\u0531\u054D\u054F\u0531\u054F\u054E\u0531\u053E", // DELAYSDELAYSDELAYSDELAYSDELAYSDELAYSDELAYS (confirmed)
+                "\u053F\u054F\u054C\u0548\u0546",             // DELAYSDELAYSDELAYSDELAYSDELAYS (receipt number prefix)
+                "\u0540\u0561\u0576\u0561\u056D\u0576\u0578\u0580\u0564\u056B", // delaysdelaysdelaysdelays (customer)
+                "\u054A\u0561\u0570\u057A\u0561\u0576\u0565\u0584", // delaysdelaysdelays (keep/save)
+                "\u0547\u0576\u0578\u0580\u0570\u0561\u056F\u0561\u056C\u0578\u0582\u0569\u0575\u0578\u0582\u0576", // delaysdelaysdelaysdelaysdelaysdelays (thank you)
+                "\u0555\u0580\u056B\u0576\u0561\u056F",       // delaysdelays (copy)
+                "\u0540\u0531\u0545\u0553\u0548\u054D\u054F", // HAYPOST (Armenian Post)
+                "\u0540\u0531\u054D\u054C\u0531\u054F\u0545\u0531\u0546" // DELAYSDELAYSDELAYSDELAYSDELAYSDELAYSDELAYSDELAYSDELAYS
+            )
+
             // Merchant name — first non-numeric, non-date, substantive line.
-            // Excludes POS terminal boilerplate lines (TID, MID, Tarihi, AUTH*, card numbers).
-            // Note: Armenian script characters may appear garbled after OCR (ML Kit has no Armenian
-            // model); we still keep any line that contains enough non-digit characters to be a name.
             val merchantName = lines.firstOrNull { line ->
                 line.length > 2 &&
                 !line.matches(Regex("""^[\d\s/\-:.]+$""")) &&
@@ -1084,12 +1160,18 @@ class AiExpenseEngine {
                 // Skip Russian receipt boilerplate
                 !line.matches(Regex("""(?i)^(чек|кассовый чек|ИНН|КПП|ИТОГО|итого|сумма|дата|время|ККТ|ФН|ФД|ФП|КАССА|КАССИР).*""")) &&
                 // Skip Chinese receipt boilerplate
-                !line.matches(Regex("""^(收据|发票|日期|时间|合计|总计|小计|税额|收银员|谢谢).*"""))
+                !line.matches(Regex("""^(收据|发票|日期|时间|合计|总计|小计|税额|收银员|谢谢).*""")) &&
+                // Skip Armenian POS boilerplate
+                armenianBoilerplate.none { kw -> line.uppercase().contains(kw) } &&
+                // Skip common POS terminal lines
+                !line.matches(Regex("""(?i)^(AID:|Cless|RRN:|Authorization|Response|On device|Card:|EXP:).*""")) &&
+                // Skip lines like "KTRON 7043", "TID:22013678", "MID:22003678"
+                !line.matches(Regex("""(?i)^(KTRON|TID|MID|KTON)\s*[:\s]?\d+.*"""))
             }?.take(50) ?: "Unknown Store"
 
             // ── Build currency-specific amount patterns ───────────────
             // currencySymbolPattern is a regex fragment matching the currency marker(s).
-            val currencySymbolPattern: String = when (currencyCode.uppercase()) {
+            val currencySymbolPattern: String = when (effectiveCurrency.uppercase()) {
                 "USD" -> """(?:\$|usd|dollar s?)\s*"""
                 "AMD" -> """(?:֏|amd|դր\.?|դրամ)\s*"""
                 "EUR" -> """(?:€|eur|euro)\s*"""
@@ -1157,7 +1239,7 @@ class AiExpenseEngine {
 
             // ── Total extraction ──────────────────────────────────────
             // Priority-1: currency-specific total markers
-            val currencyTotalPatterns: List<Regex> = when (currencyCode.uppercase()) {
+            val currencyTotalPatterns: List<Regex> = when (effectiveCurrency.uppercase()) {
                 "AMD" -> listOf(
                     // Armenian POS receipts: Գումdelays = "sum/amount", Delays = "total"
                     // Proper Armenian: Գumdar (Գdelays), yndardelays (Delays), Dndelays
@@ -1225,7 +1307,7 @@ class AiExpenseEngine {
             // AMD-specific fallback: Armenian POS receipts often lose all script text through OCR
             // (ML Kit has no Armenian model). If no total was found yet, scan every line for a
             // bare decimal number that looks like an AMD amount (> 100 AMD is plausible minimum).
-            if (total == null && currencyCode.uppercase() == "AMD") {
+            if (total == null && effectiveCurrency.uppercase() == "AMD") {
                 val amountCandidates = lines.mapNotNull { line ->
                     // Match "12 000.00", "12000.00", "12000", "12,000.00" — typical AMD receipt amounts
                     val m = Regex("""([0-9][0-9\s,]*\.?[0-9]{0,2})""").findAll(line)
@@ -1253,7 +1335,7 @@ class AiExpenseEngine {
                 }
             }
 
-            return ParsedReceipt(totalAmount = total, items = items, merchantName = merchantName, date = date)
+            return ParsedReceipt(totalAmount = total, items = items, merchantName = merchantName, date = date, detectedCurrencyCode = detectedCurrency)
         } catch (e: Exception) {
             return ParsedReceipt(totalAmount = null, items = emptyList(), merchantName = "Unknown", date = null)
         }
