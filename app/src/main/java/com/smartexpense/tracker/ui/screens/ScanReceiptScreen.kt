@@ -323,6 +323,13 @@ fun ScanReceiptScreen(
             var editMerchant by remember(ocrParsedData) { mutableStateOf(ocrParsedData.merchantName) }
             var editCategory by remember(ocrParsedData) { mutableStateOf(ocrParsedData.category) }
             var categoryExpanded by remember { mutableStateOf(false) }
+            // Editable items list — initialized from OCR-parsed items
+            var editableItems by remember(ocrParsedData) {
+                mutableStateOf(ocrParsedData.items.mapIndexed { idx, (name, price) ->
+                    Triple(idx, name, String.format("%.2f", price))
+                })
+            }
+            var nextItemId by remember(ocrParsedData) { mutableIntStateOf(ocrParsedData.items.size) }
 
             Spacer(modifier = Modifier.height(16.dp))
             Card(
@@ -451,19 +458,75 @@ fun ScanReceiptScreen(
                         }
                     }
 
-                    // Items breakdown (read-only)
-                    if (ocrParsedData.items.isNotEmpty()) {
+                    // Editable items list
+                    if (editableItems.isNotEmpty() || ocrParsedData.items.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text("Items detected:", fontWeight = FontWeight.Medium, fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Items (${editableItems.size}):", fontWeight = FontWeight.Medium,
+                                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(modifier = Modifier.weight(1f))
+                            TextButton(
+                                onClick = {
+                                    editableItems = editableItems + Triple(nextItemId, "", "0.00")
+                                    nextItemId++
+                                },
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                            ) {
+                                Icon(Icons.Filled.Add, null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text("Add Item", fontSize = 11.sp)
+                            }
+                        }
                         Spacer(modifier = Modifier.height(4.dp))
-                        ocrParsedData.items.forEach { (name, price) ->
-                            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(name, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.weight(1f))
-                                Text("${ocrParsedData.currencySymbol}${String.format("%.2f", price)}",
-                                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        editableItems.forEach { (itemId, itemName, itemPrice) ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = itemName,
+                                    onValueChange = { newName ->
+                                        editableItems = editableItems.map {
+                                            if (it.first == itemId) Triple(it.first, newName, it.third) else it
+                                        }
+                                    },
+                                    placeholder = { Text("Item name", fontSize = 11.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f).height(46.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    textStyle = LocalTextStyle.current.copy(fontSize = 12.sp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                OutlinedTextField(
+                                    value = itemPrice,
+                                    onValueChange = { newPrice ->
+                                        editableItems = editableItems.map {
+                                            if (it.first == itemId) Triple(it.first, it.second, newPrice) else it
+                                        }
+                                    },
+                                    placeholder = { Text("0.00", fontSize = 11.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier.width(80.dp).height(46.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    textStyle = LocalTextStyle.current.copy(fontSize = 12.sp, textAlign = TextAlign.End)
+                                )
+                                IconButton(
+                                    onClick = { editableItems = editableItems.filter { it.first != itemId } },
+                                    modifier = Modifier.size(30.dp)
+                                ) {
+                                    Icon(Icons.Filled.Close, null, tint = RedExpense, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                        // Items sum
+                        if (editableItems.isNotEmpty()) {
+                            val itemsSum = editableItems.sumOf { it.third.toDoubleOrNull() ?: 0.0 }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Items sum:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("${ocrParsedData.currencySymbol}${String.format("%.2f", itemsSum)}",
+                                    fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -503,10 +566,13 @@ fun ScanReceiptScreen(
                         OutlinedButton(
                             onClick = {
                                 val amt = editAmount.toDoubleOrNull() ?: 0.0
+                                val finalItems = editableItems
+                                    .filter { it.second.isNotBlank() }
+                                    .map { it.second to (it.third.toDoubleOrNull() ?: 0.0) }
                                 onSaveToSection(
                                     editMerchant,
                                     editMerchant,
-                                    ocrParsedData.items,
+                                    finalItems,
                                     amt,
                                     ocrParsedData.rawOcrText,
                                     "" // detectedLanguages filled by caller

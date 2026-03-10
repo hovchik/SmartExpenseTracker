@@ -272,6 +272,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                     "ocr_sections" -> OcrSectionsScreen(
                         sections = ocrSections,
                         onDeleteSection = { viewModel.deleteOcrSection(it) },
+                        onUpdateSection = { viewModel.updateOcrSection(it) },
                         onClearAll = { viewModel.clearAllOcrSections() },
                         onGenerateReport = { since -> viewModel.generateOcrSectionsReport(since) },
                         onGetGoodsReportItems = { since -> viewModel.getGoodsReportItems(since) },

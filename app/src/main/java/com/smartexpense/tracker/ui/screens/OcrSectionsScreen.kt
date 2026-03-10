@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartexpense.tracker.data.model.GoodsReportItem
+import com.smartexpense.tracker.data.model.OcrItem
 import com.smartexpense.tracker.data.model.OcrSection
 import com.smartexpense.tracker.data.model.currencyInfoFor
 import com.smartexpense.tracker.ui.theme.*
@@ -55,6 +56,7 @@ private enum class ReportPeriod(val label: String, val daysBack: Long?) {
 fun OcrSectionsScreen(
     sections: List<OcrSection>,
     onDeleteSection: (String) -> Unit,
+    onUpdateSection: (OcrSection) -> Unit,
     onClearAll: () -> Unit,
     onGenerateReport: (sinceTimestamp: Long?) -> String,
     onGetGoodsReportItems: (sinceTimestamp: Long?) -> List<GoodsReportItem>,
@@ -63,6 +65,8 @@ fun OcrSectionsScreen(
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var showClearAllConfirm by remember { mutableStateOf(false) }
+    // Section being edited (null = no edit dialog shown)
+    var editingSection by remember { mutableStateOf<OcrSection?>(null) }
 
     Scaffold(
         floatingActionButton = {
@@ -261,15 +265,27 @@ private fun ScannedGoodsTab(
                             }
 
                             Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedButton(
-                                onClick = { showDeleteConfirm = section.id },
-                                modifier = Modifier.fillMaxWidth().height(38.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = RedExpense)
-                            ) {
-                                Icon(Icons.Filled.Delete, null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Delete Section", fontSize = 13.sp)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = { editingSection = section },
+                                    modifier = Modifier.weight(1f).height(38.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = BluePrimary)
+                                ) {
+                                    Icon(Icons.Filled.Edit, null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Edit", fontSize = 13.sp)
+                                }
+                                OutlinedButton(
+                                    onClick = { showDeleteConfirm = section.id },
+                                    modifier = Modifier.weight(1f).height(38.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = RedExpense)
+                                ) {
+                                    Icon(Icons.Filled.Delete, null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Delete", fontSize = 13.sp)
+                                }
                             }
                         }
                     }
@@ -293,6 +309,209 @@ private fun ScannedGoodsTab(
             dismissButton = { TextButton(onClick = { showDeleteConfirm = null }) { Text("Cancel") } }
         )
     }
+
+    // Edit section dialog
+    editingSection?.let { section ->
+        EditSectionDialog(
+            section = section,
+            onDismiss = { editingSection = null },
+            onSave = { updated ->
+                onUpdateSection(updated)
+                editingSection = null
+            }
+        )
+    }
+}
+
+/**
+ * Full-screen dialog for editing a saved OcrSection:
+ * label, merchant, total amount, and individual items (name + price).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditSectionDialog(
+    section: OcrSection,
+    onDismiss: () -> Unit,
+    onSave: (OcrSection) -> Unit
+) {
+    val context = LocalContext.current
+    val symbol = currencyInfoFor(section.currencyCode).symbol
+
+    var editLabel by remember { mutableStateOf(section.label) }
+    var editMerchant by remember { mutableStateOf(section.merchantName) }
+    var editTotal by remember { mutableStateOf(String.format("%.2f", section.totalAmount)) }
+    var editNotes by remember { mutableStateOf(section.notes) }
+
+    // Mutable list of items: each entry is Triple(uniqueId, name, priceString)
+    var editableItems by remember {
+        mutableStateOf(section.items.mapIndexed { idx, item ->
+            Triple(idx, item.name, String.format("%.2f", item.price))
+        })
+    }
+    var nextItemId by remember { mutableIntStateOf(section.items.size) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Edit, null, tint = GreenPrimary, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Edit Section", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 500.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // Label
+                OutlinedTextField(
+                    value = editLabel,
+                    onValueChange = { editLabel = it },
+                    label = { Text("Label") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Merchant
+                OutlinedTextField(
+                    value = editMerchant,
+                    onValueChange = { editMerchant = it },
+                    label = { Text("Merchant") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Total amount
+                OutlinedTextField(
+                    value = editTotal,
+                    onValueChange = { editTotal = it },
+                    label = { Text("Total Amount ($symbol)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Items header
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Items (${editableItems.size}):", fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                    Spacer(modifier = Modifier.weight(1f))
+                    TextButton(
+                        onClick = {
+                            editableItems = editableItems + Triple(nextItemId, "", "0.00")
+                            nextItemId++
+                        },
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                    ) {
+                        Icon(Icons.Filled.Add, null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text("Add", fontSize = 12.sp)
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Editable items
+                editableItems.forEach { (itemId, itemName, itemPrice) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = itemName,
+                            onValueChange = { newName ->
+                                editableItems = editableItems.map {
+                                    if (it.first == itemId) Triple(it.first, newName, it.third) else it
+                                }
+                            },
+                            placeholder = { Text("Name", fontSize = 11.sp) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f).height(46.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            textStyle = LocalTextStyle.current.copy(fontSize = 12.sp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        OutlinedTextField(
+                            value = itemPrice,
+                            onValueChange = { newPrice ->
+                                editableItems = editableItems.map {
+                                    if (it.first == itemId) Triple(it.first, it.second, newPrice) else it
+                                }
+                            },
+                            placeholder = { Text("0.00", fontSize = 11.sp) },
+                            singleLine = true,
+                            modifier = Modifier.width(72.dp).height(46.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            textStyle = LocalTextStyle.current.copy(fontSize = 12.sp, textAlign = TextAlign.End)
+                        )
+                        IconButton(
+                            onClick = { editableItems = editableItems.filter { it.first != itemId } },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.Filled.Close, null, tint = RedExpense, modifier = Modifier.size(14.dp))
+                        }
+                    }
+                }
+
+                // Items sum
+                if (editableItems.isNotEmpty()) {
+                    val itemsSum = editableItems.sumOf { it.third.toDoubleOrNull() ?: 0.0 }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Items sum:", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Text("$symbol${String.format("%.2f", itemsSum)}", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Notes
+                OutlinedTextField(
+                    value = editNotes,
+                    onValueChange = { editNotes = it },
+                    label = { Text("Notes") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    minLines = 2,
+                    maxLines = 3
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val finalItems = editableItems
+                        .filter { it.second.isNotBlank() }
+                        .map { (_, name, price) ->
+                            OcrItem(name = name, price = price.toDoubleOrNull() ?: 0.0)
+                        }
+                    val updatedSection = section.copy(
+                        label = editLabel.ifBlank { editMerchant },
+                        merchantName = editMerchant,
+                        totalAmount = editTotal.toDoubleOrNull() ?: section.totalAmount,
+                        items = finalItems,
+                        notes = editNotes
+                    )
+                    onSave(updatedSection)
+                    android.widget.Toast.makeText(context, "Section updated", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary)
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
