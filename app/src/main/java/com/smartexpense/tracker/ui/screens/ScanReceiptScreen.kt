@@ -345,6 +345,17 @@ fun ScanReceiptScreen(
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                             }
                         }
+                        if (ocrParsedData.isTerminalReceipt) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = OrangeWarning.copy(alpha = 0.15f)
+                            ) {
+                                Text("Terminal", fontSize = 10.sp, color = OrangeWarning,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                            }
+                        }
                         if (ocrParsedData.detectedCurrencyCode.isNotBlank()) {
                             Spacer(modifier = Modifier.width(6.dp))
                             Surface(
@@ -421,6 +432,25 @@ fun ScanReceiptScreen(
                         }
                     }
 
+                    // Terminal receipt notice
+                    if (ocrParsedData.isTerminalReceipt) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Card(
+                            shape = RoundedCornerShape(8.dp),
+                            colors = CardDefaults.cardColors(containerColor = OrangeWarning.copy(alpha = 0.1f))
+                        ) {
+                            Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.CreditCard, null, tint = OrangeWarning, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    "Bank terminal receipt detected — no goods to track. You can still save the payment as a transaction.",
+                                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    lineHeight = 16.sp
+                                )
+                            }
+                        }
+                    }
+
                     // Items breakdown (read-only)
                     if (ocrParsedData.items.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(12.dp))
@@ -466,29 +496,31 @@ fun ScanReceiptScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    // Save to Sections button — hidden for terminal receipts (no goods to track)
+                    if (!ocrParsedData.isTerminalReceipt) {
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                    // Save to Sections button
-                    OutlinedButton(
-                        onClick = {
-                            val amt = editAmount.toDoubleOrNull() ?: 0.0
-                            onSaveToSection(
-                                editMerchant,
-                                editMerchant,
-                                ocrParsedData.items,
-                                amt,
-                                ocrParsedData.rawOcrText,
-                                "" // detectedLanguages filled by caller
-                            )
-                            onClearOcr()
-                            Toast.makeText(context, "Saved to Sections", Toast.LENGTH_SHORT).show()
-                        },
-                        modifier = Modifier.fillMaxWidth().height(46.dp),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(Icons.Filled.Inventory2, null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Save to Sections", fontWeight = FontWeight.SemiBold)
+                        OutlinedButton(
+                            onClick = {
+                                val amt = editAmount.toDoubleOrNull() ?: 0.0
+                                onSaveToSection(
+                                    editMerchant,
+                                    editMerchant,
+                                    ocrParsedData.items,
+                                    amt,
+                                    ocrParsedData.rawOcrText,
+                                    "" // detectedLanguages filled by caller
+                                )
+                                onClearOcr()
+                                Toast.makeText(context, "Saved to Sections", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.fillMaxWidth().height(46.dp),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Filled.Inventory2, null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Save to Sections", fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
             }

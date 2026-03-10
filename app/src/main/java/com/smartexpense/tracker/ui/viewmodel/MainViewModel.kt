@@ -739,7 +739,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         fromQr = fromQr,
                         rawOcrText = ocrText,
                         currencySymbol = currencySymbol,
-                        detectedCurrencyCode = detectedCurrency
+                        detectedCurrencyCode = detectedCurrency,
+                        isTerminalReceipt = parsed.isTerminalReceipt
                     )
                     _uiState.value = _uiState.value.copy(lastOcrResult = null)
                 } else {
@@ -1663,7 +1664,9 @@ data class OcrParsedData(
     val rawOcrText: String = "",
     val currencySymbol: String = "$",
     /** ISO-4217 currency code detected from the receipt (e.g. "AMD", "USD", "EUR"). */
-    val detectedCurrencyCode: String = ""
+    val detectedCurrencyCode: String = "",
+    /** True when the scanned document is a bank/POS terminal slip (no goods). */
+    val isTerminalReceipt: Boolean = false
 )
 
 data class UiState(

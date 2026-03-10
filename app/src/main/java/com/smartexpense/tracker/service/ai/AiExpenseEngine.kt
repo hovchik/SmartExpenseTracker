@@ -1112,7 +1112,9 @@ class AiExpenseEngine {
         val merchantName: String,
         val date: String?,
         /** Currency code detected from the receipt text (e.g. "AMD", "USD", "EUR"). Null = not detected. */
-        val detectedCurrencyCode: String? = null
+        val detectedCurrencyCode: String? = null,
+        /** True when the scanned document is a bank/POS terminal slip (no goods, just a payment confirmation). */
+        val isTerminalReceipt: Boolean = false
     )
 
     /**
@@ -1335,7 +1337,37 @@ class AiExpenseEngine {
                 }
             }
 
-            return ParsedReceipt(totalAmount = total, items = items, merchantName = merchantName, date = date, detectedCurrencyCode = detectedCurrency)
+            // ── Bank terminal / POS slip detection ─────────────────────
+            // Terminal receipts contain payment confirmation data (card info,
+            // authorization codes, TID/MID) but no actual goods/items.
+            // They should NOT be saved to the scanned goods sections.
+            val terminalIndicators = listOf(
+                // English POS terminal keywords
+                "approved", "authorization", "auth code", "authcode",
+                "card number", "card type", "card:", "exp:",
+                "tid:", "mid:", "rrn:", "aid:",
+                "visa", "mastercard", "amex", "unionpay", "maestro",
+                "contactless", "cless", "chip", "swipe",
+                "terminal", "pos terminal",
+                "on device", "response code",
+                // Armenian POS terminal keywords
+                "\u0540\u0531\u054D\u054F\u0531\u054F\u054E\u0531\u053E", // ՀԱՍՏԱՏdelays (confirmed)
+                "\u054E\u0561\u0573\u0561\u057C\u0584",                   // վdelaysdelays (sale)
+                "\u0554\u0561\u0580\u057F",                               // Քdelays (card)
+                // Russian POS terminal keywords
+                "\u043e\u0434\u043e\u0431\u0440\u0435\u043d\u043e",       // одобрено (approved)
+                "\u043a\u0430\u0440\u0442\u0430",                         // карта (card)
+                "\u0442\u0435\u0440\u043c\u0438\u043d\u0430\u043b",       // терминал (terminal)
+                "\u0430\u0432\u0442\u043e\u0440\u0438\u0437\u0430\u0446\u0438\u044f" // авторизация (authorization)
+            )
+            val maskedCardPattern = Regex("""\*{2,}\d{2,4}|\d{4}\s*\*{4,}""")
+            val lowerText = ocrText.lowercase()
+            val terminalHits = terminalIndicators.count { lowerText.contains(it) }
+            val hasMaskedCard = maskedCardPattern.containsMatchIn(ocrText)
+            // A terminal receipt typically has ≥3 terminal indicators and no real goods items
+            val isTerminal = (terminalHits >= 3 || (terminalHits >= 2 && hasMaskedCard)) && items.isEmpty()
+
+            return ParsedReceipt(totalAmount = total, items = items, merchantName = merchantName, date = date, detectedCurrencyCode = detectedCurrency, isTerminalReceipt = isTerminal)
         } catch (e: Exception) {
             return ParsedReceipt(totalAmount = null, items = emptyList(), merchantName = "Unknown", date = null)
         }
