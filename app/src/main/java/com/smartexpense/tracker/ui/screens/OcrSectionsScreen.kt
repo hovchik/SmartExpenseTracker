@@ -117,7 +117,7 @@ fun OcrSectionsScreen(
             }
 
             when (selectedTab) {
-                0 -> ScannedGoodsTab(sections, onDeleteSection)
+                0 -> ScannedGoodsTab(sections, onDeleteSection, onEditSection = { editingSection = it })
                 1 -> ReportsTab(sections, onGenerateReport, onGetGoodsReportItems)
             }
         }
@@ -137,13 +137,26 @@ fun OcrSectionsScreen(
             dismissButton = { TextButton(onClick = { showClearAllConfirm = false }) { Text("Cancel") } }
         )
     }
+
+    // Edit section dialog
+    editingSection?.let { section ->
+        EditSectionDialog(
+            section = section,
+            onDismiss = { editingSection = null },
+            onSave = { updated ->
+                onUpdateSection(updated)
+                editingSection = null
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ScannedGoodsTab(
     sections: List<OcrSection>,
-    onDeleteSection: (String) -> Unit
+    onDeleteSection: (String) -> Unit,
+    onEditSection: (OcrSection) -> Unit
 ) {
     var showDeleteConfirm by remember { mutableStateOf<String?>(null) }
     var expandedSectionId by remember { mutableStateOf<String?>(null) }
@@ -267,7 +280,7 @@ private fun ScannedGoodsTab(
                             Spacer(modifier = Modifier.height(8.dp))
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(
-                                    onClick = { editingSection = section },
+                                    onClick = { onEditSection(section) },
                                     modifier = Modifier.weight(1f).height(38.dp),
                                     shape = RoundedCornerShape(8.dp),
                                     colors = ButtonDefaults.outlinedButtonColors(contentColor = BluePrimary)
@@ -307,18 +320,6 @@ private fun ScannedGoodsTab(
                 }
             },
             dismissButton = { TextButton(onClick = { showDeleteConfirm = null }) { Text("Cancel") } }
-        )
-    }
-
-    // Edit section dialog
-    editingSection?.let { section ->
-        EditSectionDialog(
-            section = section,
-            onDismiss = { editingSection = null },
-            onSave = { updated ->
-                onUpdateSection(updated)
-                editingSection = null
-            }
         )
     }
 }
