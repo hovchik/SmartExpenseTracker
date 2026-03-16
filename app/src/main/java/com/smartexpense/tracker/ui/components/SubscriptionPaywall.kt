@@ -4,9 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -49,110 +47,141 @@ fun SubscriptionPaywallDialog(
         title = null,
         text = {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Premium badge
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(GoldGradient),
-                    contentAlignment = Alignment.Center
+                // Premium badge + title row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Filled.WorkspacePremium,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(36.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(GoldGradient),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.WorkspacePremium,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            "Upgrade to Premium",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "$featureName is available with FlowSense Premium.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 16.sp
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                Text(
-                    "Upgrade to Premium",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
+                // Feature highlights in a compact two-column grid
+                val features = listOf(
+                    Icons.Filled.Map to "Store Map",
+                    Icons.Filled.CameraAlt to "OCR scanning",
+                    Icons.Filled.Apps to "Bank scanner",
+                    Icons.Filled.Schedule to "Salary scheduler",
+                    Icons.Filled.NotificationsActive to "Budget alerts",
+                    Icons.Filled.Category to "Custom categories",
+                    Icons.Filled.EventRepeat to "Scheduled expenses"
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    "$featureName is available with FlowSense Premium.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 20.sp
-                )
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // Feature highlights
-                PremiumFeatureRow(Icons.Filled.Map, "Store Map with transaction pins")
-                PremiumFeatureRow(Icons.Filled.CameraAlt, "OCR receipt scanning")
-                PremiumFeatureRow(Icons.Filled.Apps, "Banking app scanner")
-                PremiumFeatureRow(Icons.Filled.Schedule, "Salary scheduler")
-                PremiumFeatureRow(Icons.Filled.NotificationsActive, "Budget threshold alerts")
-                PremiumFeatureRow(Icons.Filled.Category, "Custom categories")
-                PremiumFeatureRow(Icons.Filled.EventRepeat, "Scheduled expenses")
+                val rows = features.chunked(2)
+                rows.forEach { rowItems ->
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        rowItems.forEach { (icon, text) ->
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    icon,
+                                    contentDescription = null,
+                                    tint = GoldDark,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                        // Fill remaining space if odd number of items
+                        if (rowItems.size < 2) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
 
                 // Free trial banner
                 if (isTrialEligible) {
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(8.dp))
                             .background(Color(0xFF4CAF50).copy(alpha = 0.1f))
-                            .border(1.dp, Color(0xFF4CAF50), RoundedCornerShape(12.dp))
-                            .padding(12.dp),
+                            .border(1.dp, Color(0xFF4CAF50), RoundedCornerShape(8.dp))
+                            .padding(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             Icons.Filled.CardGiftcard,
                             contentDescription = null,
                             tint = Color(0xFF4CAF50),
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(20.dp)
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 "Try Premium free for 3 days",
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color(0xFF2E7D32)
                             )
                             Text(
-                                "Full access to all features. No charge.",
+                                "Full access. No charge.",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color(0xFF388E3C)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     Button(
                         onClick = onStartTrial,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                        modifier = Modifier.fillMaxWidth().height(36.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                     ) {
                         Icon(
                             Icons.Filled.PlayArrow,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Start 3-Day Free Trial", fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Start 3-Day Free Trial", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -168,7 +197,7 @@ fun SubscriptionPaywallDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Plan selection
                 Text(
@@ -177,7 +206,7 @@ fun SubscriptionPaywallDialog(
                     fontWeight = FontWeight.SemiBold
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 SubscriptionPlan.entries.forEach { plan ->
                     PlanCard(
@@ -185,10 +214,8 @@ fun SubscriptionPaywallDialog(
                         isSelected = selectedPlan == plan,
                         onSelect = { selectedPlan = plan }
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                 }
-
-                Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
                     "Prices shown before tax. Subscriptions auto-renew.",
@@ -218,19 +245,18 @@ fun SubscriptionPaywallDialog(
             }
         },
         dismissButton = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                TextButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Maybe Later")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text("Maybe Later", fontSize = 13.sp)
                 }
                 TextButton(
                     onClick = {
                         onRestorePurchases()
                         onDismiss()
-                    },
-                    modifier = Modifier.fillMaxWidth()
+                    }
                 ) {
                     Text(
                         "Restore Purchases",
@@ -263,7 +289,7 @@ private fun PlanCard(
             )
             .background(bgColor)
             .clickable { onSelect() }
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         RadioButton(
@@ -323,29 +349,6 @@ private fun PlanCard(
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold,
             color = if (isSelected) GoldDark else MaterialTheme.colorScheme.onSurface
-        )
-    }
-}
-
-@Composable
-private fun PremiumFeatureRow(icon: ImageVector, text: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = GoldDark,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.Medium
         )
     }
 }
