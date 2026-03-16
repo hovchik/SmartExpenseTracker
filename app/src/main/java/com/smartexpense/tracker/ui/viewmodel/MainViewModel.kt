@@ -140,6 +140,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _engineDescriptions.value = localAiService.engineDescriptions()
             }
 
+            // Initialize tri-mode AI provider selector
+            initAiProviderSelector()
+            refreshCatalogModels()
+
             refreshSuggestions()
             scheduleRateRefresh()
             // Warm up the location cache so background receivers (SMS, notifications)
@@ -585,6 +589,213 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Whether the Google AI Edge Gallery app is installed on device. */
     fun isGalleryInstalled(): Boolean = localAiService.mediaPipeLlm.isGalleryInstalled()
 
+    // ─── Tri-Mode AI Architecture ─────────────────────────────────────
+
+    private val localModelManager = com.smartexpense.tracker.ai.modelmanager.LocalModelManager(
+        getApplication<Application>().applicationContext
+    )
+    private val aiProviderSelector = com.smartexpense.tracker.ai.provider.AiProviderSelector(
+        getApplication<Application>().applicationContext,
+        localModelManager
+    )
+    private val benchmarkRunner = com.smartexpense.tracker.ai.benchmark.LocalAiBenchmarkRunner()
+
+    /** Status message for the tri-mode AI engine. */
+    private val _aiModeStatus = MutableStateFlow<String?>(null)
+    val aiModeStatus: StateFlow<String?> = _aiModeStatus.asStateFlow()
+
+    /** Privacy message (non-null when provider is local). */
+    private val _aiPrivacyMessage = MutableStateFlow<String?>(null)
+    val aiPrivacyMessage: StateFlow<String?> = _aiPrivacyMessage.asStateFlow()
+
+    /** Device capability scan result. */
+    private val _deviceCapability = MutableStateFlow<com.smartexpense.tracker.ai.capability.DeviceAiCapabilityDetector.DeviceCapability?>(null)
+    val deviceCapability: StateFlow<com.smartexpense.tracker.ai.capability.DeviceAiCapabilityDetector.DeviceCapability?> = _deviceCapability.asStateFlow()
+
+    private val _isScanning = MutableStateFlow(false)
+    val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
+
+    /** Catalog models with install state. */
+    private val _catalogModels = MutableStateFlow<List<com.smartexpense.tracker.ai.modelmanager.LocalAiModel>>(emptyList())
+    val catalogModels: StateFlow<List<com.smartexpense.tracker.ai.modelmanager.LocalAiModel>> = _catalogModels.asStateFlow()
+
+    /** Download state from the download manager. */
+    val modelDownloadState: StateFlow<com.smartexpense.tracker.ai.modelmanager.ModelDownloadManager.DownloadState> =
+        localModelManager.downloads.downloadState
+
+    /** Benchmark result. */
+    private val _benchmarkResult = MutableStateFlow<com.smartexpense.tracker.ai.benchmark.LocalAiBenchmarkRunner.BenchmarkResult?>(null)
+    val benchmarkResult: StateFlow<com.smartexpense.tracker.ai.benchmark.LocalAiBenchmarkRunner.BenchmarkResult?> = _benchmarkResult.asStateFlow()
+
+    private val _isRunningBenchmark = MutableStateFlow(false)
+    val isRunningBenchmark: StateFlow<Boolean> = _isRunningBenchmark.asStateFlow()
+
+    /** Name of the currently installed/active model. */
+    private val _installedModelName = MutableStateFlow("")
+    val installedModelName: StateFlow<String> = _installedModelName.asStateFlow()
+
+    /** Model storage usage. */
+    private val _modelStorageUsageMb = MutableStateFlow(0L)
+    val modelStorageUsageMb: StateFlow<Long> = _modelStorageUsageMb.asStateFlow()
+
+    /** Import message for setup wizard. */
+    private val _wizardImportMessage = MutableStateFlow<String?>(null)
+    val wizardImportMessage: StateFlow<String?> = _wizardImportMessage.asStateFlow()
+
+    /** Sets the AI execution mode and persists it. */
+    fun setAiMode(mode: com.smartexpense.tracker.data.model.AiModePreference) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            repository.updateSettings(settings.copy(aiModePreference = mode))
+            _aiModeStatus.value = "Switching AI mode..."
+            withContext(Dispatchers.IO) { aiProviderSelector.selectProvider(mode) }
+            _aiModeStatus.value = aiProviderSelector.statusMessage()
+            _aiPrivacyMessage.value = aiProviderSelector.privacyMessage()
+            refreshModelInfo()
+        }
+    }
+
+    /** Scans device capabilities for AI support. */
+    fun scanDeviceCapabilities() {
+        viewModelScope.launch {
+            _isScanning.value = true
+            val capability = withContext(Dispatchers.IO) {
+                localModelManager.capabilities.detect()
+            }
+            _deviceCapability.value = capability
+            _isScanning.value = false
+        }
+    }
+
+    /** Refreshes catalog models with current install state. */
+    fun refreshCatalogModels() {
+        _catalogModels.value = localModelManager.getCatalogModels()
+        refreshModelInfo()
+    }
+
+    /** Downloads a catalog model. */
+    fun downloadCatalogModelNew(model: com.smartexpense.tracker.ai.modelmanager.LocalAiModel) {
+        viewModelScope.launch {
+            val path = withContext(Dispatchers.IO) {
+                localModelManager.downloadModel(model)
+            }
+            if (path != null) {
+                refreshCatalogModels()
+                // Auto-load the downloaded model
+                withContext(Dispatchers.IO) {
+                    aiProviderSelector.customLocalProvider.loadModel(
+                        model.copy(localPath = path, installState = com.smartexpense.tracker.ai.modelmanager.InstallState.INSTALLED)
+                    )
+                }
+                _aiModeStatus.value = aiProviderSelector.statusMessage()
+            }
+        }
+    }
+
+    /** Cancels in-progress download. */
+    fun cancelModelDownload() {
+        localModelManager.downloads.cancelDownload()
+    }
+
+    /** Runs benchmark against the active provider. */
+    fun runBenchmark() {
+        viewModelScope.launch {
+            _isRunningBenchmark.value = true
+            val result = withContext(Dispatchers.IO) {
+                benchmarkRunner.runBenchmark(aiProviderSelector.getActiveProvider())
+            }
+            _benchmarkResult.value = result
+            _isRunningBenchmark.value = false
+        }
+    }
+
+    /** Initializes the AI provider selector based on saved settings. */
+    fun initAiProviderSelector() {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            if (settings.claudeApiKey.isNotBlank()) {
+                aiProviderSelector.cloudProvider.updateApiKey(settings.claudeApiKey)
+            }
+            withContext(Dispatchers.IO) {
+                aiProviderSelector.selectProvider(settings.aiModePreference)
+            }
+            _aiModeStatus.value = aiProviderSelector.statusMessage()
+            _aiPrivacyMessage.value = aiProviderSelector.privacyMessage()
+            refreshModelInfo()
+        }
+    }
+
+    private fun refreshModelInfo() {
+        val activeModel = localModelManager.getActiveModel()
+        _installedModelName.value = activeModel?.displayName ?: ""
+        _modelStorageUsageMb.value = localModelManager.getStorageUsageMb()
+    }
+
+    /**
+     * Uses the AI provider selector for categorization when the new mode is active,
+     * falls back to existing local AI service otherwise.
+     */
+    private suspend fun smartCategorizeWithProvider(description: String, isExpense: Boolean = true): String? {
+        val provider = aiProviderSelector.getActiveProvider()
+        if (!provider.isAvailable()) return null
+
+        val categories = repository.appData.value.categories.map { it.name }
+        val promptAdapter = com.smartexpense.tracker.ai.provider.PromptAdapter()
+        val prompt = promptAdapter.createCategorizationPrompt(description, categories, isExpense)
+
+        val result = provider.generateAnalysis(
+            com.smartexpense.tracker.ai.provider.AnalysisInput(
+                prompt = prompt,
+                availableCategories = categories,
+                isExpense = isExpense,
+                type = com.smartexpense.tracker.ai.provider.AnalysisType.CATEGORIZE
+            )
+        )
+
+        if (result.success && result.text.isNotBlank()) {
+            val cleaned = result.text.trim().removeSurrounding("\"")
+            return categories.find { it.equals(cleaned, ignoreCase = true) }
+                ?: categories.find { cleaned.contains(it, ignoreCase = true) }
+        }
+        return null
+    }
+
+    /**
+     * Uses the AI provider selector for insight generation.
+     */
+    suspend fun generateInsightWithProvider(
+        totalExpenses: Double,
+        totalIncome: Double,
+        topCategory: String?,
+        topCategoryAmount: Double,
+        transactionCount: Int,
+        currencyCode: String
+    ): String? {
+        val provider = aiProviderSelector.getActiveProvider()
+        if (!provider.isAvailable()) return null
+
+        val promptAdapter = com.smartexpense.tracker.ai.provider.PromptAdapter()
+        val prompt = promptAdapter.createInsightPrompt(
+            totalExpenses, totalIncome, topCategory,
+            topCategoryAmount, transactionCount, currencyCode
+        )
+
+        val result = provider.generateAnalysis(
+            com.smartexpense.tracker.ai.provider.AnalysisInput(
+                prompt = prompt,
+                totalExpenses = totalExpenses,
+                totalIncome = totalIncome,
+                topCategory = topCategory,
+                topCategoryAmount = topCategoryAmount,
+                transactionCount = transactionCount,
+                currencyCode = currencyCode,
+                type = com.smartexpense.tracker.ai.provider.AnalysisType.INSIGHT
+            )
+        )
+
+        return if (result.success) result.text else null
+    }
+
     /**
      * Returns a category using on-device AI when enabled, otherwise falls back to rules.
      * When AI suggests a category that doesn't exist yet, it is auto-created.
@@ -593,6 +804,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val settings = repository.appData.value.settings
         val userCatNames = repository.appData.value.categories
             .filter { !it.isDefault }.map { it.name }
+
+        // Try the new tri-mode AI provider first
+        val providerCategory = smartCategorizeWithProvider(description, isExpense)
+        if (providerCategory != null) {
+            repository.ensureCategoryExists(providerCategory)
+            return providerCategory
+        }
+
+        // Fall back to existing local AI service
         if (settings.localAiEnabled) {
             val categoryNames = repository.appData.value.categories.map { it.name }
             val aiCategory = localAiService.categorize(description, categoryNames, isExpense, userCatNames)
@@ -777,16 +997,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 else ""
                 val sourceNote = if (fromQr) "Parsed from QR code" else ""
 
-                val aiNote: String = if (settings.localAiEnabled) {
-                    val insight = withContext(Dispatchers.IO) {
-                        localAiService.generateInsight(
-                            totalExpenses = amount, totalIncome = 0.0,
-                            topCategory = category, topCategoryAmount = amount,
-                            transactionCount = 1, currencyCode = currencyCode
-                        )
+                val aiNote: String = run {
+                    // Try new AI provider first
+                    val providerInsight = withContext(Dispatchers.IO) {
+                        generateInsightWithProvider(amount, 0.0, category, amount, 1, currencyCode)
                     }
-                    if (insight != null) "\nAI: $insight" else ""
-                } else ""
+                    if (providerInsight != null) return@run "\nAI: $providerInsight"
+
+                    // Fall back to existing local AI
+                    if (settings.localAiEnabled) {
+                        val insight = withContext(Dispatchers.IO) {
+                            localAiService.generateInsight(
+                                totalExpenses = amount, totalIncome = 0.0,
+                                topCategory = category, topCategoryAmount = amount,
+                                transactionCount = 1, currencyCode = currencyCode
+                            )
+                        }
+                        if (insight != null) "\nAI: $insight" else ""
+                    } else ""
+                }
 
                 repository.ensureCategoryExists(category)
 

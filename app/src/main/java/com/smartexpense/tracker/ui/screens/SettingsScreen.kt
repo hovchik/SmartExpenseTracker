@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.smartexpense.tracker.data.model.AppSettings
 import com.smartexpense.tracker.data.model.AiEnginePreference
+import com.smartexpense.tracker.data.model.AiModePreference
 import com.smartexpense.tracker.data.model.ScheduledExpense
 import java.io.File
 import com.smartexpense.tracker.data.model.Category
@@ -122,7 +123,14 @@ fun SettingsScreen(
     ollamaModels: List<com.smartexpense.tracker.service.ai.OllamaService.OllamaModel> = emptyList(),
     ollamaConnecting: Boolean = false,
     onConnectOllama: (String) -> Unit = {},
-    onSelectOllamaModel: (String) -> Unit = {}
+    onSelectOllamaModel: (String) -> Unit = {},
+    // ── AI Mode (tri-mode architecture) ──
+    onSetAiMode: (AiModePreference) -> Unit = {},
+    onOpenLocalAiSetup: () -> Unit = {},
+    aiModeStatus: String? = null,
+    aiPrivacyMessage: String? = null,
+    installedModelName: String = "",
+    modelStorageUsageMb: Long = 0
 ) {
     val context = LocalContext.current
     var showClearDialog by remember { mutableStateOf(false) }
@@ -159,6 +167,7 @@ fun SettingsScreen(
     var salaryExpanded by remember { mutableStateOf(false) }
     var scheduledExpensesExpanded by remember { mutableStateOf(false) }
     var categoriesExpanded by remember { mutableStateOf(false) }
+    var aiEngineExpanded by remember { mutableStateOf(false) }
     var localAiExpanded by remember { mutableStateOf(false) }
     var importExportExpanded by remember { mutableStateOf(false) }
     var storageExpanded by remember { mutableStateOf(false) }
@@ -1769,6 +1778,176 @@ fun SettingsScreen(
             }
         }
         } // end AnimatedVisibility for Categories
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ─── AI Engine Section (Tri-mode architecture) ───────────────
+        CollapsibleSectionHeader("AI ENGINE", aiEngineExpanded) { aiEngineExpanded = !aiEngineExpanded }
+
+        AnimatedVisibility(
+            visible = aiEngineExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+        Column {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("AI Mode", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Choose how the app performs AI analysis:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                val modes = listOf(
+                    AiModePreference.AUTO to Icons.Filled.AutoAwesome,
+                    AiModePreference.SYSTEM_AI to Icons.Filled.PhoneAndroid,
+                    AiModePreference.LOCAL_MODEL to Icons.Filled.Storage,
+                    AiModePreference.CLOUD_AI to Icons.Filled.Cloud
+                )
+                modes.forEach { (mode, icon) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onSetAiMode(mode) }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = settings.aiModePreference == mode,
+                            onClick = { onSetAiMode(mode) }
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(mode.label, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Text(mode.description, fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                // Active provider status
+                if (aiModeStatus != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Info, null, modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(aiModeStatus, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                // Installed model info
+                if (installedModelName.isNotBlank()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Memory, null, modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.secondary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Model: $installedModelName", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+
+                // Storage usage
+                if (modelStorageUsageMb > 0) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.SdStorage, null, modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Storage: $modelStorageUsageMb MB", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+
+                // Privacy message for local modes
+                if (aiPrivacyMessage != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
+                            Icon(Icons.Filled.Lock, null, modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(aiPrivacyMessage, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+
+                // Performance note
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    when (settings.aiModePreference) {
+                        AiModePreference.AUTO -> "The app will automatically choose the best AI engine for your device."
+                        AiModePreference.SYSTEM_AI -> "Uses your device's built-in AI. No data leaves your device."
+                        AiModePreference.LOCAL_MODEL -> "Runs a downloaded model on your device. May use significant RAM."
+                        AiModePreference.CLOUD_AI -> "Best quality analysis. Requires internet connection."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 16.sp
+                )
+
+                // Setup wizard button
+                if (settings.aiModePreference == AiModePreference.LOCAL_MODEL ||
+                    settings.aiModePreference == AiModePreference.SYSTEM_AI) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = onOpenLocalAiSetup,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Filled.Tune, null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Local AI Setup Wizard", fontSize = 13.sp)
+                    }
+                }
+
+                // Claude API key input for Cloud mode
+                if (settings.aiModePreference == AiModePreference.CLOUD_AI) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    var apiKeyText by remember(settings.claudeApiKey) {
+                        mutableStateOf(settings.claudeApiKey)
+                    }
+                    OutlinedTextField(
+                        value = apiKeyText,
+                        onValueChange = { apiKeyText = it.trim() },
+                        label = { Text("Claude API Key") },
+                        placeholder = { Text("sk-ant-...", fontSize = 12.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        trailingIcon = {
+                            if (apiKeyText != settings.claudeApiKey && apiKeyText.isNotBlank()) {
+                                IconButton(onClick = {
+                                    onUpdateSettings(settings.copy(claudeApiKey = apiKeyText))
+                                }) {
+                                    Icon(Icons.Filled.Check, "Save")
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+        }
+        } // end Column
+        } // end AnimatedVisibility for AI Engine
 
         Spacer(modifier = Modifier.height(24.dp))
 

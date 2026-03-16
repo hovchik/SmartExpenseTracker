@@ -66,6 +66,18 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     val modelImportMessage by viewModel.modelImportMessage.collectAsState()
     val ollamaModels by viewModel.ollamaModels.collectAsState()
     val ollamaConnecting by viewModel.ollamaConnecting.collectAsState()
+    // Tri-mode AI state
+    val aiModeStatus by viewModel.aiModeStatus.collectAsState()
+    val aiPrivacyMessage by viewModel.aiPrivacyMessage.collectAsState()
+    val deviceCapability by viewModel.deviceCapability.collectAsState()
+    val isScanningDevice by viewModel.isScanning.collectAsState()
+    val catalogModels by viewModel.catalogModels.collectAsState()
+    val modelDownloadState by viewModel.modelDownloadState.collectAsState()
+    val benchmarkResult by viewModel.benchmarkResult.collectAsState()
+    val isRunningBenchmark by viewModel.isRunningBenchmark.collectAsState()
+    val installedModelName by viewModel.installedModelName.collectAsState()
+    val modelStorageUsageMb by viewModel.modelStorageUsageMb.collectAsState()
+    val wizardImportMessage by viewModel.wizardImportMessage.collectAsState()
     val dashboardSectionOrder by viewModel.dashboardSectionOrder.collectAsState()
     val storeLocations by viewModel.storeLocations.collectAsState()
     val isSubscribed by viewModel.isSubscribed.collectAsState()
@@ -95,15 +107,16 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     // are handled explicitly in the when-branch below.
     BackHandler(enabled = currentScreen != "dashboard") {
         when (currentScreen) {
-            "sms_scan"      -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
-            "store_map"     -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
-            "ocr_sections"  -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
-            else            -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+            "sms_scan"         -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
+            "store_map"        -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+            "ocr_sections"     -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+            "local_ai_setup"   -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
+            else               -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
         }
     }
 
     // Hide the top bar on full-screen sub-screens (they have their own top bar)
-    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ocr_sections")
+    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ocr_sections", "local_ai_setup")
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -156,7 +169,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
             }
         },
         bottomBar = {
-            if (currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ocr_sections")) {
+            if (currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ocr_sections", "local_ai_setup")) {
                 NavigationBar(tonalElevation = 2.dp) {
                     // Home
                     NavigationBarItem(
@@ -372,7 +385,41 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         ollamaModels = ollamaModels,
                         ollamaConnecting = ollamaConnecting,
                         onConnectOllama = { host -> viewModel.connectOllama(host) },
-                        onSelectOllamaModel = { name -> viewModel.selectOllamaModel(name) }
+                        onSelectOllamaModel = { name -> viewModel.selectOllamaModel(name) },
+                        // Tri-mode AI
+                        onSetAiMode = { mode -> viewModel.setAiMode(mode) },
+                        onOpenLocalAiSetup = { currentScreen = "local_ai_setup" },
+                        aiModeStatus = aiModeStatus,
+                        aiPrivacyMessage = aiPrivacyMessage,
+                        installedModelName = installedModelName,
+                        modelStorageUsageMb = modelStorageUsageMb
+                    )
+                    "local_ai_setup" -> com.smartexpense.tracker.ai.setupwizard.LocalAiSetupWizardScreen(
+                        capability = deviceCapability,
+                        isScanning = isScanningDevice,
+                        catalogModels = catalogModels,
+                        downloadState = modelDownloadState,
+                        benchmarkResult = benchmarkResult,
+                        isRunningBenchmark = isRunningBenchmark,
+                        importMessage = wizardImportMessage,
+                        activeProviderName = aiModeStatus ?: "Initializing...",
+                        onScanDevice = { viewModel.scanDeviceCapabilities() },
+                        onSelectMode = { mode -> viewModel.setAiMode(mode) },
+                        onDownloadModel = { model -> viewModel.downloadCatalogModelNew(model) },
+                        onCancelDownload = { viewModel.cancelModelDownload() },
+                        onImportModel = { /* SAF file picker would go here */ },
+                        onRunBenchmark = { viewModel.runBenchmark() },
+                        onFinish = {
+                            viewModel.updateSettings(
+                                uiState.settings.copy(localAiSetupComplete = true)
+                            )
+                            currentScreen = "settings"
+                            viewModel.setSelectedTab(3)
+                        },
+                        onBack = {
+                            currentScreen = "settings"
+                            viewModel.setSelectedTab(3)
+                        }
                     )
                 }
             }

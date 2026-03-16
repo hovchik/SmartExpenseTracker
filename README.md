@@ -12,17 +12,43 @@ AI-powered Android expense tracking app built with **Kotlin**, **Jetpack Compose
 - **Banking App Notifications** — Notification listener reads push alerts from Chase, Wells Fargo, Venmo, PayPal, Zelle, Cash App, and 10+ other apps
 - **Manual Entry** — Quick-add with amount, description, category, and notes
 
-### 2. AI-Powered Intelligence
-- **Auto-Categorization** — Keyword-based ML engine assigns categories (Food, Transport, Shopping, Bills, etc.) with weighted scoring
-- **Smart Suggestions** — Analyzes spending patterns and generates up to 10 optimization insights:
-  - High-spending category alerts
-  - Subscription consolidation opportunities
-  - Week-over-week spending spike detection
-  - Budget overrun warnings
-  - Dining pattern optimization
-  - Weekend vs. weekday spending analysis
-  - Savings rate improvement recommendations
+### 2. AI-Powered Intelligence (Tri-Mode Architecture)
+The app supports three AI execution modes:
+
+**Cloud AI**
+- Powered by Claude API for highest quality analysis
+- Requires internet connection and API key
+- Best accuracy for categorization and financial insights
+
+**System Local AI**
+- Uses official Android system AI runtimes when available
+- Detects AICore / Gemini Nano support (Pixel 8+, Android 14+)
+- Detects ML Kit GenAI APIs via Google Play Services
+- Only uses officially supported, documented Android AI APIs
+- No reliance on undocumented OEM APIs or proprietary models
+
+**Custom Local Model**
+- Download or import compatible local AI models
+- Run on-device using MediaPipe LLM Inference runtime
+- Built-in model catalog with Gemma 2 2B IT and Gemma 3 1B IT
+- Supports pluggable runtimes (MediaPipe, LiteRT/TFLite)
+- Model download manager with URL accessibility checks, resume support, and progress reporting
+
+**AI Features:**
+- **Auto-Categorization** — Multi-pass engine assigns categories with weighted scoring, enhanced by LLM when available
+- **Smart Suggestions** — Analyzes spending patterns and generates optimization insights
 - **Transaction Type Detection** — Automatically determines if a parsed message is income or expense
+- **AiProviderSelector** — Automatically selects the best available provider (user preference > system AI > local model > cloud fallback)
+- **PromptAdapter** — Ensures the same prompts work across all providers, adapting for runtime capabilities
+- **Benchmark** — Built-in benchmarking measures inference latency, token speed, and memory usage
+- **Privacy** — Local AI modes display: "All analysis is performed locally on your device. No data is sent to external servers."
+
+**Local AI Setup Wizard:**
+- Device capability detection (RAM, storage, ABI, AI runtime support)
+- Recommended AI mode selection
+- Model download with progress tracking
+- Validation and test prompt
+- Performance benchmark
 
 ### 3. Reports & Analytics
 - **Daily Report** — Today's spending breakdown with category split
@@ -44,22 +70,33 @@ AI-powered Android expense tracking app built with **Kotlin**, **Jetpack Compose
 ```
 FlowSense/
 ├── app/src/main/java/com/smartexpense/tracker/
+│   ├── ai/                       # NEW: Tri-mode AI architecture
+│   │   ├── provider/             # AiProvider interface, CloudClaudeAiProvider, SystemAiProvider,
+│   │   │                         #   CustomLocalModelProvider, AiProviderSelector, PromptAdapter
+│   │   ├── capability/           # DeviceAiCapabilityDetector (RAM, storage, AI runtime detection)
+│   │   ├── runtime/              # LocalModelRuntime interface, SystemAiRuntimeAdapter,
+│   │   │                         #   LiteRtRuntimeAdapter, MediaPipeLlmRuntimeAdapter
+│   │   ├── modelmanager/         # LocalModelManager, ModelInstaller, ModelCompatibilityValidator,
+│   │   │                         #   ModelDownloadManager, LocalAiModel, ModelCatalog
+│   │   ├── benchmark/            # LocalAiBenchmarkRunner (latency, tokens/sec, memory)
+│   │   └── setupwizard/          # Compose setup wizard (7 screens: Intro, Compatibility,
+│   │                             #   RecommendedMode, InstallOptions, Download, Import, Ready)
 │   ├── data/
-│   │   ├── model/          # Data classes: Transaction, Category, Budget, Report, etc.
-│   │   ├── json/           # JsonStorageManager (Gson-based file I/O)
-│   │   └── repository/     # ExpenseRepository (single source of truth with StateFlow)
+│   │   ├── model/                # Data classes: Transaction, Category, Budget, Report, AiModePreference
+│   │   ├── json/                 # JsonStorageManager (Gson-based file I/O)
+│   │   └── repository/           # ExpenseRepository (single source of truth with StateFlow)
 │   ├── service/
-│   │   ├── ai/             # AiExpenseEngine (categorization, suggestions, parsing)
-│   │   ├── sms/            # SmsReceiver (BroadcastReceiver for banking SMS)
-│   │   ├── notification/   # BankingNotificationListener (NotificationListenerService)
-│   │   └── ocr/            # (ML Kit integration in ScanReceiptScreen)
+│   │   ├── ai/                   # Legacy: AiExpenseEngine, LocalAiService, MediaPipeLlmService, OllamaService
+│   │   ├── sms/                  # SmsReceiver (BroadcastReceiver for banking SMS)
+│   │   ├── notification/         # BankingNotificationListener (NotificationListenerService)
+│   │   └── ocr/                  # (ML Kit integration in ScanReceiptScreen)
 │   ├── ui/
-│   │   ├── screens/        # DashboardScreen, AddTransaction, Reports, Scanner, Settings
-│   │   ├── viewmodel/      # MainViewModel with UiState
-│   │   └── theme/          # Material 3 theme with custom green/dark palette
-│   ├── util/               # DateUtils, CurrencyUtils
-│   ├── MainActivity.kt     # Navigation host with animated transitions
-│   └── SmartExpenseApp.kt  # Application class
+│   │   ├── screens/              # DashboardScreen, AddTransaction, Reports, Scanner, Settings
+│   │   ├── viewmodel/            # MainViewModel with UiState + AI provider integration
+│   │   └── theme/                # Material 3 theme with custom green/dark palette
+│   ├── util/                     # DateUtils, CurrencyUtils
+│   ├── MainActivity.kt           # Navigation host with setup wizard route
+│   └── SmartExpenseApp.kt        # Application class
 ```
 
 ---

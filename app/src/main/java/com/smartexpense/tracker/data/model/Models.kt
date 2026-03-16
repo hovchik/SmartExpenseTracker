@@ -250,6 +250,20 @@ enum class AiEnginePreference {
 }
 
 /**
+ * High-level AI execution mode selection (new tri-mode architecture).
+ */
+enum class AiModePreference(val label: String, val description: String) {
+    /** Automatically select the best available AI engine. */
+    AUTO("Auto (recommended)", "Automatically select the best available engine"),
+    /** Use Android system AI runtimes (AICore, ML Kit GenAI). */
+    SYSTEM_AI("System AI", "Use built-in on-device AI when available"),
+    /** Use a user-installed or downloaded local model. */
+    LOCAL_MODEL("Local model", "Run a downloaded AI model on-device"),
+    /** Use Claude API in the cloud. */
+    CLOUD_AI("Cloud AI", "Use Claude AI via internet connection")
+}
+
+/**
  * Source for fetching currency exchange rates.
  */
 enum class RateSource {
@@ -392,6 +406,14 @@ data class AppSettings(
     val localAiEnabled: Boolean = false,
     /** Which on-device AI engine to use. Defaults to AUTO (best available). */
     val aiEnginePreference: AiEnginePreference = AiEnginePreference.AUTO,
+    /** High-level AI execution mode (Cloud / System / Local / Auto). */
+    val aiModePreference: AiModePreference = AiModePreference.AUTO,
+    /** Claude API key for Cloud AI mode. */
+    val claudeApiKey: String = "",
+    /** Active local model ID (from catalog or imported). */
+    val activeLocalModelId: String = "",
+    /** Whether the local AI setup wizard has been completed. */
+    val localAiSetupComplete: Boolean = false,
     /** Path to a MediaPipe-compatible model file (e.g. Gemma .task file). */
     val mediapipeModelPath: String = "",
     /** HuggingFace API token for downloading gated models (e.g. Gemma). */
