@@ -24,6 +24,24 @@ class SmsInboxScanner(private val context: Context) {
         val errorMessage: String? = null
     )
 
+    /** Returns total number of SMS messages in the inbox. */
+    fun getTotalSmsCount(): Int {
+        val uris = listOf("content://sms/inbox", "content://sms")
+        for (uriString in uris) {
+            try {
+                val cursor = context.contentResolver.query(
+                    Uri.parse(uriString), arrayOf("_id"), null, null, null
+                )
+                if (cursor != null) {
+                    val count = cursor.count
+                    cursor.close()
+                    return count
+                }
+            } catch (_: Throwable) {}
+        }
+        return 0
+    }
+
     private val financialKeywords = listOf(
         "transaction", "debit", "credit", "payment", "charged", "spent",
         "transferred", "withdrawal", "deposit", "balance", "amt", "txn",
@@ -53,7 +71,12 @@ class SmsInboxScanner(private val context: Context) {
 
     fun scanInbox(
         maxMessages: Int = 500,
-        existingTransactionNotes: Set<String> = emptySet()
+        existingTransactionNotes: Set<String> = emptySet(),
+        userCategoryNames: List<String> = emptyList(),
+        startDate: Long? = null,
+        endDate: Long? = null,
+        customIncomeKeywords: List<String> = emptyList(),
+        customExpenseKeywords: List<String> = emptyList()
     ): ScanResult {
         val aiEngine: AiExpenseEngine
         try {
@@ -67,7 +90,7 @@ class SmsInboxScanner(private val context: Context) {
         val uris = listOf("content://sms/inbox", "content://sms")
         for (uriString in uris) {
             try {
-                val result = doScan(Uri.parse(uriString), aiEngine, maxMessages, existingTransactionNotes, uriString.contains("inbox"))
+                val result = doScan(Uri.parse(uriString), aiEngine, maxMessages, existingTransactionNotes, uriString.contains("inbox"), userCategoryNames, startDate, endDate, customIncomeKeywords, customExpenseKeywords)
                 if (result != null) return result
             } catch (e: Throwable) {
                 Log.w(TAG, "Failed with $uriString: ${e.message}")
@@ -76,16 +99,58 @@ class SmsInboxScanner(private val context: Context) {
         return ScanResult(0, 0, 0, emptyList(), 1, "Could not access SMS inbox on this device.")
     }
 
+    /**
+     * Helper to detect whether a newly parsed transaction duplicates an already-
+     * collected one (same amount + same card last-4 within 10 min, or same amount
+     * within 2 min regardless of card).
+     */
+    private fun isDuplicateInBatch(
+        candidate: Transaction,
+        candidateCard: String,
+        batch: List<Transaction>,
+        batchCards: List<String>
+    ): Boolean {
+        for (i in batch.indices) {
+            val t = batch[i]
+            if (t.amount != candidate.amount) continue
+            val timeDiff = kotlin.math.abs(t.timestamp - candidate.timestamp)
+            // Strong match: same card last-4 + amount within 10 min
+            if (candidateCard.isNotEmpty() && batchCards[i] == candidateCard && timeDiff < 600_000) return true
+            // Weak match: same amount within 2 min
+            if (timeDiff < 120_000) return true
+        }
+        return false
+    }
+
     private fun doScan(
         uri: Uri, aiEngine: AiExpenseEngine, maxMessages: Int,
-        existingNotes: Set<String>, isInboxUri: Boolean
+        existingNotes: Set<String>, isInboxUri: Boolean,
+        userCategoryNames: List<String> = emptyList(),
+        startDate: Long? = null, endDate: Long? = null,
+        customIncomeKeywords: List<String> = emptyList(),
+        customExpenseKeywords: List<String> = emptyList()
     ): ScanResult? {
         val transactions = mutableListOf<Transaction>()
+        val transactionCards = mutableListOf<String>()
         var totalScanned = 0; var financialFound = 0; var errors = 0
         var cursor: Cursor? = null
 
+        // Build date range selection clause
+        val selectionParts = mutableListOf<String>()
+        val selectionArgs = mutableListOf<String>()
+        if (startDate != null) {
+            selectionParts.add("date >= ?")
+            selectionArgs.add(startDate.toString())
+        }
+        if (endDate != null) {
+            selectionParts.add("date <= ?")
+            selectionArgs.add(endDate.toString())
+        }
+        val selection = if (selectionParts.isNotEmpty()) selectionParts.joinToString(" AND ") else null
+        val selArgs = if (selectionArgs.isNotEmpty()) selectionArgs.toTypedArray() else null
+
         try {
-            cursor = context.contentResolver.query(uri, null, null, null, "date DESC")
+            cursor = context.contentResolver.query(uri, null, selection, selArgs, "date DESC")
         } catch (e: Throwable) {
             Log.w(TAG, "query() threw for $uri: ${e.message}")
             return null
@@ -119,25 +184,33 @@ class SmsInboxScanner(private val context: Context) {
                     if (!isFinancialMessage(sender, body)) continue
                     financialFound++
 
-                    val parsed = try { aiEngine.parseFinancialMessage(body) } catch (_: Throwable) { null }
+                    val parsed = try { aiEngine.parseFinancialMessage(body, customIncomeKeywords, customExpenseKeywords) } catch (_: Throwable) { null }
                         ?: continue
 
                     val noteKey = "SMS scan: $sender | $date"
                     if (existingNotes.contains(noteKey)) continue
 
                     val desc = try { parsed.description.ifEmpty { body.take(80) } } catch (_: Throwable) { body.take(80) }
-                    val cat = try { aiEngine.categorize(desc) } catch (_: Throwable) { "Other" }
+                    val cat = try { aiEngine.categorize(desc, userCategoryNames = userCategoryNames) } catch (_: Throwable) { "Other" }
 
                     // Store original parsed currency so the review screen can show it
                     // and confirmSmsScanResults() can convert if needed
+                    val cardNote = if (parsed.cardLastFour.isNotEmpty()) "\ncard:${parsed.cardLastFour}" else ""
                     val currencyNote = if (parsed.currency.isNotEmpty()) "\nparsedCurrency:${parsed.currency}" else ""
 
-                    transactions.add(Transaction(
+                    val candidate = Transaction(
                         amount = parsed.amount, description = desc, category = cat,
                         type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                         source = TransactionSource.SMS, timestamp = date,
-                        merchantName = parsed.merchantName, notes = noteKey + currencyNote
-                    ))
+                        merchantName = parsed.merchantName, notes = noteKey + cardNote + currencyNote
+                    )
+
+                    // Cross-SMS dedup: skip if another SMS in this batch already parsed
+                    // to the same amount + card within a time window
+                    if (isDuplicateInBatch(candidate, parsed.cardLastFour, transactions, transactionCards)) continue
+
+                    transactions.add(candidate)
+                    transactionCards.add(parsed.cardLastFour)
                 } catch (e: Throwable) { errors++ }
             }
         } catch (e: Throwable) { errors++ }

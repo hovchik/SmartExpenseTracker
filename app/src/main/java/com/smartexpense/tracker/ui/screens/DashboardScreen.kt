@@ -1,12 +1,15 @@
 package com.smartexpense.tracker.ui.screens
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -24,102 +27,193 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartexpense.tracker.data.model.*
+import com.smartexpense.tracker.ui.components.dragDropItem
+import com.smartexpense.tracker.ui.components.rememberDragDropListState
 import com.smartexpense.tracker.ui.theme.*
 import com.smartexpense.tracker.ui.viewmodel.UiState
 import com.smartexpense.tracker.util.CurrencyUtils
 import com.smartexpense.tracker.util.DateUtils
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DashboardScreen(
     uiState: UiState,
     weeklyChartData: List<Pair<String, Double>>,
     onDismissSuggestion: (String) -> Unit,
     onDeleteTransaction: (String) -> Unit,
-    currencyCode: String = "USD"
+    sectionOrder: List<DashboardSection>,
+    onMoveSections: (DashboardSection, DashboardSection) -> Unit,
+    currencyCode: String = "USD",
+    onNavigateToAnalyze: () -> Unit = {}
 ) {
+    val visibleSections = remember(
+        sectionOrder,
+        uiState.suggestions.isEmpty(),
+        uiState.categoryBreakdown.isEmpty()
+    ) {
+        sectionOrder.filter { section ->
+            when (section) {
+                DashboardSection.AI_INSIGHTS -> uiState.suggestions.isNotEmpty()
+                DashboardSection.CATEGORY_BREAKDOWN -> uiState.categoryBreakdown.isNotEmpty()
+                else -> true
+            }
+        }
+    }
+
+    val lazyListState = rememberLazyListState()
+    val dragDropState = rememberDragDropListState(lazyListState) { fromIndex, toIndex ->
+        if (fromIndex in visibleSections.indices && toIndex in visibleSections.indices) {
+            onMoveSections(visibleSections[fromIndex], visibleSections[toIndex])
+        }
+    }
+
     LazyColumn(
+        state = lazyListState,
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(vertical = 16.dp)
     ) {
-        item { BalanceSummaryCard(uiState, currencyCode) }
-        item { QuickStatsRow(uiState, currencyCode) }
-        item { WeeklySpendingChart(weeklyChartData, currencyCode) }
-
-        if (uiState.suggestions.isNotEmpty()) {
-            item {
-                Text(
-                    "AI Insights",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-            items(uiState.suggestions.take(3)) { suggestion ->
-                AiSuggestionCard(suggestion, currencyCode, onDismiss = { onDismissSuggestion(suggestion.id) })
-            }
-        }
-
-        if (uiState.categoryBreakdown.isNotEmpty()) {
-            item {
-                Text(
-                    "Spending by Category",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-            item { CategoryBreakdownCard(uiState.categoryBreakdown, uiState.monthlyExpenses, currencyCode) }
-        }
-
-        item {
-            Text(
-                "Recent Transactions",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
-
-        if (uiState.recentTransactions.isEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(Icons.Outlined.ReceiptLong, contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text("No transactions yet", style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(
-                            "Add one manually, scan a receipt, or enable SMS/notification tracking",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+        itemsIndexed(visibleSections, key = { _, section -> section.name }) { index, section ->
+            val isDragged = index == dragDropState.draggedIndex
+            Box(
+                modifier = Modifier
+                    .then(if (!isDragged) Modifier.animateItemPlacement() else Modifier)
+                    .dragDropItem(dragDropState, index)
+            ) {
+                when (section) {
+                    DashboardSection.BALANCE_SUMMARY ->
+                        BalanceSummaryCard(uiState, currencyCode)
+                    DashboardSection.QUICK_STATS ->
+                        QuickStatsRow(uiState, currencyCode)
+                    DashboardSection.WEEKLY_CHART ->
+                        WeeklySpendingChart(weeklyChartData, currencyCode)
+                    DashboardSection.AI_INSIGHTS ->
+                        AiInsightsSection(uiState.suggestions, currencyCode, onDismissSuggestion, onNavigateToAnalyze)
+                    DashboardSection.CATEGORY_BREAKDOWN ->
+                        CategoryBreakdownSection(
+                            uiState.categoryBreakdown, uiState.monthlyExpenses, currencyCode
                         )
-                    }
+                    DashboardSection.RECENT_TRANSACTIONS ->
+                        RecentTransactionsSection(
+                            uiState.recentTransactions, currencyCode, onDeleteTransaction
+                        )
                 }
             }
-        } else {
-            items(uiState.recentTransactions.take(10)) { transaction ->
-                TransactionItem(transaction, currencyCode, onDelete = { onDeleteTransaction(transaction.id) })
-            }
         }
-
         item { Spacer(modifier = Modifier.height(80.dp)) }
     }
 }
 
+// ── Section wrappers (group title + content into a single draggable unit) ────
+
+@Composable
+private fun AiInsightsSection(
+    suggestions: List<AiSuggestion>,
+    currencyCode: String,
+    onDismissSuggestion: (String) -> Unit,
+    onNavigateToAnalyze: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Filled.AutoAwesome,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                "AI Insights",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(onClick = onNavigateToAnalyze) {
+                Text("Analyze", fontSize = 12.sp)
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(Icons.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(14.dp))
+            }
+        }
+        suggestions.take(3).forEach { suggestion ->
+            AiSuggestionCard(
+                suggestion, currencyCode,
+                onDismiss = { onDismissSuggestion(suggestion.id) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun CategoryBreakdownSection(
+    breakdown: Map<String, Double>,
+    totalExpenses: Double,
+    currencyCode: String
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            "Spending by Category",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        CategoryBreakdownCard(breakdown, totalExpenses, currencyCode)
+    }
+}
+
+@Composable
+private fun RecentTransactionsSection(
+    transactions: List<Transaction>,
+    currencyCode: String,
+    onDeleteTransaction: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            "Recent Transactions",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        if (transactions.isEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(Icons.Outlined.ReceiptLong, contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("No transactions yet", style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "Add one manually, scan a receipt, or enable SMS/notification tracking",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            transactions.take(10).forEach { transaction ->
+                TransactionItem(
+                    transaction, currencyCode,
+                    onDelete = { onDeleteTransaction(transaction.id) }
+                )
+            }
+        }
+    }
+}
+
+// ── Individual card composables (unchanged) ──────────────────────────────────
+
 @Composable
 fun BalanceSummaryCard(uiState: UiState, currencyCode: String = "USD") {
-    var balanceHidden by remember { mutableStateOf(false) }
+    var balanceHidden by remember { mutableStateOf(true) }
     val mask = "••••••"
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -227,36 +321,53 @@ fun StatCard(
 @Composable
 fun WeeklySpendingChart(data: List<Pair<String, Double>>, currencyCode: String = "USD") {
     val sym = CurrencyUtils.symbolFor(currencyCode)
+    val todayLabel = remember { DateUtils.formatDay(System.currentTimeMillis()) }
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("This Week", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             val maxValue = data.maxOfOrNull { it.second } ?: 1.0
             Row(
-                modifier = Modifier.fillMaxWidth().height(120.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.Bottom
+                modifier = Modifier.fillMaxWidth().height(150.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 data.forEach { (day, amount) ->
+                    val isToday = day == todayLabel
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Bottom,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     ) {
+                        // Push content to the bottom so bars grow upward
+                        Spacer(modifier = Modifier.weight(1f))
                         if (amount > 0) {
-                            Text("$sym${String.format("%.0f", amount)}", fontSize = 9.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "$sym${String.format("%.0f", amount)}",
+                                fontSize = 9.sp,
+                                color = if (isToday) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                             Spacer(modifier = Modifier.height(4.dp))
                         }
-                        val height = if (maxValue > 0) (amount / maxValue * 80).coerceAtLeast(4.0) else 4.0
+                        val barHeight = if (maxValue > 0) (amount / maxValue * 100).coerceAtLeast(6.0) else 6.0
+                        val cornerDp = kotlin.math.min(6.0, barHeight / 2.0).dp
                         Box(
                             modifier = Modifier
-                                .width(28.dp).height(height.dp)
-                                .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
-                                .background(GreenPrimary.copy(alpha = if (DateUtils.isToday(System.currentTimeMillis())) 1f else 0.5f))
+                                .width(28.dp).height(barHeight.dp)
+                                .clip(RoundedCornerShape(topStart = cornerDp, topEnd = cornerDp))
+                                .background(
+                                    brush = Brush.verticalGradient(
+                                        colors = if (isToday) listOf(GreenLight, GreenPrimary)
+                                                 else listOf(GreenPrimary.copy(alpha = 0.55f), GreenPrimary.copy(alpha = 0.35f))
+                                    )
+                                )
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text(day, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            day, fontSize = 11.sp,
+                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isToday) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -266,46 +377,96 @@ fun WeeklySpendingChart(data: List<Pair<String, Double>>, currencyCode: String =
 
 @Composable
 fun AiSuggestionCard(suggestion: AiSuggestion, currencyCode: String = "USD", onDismiss: () -> Unit) {
+    val accentColor = when (suggestion.priority) {
+        SuggestionPriority.HIGH -> RedExpense
+        SuggestionPriority.MEDIUM -> OrangeWarning
+        SuggestionPriority.LOW -> BluePrimary
+    }
+
     Card(
-        modifier = Modifier.fillMaxWidth().animateContentSize(),
-        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = when (suggestion.priority) {
-                SuggestionPriority.HIGH -> RedExpense.copy(alpha = 0.1f)
-                SuggestionPriority.MEDIUM -> OrangeWarning.copy(alpha = 0.1f)
-                SuggestionPriority.LOW -> BluePrimary.copy(alpha = 0.1f)
-            }
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+            // Colored accent bar
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(accentColor, RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp))
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 4.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.AutoAwesome, contentDescription = null,
-                        tint = when (suggestion.priority) {
-                            SuggestionPriority.HIGH -> RedExpense
-                            SuggestionPriority.MEDIUM -> OrangeWarning
-                            SuggestionPriority.LOW -> BluePrimary
-                        }, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(suggestion.title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                // Title row with priority chip and dismiss
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        suggestion.title,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = accentColor.copy(alpha = 0.15f),
+                        modifier = Modifier.padding(horizontal = 6.dp)
+                    ) {
+                        Text(
+                            when (suggestion.priority) {
+                                SuggestionPriority.HIGH -> "High"
+                                SuggestionPriority.MEDIUM -> "Med"
+                                SuggestionPriority.LOW -> "Low"
+                            },
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = accentColor,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Filled.Close, contentDescription = "Dismiss",
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
-                IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Filled.Close, contentDescription = "Dismiss", modifier = Modifier.size(16.dp))
-                }
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(suggestion.description, style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (suggestion.potentialSaving > 0) {
-                Spacer(modifier = Modifier.height(8.dp))
+                // Description
                 Text(
-                    "Potential saving: ${CurrencyUtils.format(suggestion.potentialSaving, currencyCode)}/month",
-                    fontWeight = FontWeight.Medium, fontSize = 12.sp, color = GreenIncome
+                    suggestion.description,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
+                // Saving amount
+                if (suggestion.potentialSaving > 0) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Filled.TrendingDown,
+                            contentDescription = null,
+                            tint = GreenIncome,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            "Save ${CurrencyUtils.format(suggestion.potentialSaving, currencyCode)}/mo",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.sp,
+                            color = GreenIncome
+                        )
+                    }
+                }
             }
         }
     }
@@ -354,7 +515,7 @@ fun TransactionItem(
     var showDetail by remember { mutableStateOf(false) }
     val isExpense = transaction.type == TransactionType.EXPENSE
     // Show a small exchange icon when this transaction was auto-converted from another currency
-    val isConverted = transaction.notes.contains("Original:")
+    val isConverted = transaction.originalAmount > 0.0 && transaction.originalCurrencyCode.orEmpty().isNotEmpty()
     Card(
         modifier = Modifier.fillMaxWidth().clickable { showDetail = true },
         shape = RoundedCornerShape(12.dp)

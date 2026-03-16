@@ -1,0 +1,379 @@
+package com.smartexpense.tracker.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.smartexpense.tracker.service.subscription.SubscriptionPlan
+
+private val GoldLight = Color(0xFFFFD700)
+private val GoldDark = Color(0xFFFFA000)
+private val GoldGradient = Brush.linearGradient(listOf(GoldLight, GoldDark))
+
+/**
+ * Full-screen-style paywall dialog shown when a user taps a premium feature
+ * without an active subscription. Displays plan options with pricing.
+ */
+@Composable
+fun SubscriptionPaywallDialog(
+    featureName: String,
+    isTrialEligible: Boolean = false,
+    onStartTrial: () -> Unit = {},
+    onRestorePurchases: () -> Unit = {},
+    onDismiss: () -> Unit,
+    onSubscribe: (SubscriptionPlan) -> Unit
+) {
+    var selectedPlan by remember { mutableStateOf(SubscriptionPlan.ANNUAL) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(24.dp),
+        title = null,
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Premium badge
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(GoldGradient),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.WorkspacePremium,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    "Upgrade to Premium",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    "$featureName is available with FlowSense Premium.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 20.sp
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Feature highlights
+                PremiumFeatureRow(Icons.Filled.Map, "Store Map with transaction pins")
+                PremiumFeatureRow(Icons.Filled.CameraAlt, "OCR receipt scanning")
+                PremiumFeatureRow(Icons.Filled.Apps, "Banking app scanner")
+                PremiumFeatureRow(Icons.Filled.Schedule, "Salary scheduler")
+                PremiumFeatureRow(Icons.Filled.NotificationsActive, "Budget threshold alerts")
+                PremiumFeatureRow(Icons.Filled.Category, "Custom categories")
+                PremiumFeatureRow(Icons.Filled.EventRepeat, "Scheduled expenses")
+
+                // Free trial banner
+                if (isTrialEligible) {
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF4CAF50).copy(alpha = 0.1f))
+                            .border(1.dp, Color(0xFF4CAF50), RoundedCornerShape(12.dp))
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.CardGiftcard,
+                            contentDescription = null,
+                            tint = Color(0xFF4CAF50),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Try Premium free for 3 days",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF2E7D32)
+                            )
+                            Text(
+                                "Full access to all features. No charge.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF388E3C)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Button(
+                        onClick = onStartTrial,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    ) {
+                        Icon(
+                            Icons.Filled.PlayArrow,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Start 3-Day Free Trial", fontWeight = FontWeight.SemiBold)
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        HorizontalDivider(modifier = Modifier.weight(1f))
+                        Text(
+                            "  or choose a plan  ",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        HorizontalDivider(modifier = Modifier.weight(1f))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Plan selection
+                Text(
+                    "Choose your plan",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                SubscriptionPlan.entries.forEach { plan ->
+                    PlanCard(
+                        plan = plan,
+                        isSelected = selectedPlan == plan,
+                        onSelect = { selectedPlan = plan }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    "Prices shown before tax. Subscriptions auto-renew.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSubscribe(selectedPlan) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = GoldDark)
+            ) {
+                Icon(
+                    Icons.Filled.WorkspacePremium,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "Subscribe – ${selectedPlan.price}",
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        },
+        dismissButton = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Maybe Later")
+                }
+                TextButton(
+                    onClick = {
+                        onRestorePurchases()
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "Restore Purchases",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun PlanCard(
+    plan: SubscriptionPlan,
+    isSelected: Boolean,
+    onSelect: () -> Unit
+) {
+    val borderColor = if (isSelected) GoldDark else MaterialTheme.colorScheme.outlineVariant
+    val bgColor = if (isSelected) GoldDark.copy(alpha = 0.08f) else Color.Transparent
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .border(
+                width = if (isSelected) 2.dp else 1.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .background(bgColor)
+            .clickable { onSelect() }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(
+            selected = isSelected,
+            onClick = onSelect,
+            colors = RadioButtonDefaults.colors(selectedColor = GoldDark),
+            modifier = Modifier.size(20.dp)
+        )
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    plan.displayName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (plan.savingsPercent > 0) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "Save ${plan.savingsPercent}%",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(GoldDark)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+                if (plan == SubscriptionPlan.ANNUAL) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        "BEST VALUE",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFF4CAF50))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+            if (plan.perMonthPrice != null) {
+                Text(
+                    plan.perMonthPrice,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Text(
+            plan.price,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+            color = if (isSelected) GoldDark else MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+private fun PremiumFeatureRow(icon: ImageVector, text: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = GoldDark,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+/**
+ * Inline premium lock overlay shown on collapsible section headers.
+ */
+@Composable
+fun PremiumBadge() {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(GoldGradient)
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+    ) {
+        Icon(
+            Icons.Filled.Lock,
+            contentDescription = "Premium",
+            tint = Color.White,
+            modifier = Modifier.size(12.dp)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            "PRO",
+            color = Color.White,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}

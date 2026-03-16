@@ -4,29 +4,31 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
+import com.smartexpense.tracker.data.model.AiEnginePreference
 import com.smartexpense.tracker.data.model.currencyInfoFor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 /**
- * On-device AI service for Smart Expense Tracker.
+ * On-device AI service for FlowSense.
  *
  * Detects and uses the best available local AI backend on the device:
- *  1. Samsung Galaxy AI  – detected on Samsung S24+ / One UI 6.1+
- *  2. Google AICore       – detected on Pixel 8+ with AICore system service
- *  3. Google Gemini app  – detected when Gemini is installed
- *  4. Enhanced local     – always-available rule-based analysis (fallback)
+ *  1. MediaPipe LLM     – user-selected Gemma model via MediaPipe Inference API
+ *  2. Samsung Galaxy AI  – detected on Samsung S24+ / One UI 6.1+
+ *  3. Google AICore       – detected on Pixel 8+ with AICore system service
+ *  4. Google Gemini app  – detected when Gemini is installed
+ *  5. Enhanced local     – always-available rule-based analysis (fallback)
  *
- * On devices where backends 1–3 are absent, the service falls back to a
- * sophisticated template-based insight engine — no network, no model download.
- * All categorisation is delegated to [AiExpenseEngine] (multi-pass rule engine).
+ * The user can override auto-detection via [AiEnginePreference] in settings.
  */
 class LocalAiService(private val appContext: Context) {
 
     // ── Detected backend ──────────────────────────────────────────────────
 
     enum class AiBackend {
+        MEDIAPIPE_LLM,      // MediaPipe on-device LLM (Gemma model)
+        OLLAMA,             // Ollama local LLM server
         SAMSUNG_GALAXY_AI,  // Samsung Galaxy AI service (S24+, One UI 6.1+)
         GOOGLE_AI_CORE,     // Google AICore system service (Pixel 8+)
         GOOGLE_GEMINI_APP,  // Google Gemini app installed on device
@@ -58,20 +60,52 @@ class LocalAiService(private val appContext: Context) {
 
     @Volatile private var availabilityChecked = false
 
+    /** MediaPipe on-device LLM service — lazily initialized. */
+    val mediaPipeLlm = MediaPipeLlmService(appContext)
+
+    /** Ollama local LLM server client. */
+    val ollamaService = OllamaService()
+
     // ── Public API ────────────────────────────────────────────────────────
 
     /**
      * Detects the best available AI backend and caches the result.
+     * If [preference] is not AUTO, forces that backend.
      * Always returns true — enhanced local analysis is always available.
      */
-    suspend fun checkAvailability(): Boolean = withContext(Dispatchers.IO) {
+    suspend fun checkAvailability(
+        preference: AiEnginePreference = AiEnginePreference.AUTO
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (preference != AiEnginePreference.AUTO) {
+            backend = when (preference) {
+                AiEnginePreference.MEDIAPIPE_LLM -> AiBackend.MEDIAPIPE_LLM
+                AiEnginePreference.OLLAMA -> AiBackend.OLLAMA
+                AiEnginePreference.GEMINI_NANO -> {
+                    when {
+                        SAMSUNG_AI_PACKAGES.any { isPackageInstalled(it) } -> AiBackend.SAMSUNG_GALAXY_AI
+                        isPackageInstalled("com.google.android.aicore") -> AiBackend.GOOGLE_AI_CORE
+                        isPackageInstalled("com.google.android.apps.bard") -> AiBackend.GOOGLE_GEMINI_APP
+                        else -> AiBackend.ENHANCED_LOCAL
+                    }
+                }
+                AiEnginePreference.RULE_BASED -> AiBackend.ENHANCED_LOCAL
+                AiEnginePreference.AUTO -> AiBackend.ENHANCED_LOCAL // unreachable
+            }
+            availabilityChecked = true
+            Log.i(TAG, "AI backend forced to: $backend (preference: $preference)")
+            return@withContext true
+        }
+
         if (availabilityChecked) return@withContext true
 
+        // Auto-detection: prefer Ollama/MediaPipe if ready, then platform-specific
         backend = when {
+            ollamaService.isReady -> AiBackend.OLLAMA
+            mediaPipeLlm.isReady -> AiBackend.MEDIAPIPE_LLM
             SAMSUNG_AI_PACKAGES.any { isPackageInstalled(it) } -> AiBackend.SAMSUNG_GALAXY_AI
-            isPackageInstalled("com.google.android.aicore")     -> AiBackend.GOOGLE_AI_CORE
-            isPackageInstalled("com.google.android.apps.bard")  -> AiBackend.GOOGLE_GEMINI_APP
-            else                                                 -> AiBackend.ENHANCED_LOCAL
+            isPackageInstalled("com.google.android.aicore") -> AiBackend.GOOGLE_AI_CORE
+            isPackageInstalled("com.google.android.apps.bard") -> AiBackend.GOOGLE_GEMINI_APP
+            else -> AiBackend.ENHANCED_LOCAL
         }
 
         availabilityChecked = true
@@ -79,53 +113,106 @@ class LocalAiService(private val appContext: Context) {
         true
     }
 
+    /**
+     * Re-runs detection without using cached result.
+     */
+    suspend fun recheckAvailability(
+        preference: AiEnginePreference = AiEnginePreference.AUTO
+    ): Boolean {
+        availabilityChecked = false
+        return checkAvailability(preference)
+    }
+
     /** Human-readable status for display in the Settings screen. */
     fun statusMessage(): String = when (backend) {
+        AiBackend.OLLAMA -> ollamaService.statusMessage()
+        AiBackend.MEDIAPIPE_LLM ->
+            if (mediaPipeLlm.isReady) "MediaPipe LLM active \u2014 ${mediaPipeLlm.modelName}"
+            else "MediaPipe LLM selected \u2014 no model loaded"
         AiBackend.SAMSUNG_GALAXY_AI ->
-            "Samsung Galaxy AI detected — enhanced on-device analysis active"
+            "Samsung Galaxy AI detected \u2014 enhanced on-device analysis active"
         AiBackend.GOOGLE_AI_CORE ->
-            "Google AICore detected — on-device analysis active"
+            "Google AICore detected \u2014 on-device analysis active"
         AiBackend.GOOGLE_GEMINI_APP ->
-            "Google Gemini installed — AI-assisted analysis active"
+            "Google Gemini installed \u2014 AI-assisted analysis active"
         AiBackend.ENHANCED_LOCAL ->
             "Enhanced local analysis active (no on-device AI found)"
     }
 
     /**
      * Returns a human-readable suggestion for enabling a better AI when
-     * the current backend is only the basic local engine. Returns null if
-     * the current backend is already optimal.
+     * the current backend is only the basic local engine.
      */
     fun alternativeSuggestion(): String? {
         if (backend != AiBackend.ENHANCED_LOCAL) return null
         val isSamsung = Build.MANUFACTURER.equals("Samsung", ignoreCase = true)
         return when {
             isSamsung ->
-                "Samsung Galaxy AI was not detected. Enable it in: Settings → Advanced features → Galaxy AI"
-            !isPackageInstalled("com.google.android.apps.bard") ->
-                "Install the Google Gemini app to enable richer AI-powered insights on this device"
+                "Try Ollama for on-device AI, or enable Samsung Galaxy AI in: Settings \u2192 Advanced features \u2192 Galaxy AI"
             else ->
-                "No on-device AI service found. The app will use enhanced local analysis."
+                "Install Ollama on your device or local network for AI-powered insights. Select the Ollama engine above to configure."
         }
+    }
+
+    /**
+     * Returns descriptions for each engine option for the settings selector.
+     */
+    fun engineDescriptions(): Map<AiEnginePreference, String> {
+        val descriptions = mutableMapOf<AiEnginePreference, String>()
+        descriptions[AiEnginePreference.AUTO] = "Automatically detect best available engine"
+        descriptions[AiEnginePreference.RULE_BASED] = "Fast, no model needed \u2014 works everywhere"
+
+        val ollamaStatus = when {
+            ollamaService.isReady -> "Connected \u2014 ${ollamaService.modelName}"
+            ollamaService.errorMessage != null -> ollamaService.errorMessage!!
+            else -> "Configure server address and select a model"
+        }
+        descriptions[AiEnginePreference.OLLAMA] = ollamaStatus
+
+        val geminiStatus = when {
+            SAMSUNG_AI_PACKAGES.any { isPackageInstalled(it) } -> "Samsung Galaxy AI available"
+            isPackageInstalled("com.google.android.aicore") -> "Google AICore available"
+            isPackageInstalled("com.google.android.apps.bard") -> "Google Gemini available"
+            else -> "Not detected on this device"
+        }
+        descriptions[AiEnginePreference.GEMINI_NANO] = geminiStatus
+
+        val mediapipeStatus = when {
+            mediaPipeLlm.isReady -> "Active \u2014 ${mediaPipeLlm.modelName}"
+            mediaPipeLlm.isGalleryInstalled() -> "Gallery installed \u2014 select a model"
+            else -> "Import a .task model file"
+        }
+        descriptions[AiEnginePreference.MEDIAPIPE_LLM] = mediapipeStatus
+
+        return descriptions
     }
 
     /** Shared engine used for AI-powered categorisation when local AI is enabled. */
     private val aiEngine = AiExpenseEngine()
 
     /**
-     * AI-powered categorisation that uses merchant knowledge + multi-pass
-     * rule engine. When local AI is enabled, this returns the best category
-     * (possibly a new one not yet in [availableCategories]), allowing the
-     * caller to auto-create it. Returns null only if it cannot determine any
-     * category at all (should not happen with AiExpenseEngine).
+     * AI-powered categorisation. When MediaPipe LLM is the active backend
+     * and a model is loaded, uses on-device LLM. Otherwise falls back to
+     * the multi-pass rule engine.
      */
     suspend fun categorize(
         description: String,
         availableCategories: List<String>,
-        isExpense: Boolean = true
+        isExpense: Boolean = true,
+        userCategoryNames: List<String> = emptyList()
     ): String? = withContext(Dispatchers.Default) {
         try {
-            aiEngine.categorize(description, isExpense)
+            if (backend == AiBackend.OLLAMA && ollamaService.isReady) {
+                return@withContext ollamaService.categorize(
+                    description, availableCategories, isExpense, userCategoryNames
+                )
+            }
+            if (backend == AiBackend.MEDIAPIPE_LLM && mediaPipeLlm.isReady) {
+                return@withContext mediaPipeLlm.categorize(
+                    description, availableCategories, isExpense, userCategoryNames
+                )
+            }
+            aiEngine.categorize(description, isExpense, userCategoryNames)
         } catch (e: Exception) {
             Log.w(TAG, "AI categorize failed: ${e.message}")
             null
@@ -133,9 +220,9 @@ class LocalAiService(private val appContext: Context) {
     }
 
     /**
-     * Generates a concise, actionable financial insight using smart templates.
-     * No model required — analysis is computed from the supplied statistics.
-     * Returns null only if all inputs are zero.
+     * Generates a concise, actionable financial insight.
+     * When MediaPipe LLM is active, uses the LLM for richer insights.
+     * Otherwise uses smart templates.
      */
     suspend fun generateInsight(
         totalExpenses: Double,
@@ -146,6 +233,23 @@ class LocalAiService(private val appContext: Context) {
         currencyCode: String = "USD"
     ): String? = withContext(Dispatchers.Default) {
         try {
+            // Try Ollama first, then MediaPipe LLM
+            if (backend == AiBackend.OLLAMA && ollamaService.isReady) {
+                val insight = ollamaService.generateInsight(
+                    totalExpenses, totalIncome, topCategory,
+                    topCategoryAmount, transactionCount, currencyCode
+                )
+                if (insight != null) return@withContext insight
+            }
+            if (backend == AiBackend.MEDIAPIPE_LLM && mediaPipeLlm.isReady) {
+                val llmInsight = mediaPipeLlm.generateInsight(
+                    totalExpenses, totalIncome, topCategory,
+                    topCategoryAmount, transactionCount, currencyCode
+                )
+                if (llmInsight != null) return@withContext llmInsight
+            }
+
+            // Fall back to template-based insights
             val sym = currencyInfoFor(currencyCode).symbol
             val insights = mutableListOf<String>()
 

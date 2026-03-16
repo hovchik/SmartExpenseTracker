@@ -11,10 +11,19 @@ import java.util.UUID
 private val isoDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
 
 /**
+ * GPS coordinates captured at the moment a transaction is created.
+ */
+data class GeoLocation(
+    val lat: Double,
+    val lng: Double
+)
+
+/**
  * Represents a single financial transaction (expense or income).
  */
 data class Transaction(
     val id: String = UUID.randomUUID().toString(),
+    /** Amount in the app's main currency (e.g. AMD). For foreign-currency transactions this is the converted value. */
     val amount: Double,
     val description: String,
     val category: String,
@@ -26,8 +35,32 @@ data class Transaction(
     val tags: List<String> = emptyList(),
     val notes: String = "",
     val merchantName: String = "",
-    val isRecurring: Boolean = false
-)
+    val isRecurring: Boolean = false,
+    /** Device GPS location captured at transaction time; null if unavailable. */
+    val location: GeoLocation? = null,
+    // Legacy fields kept for backward-compatible JSON deserialization; prefer [location].
+    @Deprecated("Use location.lat", ReplaceWith("location?.lat"))
+    val latitude: Double? = null,
+    @Deprecated("Use location.lng", ReplaceWith("location?.lng"))
+    val longitude: Double? = null,
+    /** ISO-4217 currency code the [amount] is denominated in. Empty = app default at time of creation. */
+    val currencyCode: String = "",
+    /** Original amount in the foreign currency before conversion. 0.0 = no conversion was applied. */
+    val originalAmount: Double = 0.0,
+    /** ISO-4217 code of the original foreign currency (e.g. "USD", "RUB"). Empty = same as app currency. */
+    val originalCurrencyCode: String = "",
+    /** Exchange rate used at conversion time: 1 [originalCurrencyCode] = [exchangeRate] [currencyCode]. */
+    val exchangeRate: Double = 0.0
+) {
+    /** Resolved latitude: prefers [location], falls back to legacy [latitude] field. */
+    val resolvedLat: Double? get() = location?.lat ?: @Suppress("DEPRECATION") latitude
+
+    /** Resolved longitude: prefers [location], falls back to legacy [longitude] field. */
+    val resolvedLng: Double? get() = location?.lng ?: @Suppress("DEPRECATION") longitude
+
+    /** True when this transaction carries a GPS fix. */
+    val hasLocation: Boolean get() = resolvedLat != null && resolvedLng != null
+}
 
 enum class TransactionType {
     EXPENSE, INCOME
@@ -143,7 +176,7 @@ data class ExpenseReport(
 )
 
 enum class ReportPeriod {
-    DAILY, WEEKLY, MONTHLY
+    DAILY, WEEKLY, MONTHLY, CUSTOM
 }
 
 /**
@@ -182,6 +215,11 @@ data class AppData(
     val budgets: List<Budget> = emptyList(),
     val suggestions: List<AiSuggestion> = emptyList(),
     val inAppNotifications: List<InAppNotification> = emptyList(),
+    val storeLocations: List<StoreLocation> = emptyList(),
+    /** Saved OCR scan sections (receipts with items and costs). */
+    val ocrSections: List<OcrSection> = emptyList(),
+    /** Exchange rates: current (index 0) and previous (index 1). Max 2 entries. */
+    val rateHistory: List<RateHistoryEntry> = emptyList(),
     val settings: AppSettings = AppSettings(),
     val lastUpdated: Long = System.currentTimeMillis()
 )
@@ -195,21 +233,177 @@ enum class ThemeMode {
     DARK     // Always dark
 }
 
+/**
+ * Which on-device AI engine to use for categorization and insights.
+ */
+enum class AiEnginePreference {
+    /** Automatically detect the best available engine. */
+    AUTO,
+    /** Pure rule-based engine (always available, no model download). */
+    RULE_BASED,
+    /** Gemini Nano via Google AICore or Samsung Galaxy AI. */
+    GEMINI_NANO,
+    /** MediaPipe LLM Inference with a downloaded model. */
+    MEDIAPIPE_LLM,
+    /** Ollama – on-device or local-network LLM server. */
+    OLLAMA
+}
+
+/**
+ * Source for fetching currency exchange rates.
+ */
+enum class RateSource {
+    /** Open Exchange Rate APIs (open.er-api.com / exchangerate-api.com). */
+    OPEN_API,
+    /** rate.am – Armenian bank exchange rates (AMD-centric). */
+    RATE_AM
+}
+
+/**
+ * How often to automatically refresh exchange rates.
+ */
+enum class RateUpdateFrequency(val minutes: Int, val label: String) {
+    EVERY_30_MIN(30, "Every 30 min"),
+    EVERY_HOUR(60, "Every hour"),
+    EVERY_3_HOURS(180, "Every 3 hours"),
+    EVERY_6_HOURS(360, "Every 6 hours"),
+    DAILY(1440, "Once a day"),
+    MANUAL(0, "Manual only")
+}
+
+/**
+ * A snapshot of exchange rates at a specific point in time.
+ * [AppData.rateHistory] keeps at most 2 entries: current (index 0)
+ * and previous (index 1).
+ */
+data class RateHistoryEntry(
+    /** Timestamp when rates were fetched. */
+    val timestamp: Long = System.currentTimeMillis(),
+    /** Which source was used (OPEN_API / RATE_AM). */
+    val source: String = "",
+    /** USD-based rate map, e.g. {"AMD" → 388.5, "EUR" → 0.92, …}. */
+    val rates: Map<String, Double> = emptyMap()
+)
+
+/**
+ * Dashboard sections that can be reordered via drag-and-drop.
+ */
+enum class DashboardSection {
+    BALANCE_SUMMARY,
+    QUICK_STATS,
+    WEEKLY_CHART,
+    AI_INSIGHTS,
+    CATEGORY_BREAKDOWN,
+    RECENT_TRANSACTIONS
+}
+
+/**
+ * A store/merchant location pinned on the map.
+ * Links a merchant name to geographic coordinates so the Store Map screen
+ * can show where shopping happens and aggregate transactions per location.
+ */
+data class StoreLocation(
+    val id: String = UUID.randomUUID().toString(),
+    val merchantName: String,
+    val latitude: Double,
+    val longitude: Double,
+    val address: String = ""
+)
+
+// ─── OCR Scan Session & Sections ────────────────────────────────
+
+/**
+ * A single item detected by OCR on a receipt: name + price.
+ */
+data class OcrItem(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val price: Double,
+    /** Optional category for this item (auto-detected or user-assigned). */
+    val category: String = ""
+)
+
+/**
+ * A section groups OCR-scanned items from a single receipt scan.
+ * Think of it as one scanned receipt stored for future reference and reporting.
+ */
+data class OcrSection(
+    val id: String = UUID.randomUUID().toString(),
+    /** Label the user gives to this section (e.g. "Grocery 03/09", "Restaurant dinner"). */
+    val label: String = "",
+    /** Merchant name detected from the receipt. */
+    val merchantName: String = "Unknown",
+    /** ISO-4217 currency code for this scan. */
+    val currencyCode: String = "AMD",
+    /** Items scanned from the receipt. */
+    val items: List<OcrItem> = emptyList(),
+    /** Total amount (may differ from sum of items if receipt has tax/discount). */
+    val totalAmount: Double = 0.0,
+    /** Detected language(s) used during OCR (e.g. "Armenian, Russian"). */
+    val detectedLanguages: String = "",
+    /** Raw OCR text preserved for debugging / re-parsing. */
+    val rawOcrText: String = "",
+    /** Timestamp when the scan was performed. */
+    val timestamp: Long = System.currentTimeMillis(),
+    /** Optional notes from the user. */
+    val notes: String = ""
+) {
+    /** Computed sum of item prices. */
+    val itemsTotal: Double get() = items.sumOf { it.price }
+}
+
+/**
+ * Aggregated info for a single item across multiple receipts — used in goods reports.
+ * Example: "Cheese" bought 3 times totalling 2000 AMD.
+ */
+data class GoodsReportItem(
+    val name: String,
+    val count: Int,
+    val totalSpent: Double,
+    val category: String = ""
+)
+
+/**
+ * A recurring expense (e.g. loan payment, subscription) that fires a reminder
+ * notification on the last working day (Mon–Fri) before the payment day.
+ */
+data class ScheduledExpense(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String = "",
+    val amount: Double = 0.0,
+    /** Day-of-month (1–31) when the payment is due. */
+    val dayOfMonth: Int = 1,
+    val enabled: Boolean = true
+)
+
 data class AppSettings(
     /** Legacy single-char symbol kept for backward-compat. Use currencyCode instead. */
-    val currency: String = "$",
+    val currency: String = "֏",
     /** ISO-4217 currency code (e.g. "USD", "AMD"). Drives all formatting and OCR parsing. */
-    val currencyCode: String = "USD",
+    val currencyCode: String = "AMD",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val notificationListenerEnabled: Boolean = false,
     val smsParsingEnabled: Boolean = false,
     val autoCategorizationEnabled: Boolean = true,
     /**
-     * When true, the app will attempt to use Gemini Nano (on-device AI via Android AICore)
-     * for categorization and report insights. Falls back silently to rule-based logic on
-     * devices that do not support it (requires Pixel 8+ or Samsung Galaxy S24+ with Android 14+).
+     * When true, the app will attempt to use the selected AI engine
+     * for categorization and report insights.
      */
     val localAiEnabled: Boolean = false,
+    /** Which on-device AI engine to use. Defaults to AUTO (best available). */
+    val aiEnginePreference: AiEnginePreference = AiEnginePreference.AUTO,
+    /** Path to a MediaPipe-compatible model file (e.g. Gemma .task file). */
+    val mediapipeModelPath: String = "",
+    /** HuggingFace API token for downloading gated models (e.g. Gemma). */
+    val huggingFaceToken: String = "",
+    /** Ollama server base URL (e.g. "http://localhost:11434"). */
+    val ollamaHost: String = "http://localhost:11434",
+    /** Selected Ollama model name (e.g. "llama3.2:1b", "gemma2:2b"). */
+    val ollamaModel: String = "",
+    /** Source for currency exchange rates. */
+    val rateSource: RateSource = RateSource.OPEN_API,
+    /** Keywords used when scanning for banking/payment apps on the device. */
+    val scanKeywords: List<String> = listOf("bank", "payment", "wallet"),
     val bankingAppPackages: List<String> = listOf(
         "com.chase.sig.android",
         "com.wf.wellsfargomobile",
@@ -223,6 +417,28 @@ data class AppSettings(
         "com.squareup.cash",
         "com.zellepay.zelle"
     ),
+    // ── Transaction type detection keywords ────────────────────────
+    /** Keywords in notification/SMS text that indicate an income transaction. */
+    val incomeKeywords: List<String> = listOf(
+        "credit account", "credited", "received", "deposit", "refund",
+        "cashback", "transfer to your", "added to", "reversed",
+        "salary", "income", "reward",
+        // Armenian: mutq (deposit), licqavorum (top-up), hamalrum (replenishment)
+        "\u0574\u0578\u0582\u057F\u0584", "\u056C\u056B\u0581\u0584\u0561\u057E\u0578\u0580\u0578\u0582\u0574", "\u0570\u0561\u0574\u0561\u056C\u0580\u0578\u0582\u0574",
+        // Russian (CIS banks)
+        "зачисление", "пополнение"
+    ),
+    /** Keywords in notification/SMS text that indicate an expense transaction. */
+    val expenseKeywords: List<String> = listOf(
+        "purchase", "atm cash", "atm", "mail order", "pos",
+        "charged", "debited", "spent", "paid", "withdrawal",
+        "sent", "debit", "withdrawn", "payment of", "used at",
+        "debit account", "e-commerce", "online purchase",
+        // Armenian: elq (outgoing/expense)
+        "\u0565\u056C\u0584",
+        // Russian (CIS banks)
+        "списание", "оплата", "покупка", "снятие"
+    ),
     // ── Monthly expense threshold ───────────────────────────────────
     /** 0 = disabled. When monthly expenses exceed this, a system notification is posted. */
     val monthlyExpenseLimit: Double = 0.0,
@@ -233,7 +449,16 @@ data class AppSettings(
     val scheduledSalaryAmount: Double = 0.0,
     /** Day-of-month (1–31) to add the salary transaction automatically each month. */
     val scheduledSalaryDayOfMonth: Int = 1,
-    val scheduledSalaryDescription: String = "Monthly Salary"
+    val scheduledSalaryDescription: String = "Monthly Salary",
+    /** Persisted order of dashboard sections (stored as enum names). Empty = default order. */
+    val dashboardSectionOrder: List<String> = emptyList(),
+    // ── Scheduled expenses (loans, subscriptions) ─────────────────
+    val scheduledExpenses: List<ScheduledExpense> = emptyList(),
+    // ── Exchange rate update frequency ─────────────────────────────
+    /** How often to auto-refresh exchange rates. */
+    val rateUpdateFrequency: RateUpdateFrequency = RateUpdateFrequency.EVERY_HOUR,
+    /** Timestamp of the last successful rate fetch (epoch millis). 0 = never. */
+    val lastRateUpdateTimestamp: Long = 0
 )
 
 fun defaultCategories(): List<Category> = listOf(

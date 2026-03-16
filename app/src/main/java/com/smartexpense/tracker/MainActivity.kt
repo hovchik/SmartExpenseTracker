@@ -1,5 +1,6 @@
 package com.smartexpense.tracker
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,9 +17,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.smartexpense.tracker.ui.components.SubscriptionPaywallDialog
 import com.smartexpense.tracker.ui.screens.*
 import com.smartexpense.tracker.ui.theme.SmartExpenseTheme
 import com.smartexpense.tracker.ui.viewmodel.MainViewModel
+import com.smartexpense.tracker.service.subscription.SubscriptionPlan
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -29,7 +32,7 @@ class MainActivity : ComponentActivity() {
             val viewModel: MainViewModel = viewModel()
             val themeMode by viewModel.themeMode.collectAsState()
             SmartExpenseTheme(themeMode = themeMode) {
-                MainApp(viewModel = viewModel)
+                MainApp(viewModel = viewModel, activity = this@MainActivity)
             }
         }
     }
@@ -37,18 +40,50 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainApp(viewModel: MainViewModel) {
+fun MainApp(viewModel: MainViewModel, activity: Activity) {
     val uiState by viewModel.uiState.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
     val reportPeriod by viewModel.reportPeriod.collectAsState()
     val importExportMessage by viewModel.importExportMessage.collectAsState()
     val smsScanState by viewModel.smsScanState.collectAsState()
+    val totalSmsCount by viewModel.totalSmsCount.collectAsState()
     val exchangeRates by viewModel.exchangeRates.collectAsState()
     val inAppNotifications by viewModel.inAppNotifications.collectAsState()
     val unreadCount by viewModel.unreadNotificationCount.collectAsState()
     val localAiStatus by viewModel.localAiStatus.collectAsState()
     val localAiSuggestion by viewModel.localAiSuggestion.collectAsState()
+    val discoveredBankingApps by viewModel.discoveredBankingApps.collectAsState()
+    val isScanningBankingApps by viewModel.isScanningBankingApps.collectAsState()
+    val allInstalledApps by viewModel.allInstalledApps.collectAsState()
+    val ocrParsedData by viewModel.ocrParsedData.collectAsState()
+    val ocrSections by viewModel.ocrSections.collectAsState()
+    val engineDescriptions by viewModel.engineDescriptions.collectAsState()
+    val discoveredModels by viewModel.discoveredModels.collectAsState()
+    val isLoadingModel by viewModel.isLoadingModel.collectAsState()
+    val isDownloadingModel by viewModel.isDownloadingModel.collectAsState()
+    val downloadProgress by viewModel.downloadProgress.collectAsState()
+    val downloadError by viewModel.downloadError.collectAsState()
+    val modelImportMessage by viewModel.modelImportMessage.collectAsState()
+    val ollamaModels by viewModel.ollamaModels.collectAsState()
+    val ollamaConnecting by viewModel.ollamaConnecting.collectAsState()
+    val dashboardSectionOrder by viewModel.dashboardSectionOrder.collectAsState()
+    val storeLocations by viewModel.storeLocations.collectAsState()
+    val isSubscribed by viewModel.isSubscribed.collectAsState()
+    val billingError by viewModel.subscriptionManager.billingError.collectAsState()
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Show billing errors/confirmations via Snackbar
+    LaunchedEffect(billingError) {
+        billingError?.let { msg ->
+            snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short)
+            viewModel.subscriptionManager.clearBillingError()
+        }
+    }
+
+    // Paywall dialog state
+    var showPaywall by remember { mutableStateOf(false) }
+    var paywallFeatureName by remember { mutableStateOf("") }
 
     // Shortcut to always-up-to-date currency code
     val currencyCode = uiState.settings.currencyCode
@@ -60,36 +95,60 @@ fun MainApp(viewModel: MainViewModel) {
     // are handled explicitly in the when-branch below.
     BackHandler(enabled = currentScreen != "dashboard") {
         when (currentScreen) {
-            "sms_scan" -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
-            else       -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+            "sms_scan"      -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
+            "store_map"     -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+            "ocr_sections"  -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+            else            -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
         }
     }
 
-    // Hide the top bar on full-screen sub-screens
-    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan")
+    // Hide the top bar on full-screen sub-screens (they have their own top bar)
+    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ocr_sections")
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             if (showTopBar) {
                 TopAppBar(
                     title = {
                         Text(
                             when (currentScreen) {
-                                "dashboard"    -> "Smart Expense"
+                                "dashboard"    -> "FlowSense"
                                 "reports"      -> "Reports"
                                 "transactions" -> "Transactions"
                                 "settings"     -> "Settings"
-                                else           -> "Smart Expense"
+                                else           -> "FlowSense"
                             },
                             fontWeight = FontWeight.Bold
                         )
                     },
                     actions = {
+                        IconButton(onClick = {
+                            if (isSubscribed) {
+                                currentScreen = "store_map"
+                            } else {
+                                paywallFeatureName = "Store Map"
+                                showPaywall = true
+                            }
+                        }) {
+                            Icon(Icons.Filled.Map, contentDescription = "Store Map")
+                        }
+                        IconButton(onClick = {
+                            if (isSubscribed) {
+                                currentScreen = "ocr_sections"
+                            } else {
+                                paywallFeatureName = "Scanned Sections"
+                                showPaywall = true
+                            }
+                        }) {
+                            Icon(Icons.Filled.Inventory2, contentDescription = "Scanned Sections")
+                        }
                         NotificationBell(
                             notifications  = inAppNotifications,
                             unreadCount    = unreadCount,
                             onMarkRead     = { viewModel.markNotificationRead(it) },
                             onMarkAllRead  = { viewModel.markAllNotificationsRead() },
+                            onDelete       = { viewModel.deleteNotification(it) },
                             onClearAll     = { viewModel.clearAllInAppNotifications() }
                         )
                     }
@@ -97,7 +156,7 @@ fun MainApp(viewModel: MainViewModel) {
             }
         },
         bottomBar = {
-            if (currentScreen != "add" && currentScreen != "scan" && currentScreen != "sms_scan") {
+            if (currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ocr_sections")) {
                 NavigationBar(tonalElevation = 2.dp) {
                     // Home
                     NavigationBarItem(
@@ -146,12 +205,18 @@ fun MainApp(viewModel: MainViewModel) {
                         weeklyChartData = viewModel.getWeeklyChartData(),
                         onDismissSuggestion = { viewModel.dismissSuggestion(it) },
                         onDeleteTransaction = { viewModel.deleteTransaction(it) },
-                        currencyCode = currencyCode
+                        sectionOrder = dashboardSectionOrder,
+                        onMoveSections = { from, to -> viewModel.moveDashboardSection(from, to) },
+                        currencyCode = currencyCode,
+                        onNavigateToAnalyze = { currentScreen = "ai_analyze" }
                     )
                     "reports" -> ReportsScreen(
                         generateReport = { viewModel.generateReport(it) },
                         generateMonthlyReport = { year, month ->
                             viewModel.generateReportForMonth(year, month)
+                        },
+                        generateCustomReport = { startMillis, endMillis ->
+                            viewModel.generateReportForRange(startMillis, endMillis)
                         },
                         currentPeriod = reportPeriod,
                         onPeriodChange = { viewModel.setReportPeriod(it) },
@@ -165,7 +230,14 @@ fun MainApp(viewModel: MainViewModel) {
                                 category = category, type = type, source = source,
                                 merchantName = merchant, notes = notes, timestamp = timestamp)
                         },
-                        onScanReceipt = { currentScreen = "scan" },
+                        onScanReceipt = {
+                            if (isSubscribed) {
+                                currentScreen = "scan"
+                            } else {
+                                paywallFeatureName = "OCR Receipt Scanner"
+                                showPaywall = true
+                            }
+                        },
                         onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) },
                         currencyCode = currencyCode
                     )
@@ -175,22 +247,80 @@ fun MainApp(viewModel: MainViewModel) {
                         onDeleteTransaction = { viewModel.deleteTransaction(it) }
                     )
                     "scan" -> ScanReceiptScreen(
-                        onOcrResult = { text -> viewModel.processOcrText(text) },
-                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) },
+                        onOcrResult = { text, qrData -> viewModel.processOcrText(text, qrData) },
+                        onConfirmOcr = { amount, merchant, category ->
+                            viewModel.confirmOcrTransaction(amount, merchant, category)
+                        },
+                        onClearOcr = { viewModel.clearOcrData() },
+                        onSaveToSection = { label, merchant, items, total, raw, langs ->
+                            viewModel.saveOcrSection(
+                                label = label, merchantName = merchant,
+                                items = items, totalAmount = total,
+                                rawOcrText = raw, detectedLanguages = langs
+                            )
+                        },
+                        ocrParsedData = ocrParsedData,
+                        categories = uiState.categories.map { it.name },
+                        onNavigateBack = {
+                            viewModel.clearOcrData()
+                            currentScreen = "dashboard"
+                            viewModel.setSelectedTab(0)
+                        },
+                        onNavigateToSections = { currentScreen = "ocr_sections" },
                         lastResult = uiState.lastOcrResult
+                    )
+                    "ocr_sections" -> OcrSectionsScreen(
+                        sections = ocrSections,
+                        onDeleteSection = { viewModel.deleteOcrSection(it) },
+                        onUpdateSection = { viewModel.updateOcrSection(it) },
+                        onClearAll = { viewModel.clearAllOcrSections() },
+                        onGenerateReport = { since -> viewModel.generateOcrSectionsReport(since) },
+                        onGetGoodsReportItems = { since -> viewModel.getGoodsReportItems(since) },
+                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) },
+                        onNavigateToScan = { currentScreen = "scan" }
                     )
                     "sms_scan" -> SmsScanScreen(
                         scanState = smsScanState,
-                        onStartScan = { viewModel.startSmsScan() },
+                        totalSmsCount = totalSmsCount,
+                        onLoadSmsCount = { viewModel.loadTotalSmsCount() },
+                        onStartScan = { maxMessages, startDate, endDate ->
+                            viewModel.startSmsScan(maxMessages, startDate, endDate)
+                        },
                         onConfirmAll = { viewModel.confirmSmsScanResults() },
                         onDiscard = { id -> viewModel.discardSmsScanResult(id) },
                         onReset = { viewModel.resetSmsScanState() },
                         onNavigateBack = { currentScreen = "settings"; viewModel.setSelectedTab(3) },
                         currencyCode = currencyCode
                     )
+                    "store_map" -> StoreMapScreen(
+                        storeLocations = storeLocations,
+                        allTransactions = uiState.allTransactions,
+                        currencyCode = currencyCode,
+                        onAddStoreLocation = { name, lat, lng, addr ->
+                            viewModel.addStoreLocation(name, lat, lng, addr)
+                        },
+                        onDeleteStoreLocation = { id -> viewModel.deleteStoreLocation(id) },
+                        onUpdateStoreLocation = { store -> viewModel.updateStoreLocation(store) },
+                        onClearAllStoreLocations = { viewModel.clearAllStoreLocations() },
+                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+                    )
+                    "ai_analyze" -> AiAnalyzeScreen(
+                        categories = uiState.categories,
+                        currencyCode = currencyCode,
+                        onAnalyze = { start, end, cat -> viewModel.analyzeTransactions(start, end, cat) },
+                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+                    )
                     "settings" -> SettingsScreen(
                         settings = uiState.settings,
                         storageInfo = viewModel.getStorageInfoText(),
+                        isSubscribed = isSubscribed,
+                        isTrialActive = viewModel.subscriptionManager.isTrialActive.collectAsState().value,
+                        activePlanName = viewModel.subscriptionManager.activePlan.collectAsState().value?.displayName,
+                        onShowPaywall = { feature ->
+                            paywallFeatureName = feature
+                            showPaywall = true
+                        },
+                        onRestorePurchases = { viewModel.subscriptionManager.restorePurchases() },
                         onUpdateSettings = { s -> viewModel.updateSettings(s) },
                         onExportToUri = { uri -> viewModel.exportDataToUri(uri) },
                         onImportFromUri = { uri -> viewModel.importDataFromUri(uri) },
@@ -209,10 +339,61 @@ fun MainApp(viewModel: MainViewModel) {
                         onSetMonthlyLimit = { limit -> viewModel.setMonthlyExpenseLimit(limit) },
                         onConfigureSalary = { enabled, amount, day, desc ->
                             viewModel.configureSalaryScheduler(enabled, amount, day, desc)
-                        }
+                        },
+                        onAddScheduledExpense = { viewModel.addScheduledExpense(it) },
+                        onUpdateScheduledExpense = { viewModel.updateScheduledExpense(it) },
+                        onDeleteScheduledExpense = { viewModel.deleteScheduledExpense(it) },
+                        discoveredBankingApps = discoveredBankingApps,
+                        isScanningBankingApps = isScanningBankingApps,
+                        onScanBankingApps = { viewModel.scanForBankingApps() },
+                        onAddBankingApp = { pkg -> viewModel.addBankingApp(pkg) },
+                        onRemoveBankingApp = { pkg -> viewModel.removeBankingApp(pkg) },
+                        allInstalledApps = allInstalledApps,
+                        onLoadAllInstalledApps = { viewModel.loadAllInstalledApps() },
+                        onUpdateScanKeywords = { keywords -> viewModel.updateScanKeywords(keywords) },
+                        onUpdateIncomeKeywords = { keywords -> viewModel.updateIncomeKeywords(keywords) },
+                        onUpdateExpenseKeywords = { keywords -> viewModel.updateExpenseKeywords(keywords) },
+                        engineDescriptions = engineDescriptions,
+                        onSetAiEngine = { pref -> viewModel.setAiEnginePreference(pref) },
+                        discoveredModels = discoveredModels,
+                        onDiscoverModels = { viewModel.discoverModels() },
+                        onLoadModel = { path -> viewModel.loadMediaPipeModel(path) },
+                        isLoadingModel = isLoadingModel,
+                        modelCatalog = viewModel.modelCatalog,
+                        onDownloadCatalogModel = { model -> viewModel.downloadCatalogModel(model) },
+                        onDeleteCatalogModel = { model -> viewModel.deleteCatalogModel(model) },
+                        isModelDownloaded = { model -> viewModel.isModelDownloaded(model) },
+                        isDownloadingModel = isDownloadingModel,
+                        downloadProgress = downloadProgress,
+                        downloadError = downloadError,
+                        onImportModelFile = { uri -> viewModel.importModelFile(uri) },
+                        modelImportMessage = modelImportMessage,
+                        isGalleryInstalled = viewModel.isGalleryInstalled(),
+                        ollamaModels = ollamaModels,
+                        ollamaConnecting = ollamaConnecting,
+                        onConnectOllama = { host -> viewModel.connectOllama(host) },
+                        onSelectOllamaModel = { name -> viewModel.selectOllamaModel(name) }
                     )
                 }
             }
         }
+    }
+
+    // ─── Subscription Paywall Dialog ─────────────────────────────────
+    if (showPaywall) {
+        SubscriptionPaywallDialog(
+            featureName = paywallFeatureName,
+            isTrialEligible = viewModel.subscriptionManager.isTrialEligible,
+            onStartTrial = {
+                showPaywall = false
+                viewModel.subscriptionManager.startFreeTrial()
+            },
+            onRestorePurchases = { viewModel.subscriptionManager.restorePurchases() },
+            onDismiss = { showPaywall = false },
+            onSubscribe = { plan ->
+                showPaywall = false
+                viewModel.subscriptionManager.launchPurchaseFlow(activity, plan)
+            }
+        )
     }
 }
