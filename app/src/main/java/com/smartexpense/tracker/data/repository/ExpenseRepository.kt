@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.Locale
 
 /**
  * Single source of truth for all app data.
@@ -179,6 +180,96 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         storage.saveData(updated)
     }
 
+    // ─── Store Locations ─────────────────────────────────────────
+
+    suspend fun addStoreLocation(storeLocation: StoreLocation) {
+        val current = _appData.value
+        val updated = current.copy(
+            storeLocations = current.storeLocations + storeLocation
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    suspend fun deleteStoreLocation(id: String) {
+        val current = _appData.value
+        val updated = current.copy(
+            storeLocations = current.storeLocations.filter { it.id != id }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    suspend fun clearAllStoreLocations() {
+        val current = _appData.value
+        val updated = current.copy(storeLocations = emptyList())
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    suspend fun updateStoreLocation(updated: StoreLocation) {
+        val current = _appData.value
+        val newData = current.copy(
+            storeLocations = current.storeLocations.map {
+                if (it.id == updated.id) updated else it
+            }
+        )
+        _appData.value = newData
+        storage.saveData(newData)
+    }
+
+    /**
+     * Converts every transaction amount and budget limit to [newCurrency].
+     *
+     * For transactions that carry original foreign-currency metadata
+     * (originalAmount / originalCurrencyCode), the amount is re-converted
+     * from the *original* currency to [newCurrency] using the provided
+     * [rateFromOriginal] lookup, avoiding compounded rounding errors.
+     *
+     * Transactions without original metadata are multiplied by [fallbackRate]
+     * (the old-currency → new-currency rate).
+     *
+     * @param newCurrency       ISO-4217 code of the new app currency.
+     * @param fallbackRate      1 old-currency = fallbackRate new-currency.
+     * @param rateFromOriginal  Lookup: (originalCurrencyCode) → rate where
+     *                          1 originalCurrency = rate new-currency.
+     *                          Return null when a rate is unavailable.
+     */
+    suspend fun convertAmounts(
+        newCurrency: String,
+        fallbackRate: Double,
+        rateFromOriginal: (String) -> Double?
+    ) {
+        val current = _appData.value
+        val updated = current.copy(
+            transactions = current.transactions.map { tx ->
+                if (tx.originalAmount > 0.0 && tx.originalCurrencyCode.orEmpty().isNotEmpty()) {
+                    val rate = rateFromOriginal(tx.originalCurrencyCode.orEmpty())
+                    if (rate != null) {
+                        tx.copy(
+                            amount = tx.originalAmount * rate,
+                            currencyCode = newCurrency,
+                            exchangeRate = rate
+                        )
+                    } else {
+                        tx.copy(
+                            amount = tx.amount * fallbackRate,
+                            currencyCode = newCurrency
+                        )
+                    }
+                } else {
+                    tx.copy(
+                        amount = tx.amount * fallbackRate,
+                        currencyCode = newCurrency
+                    )
+                }
+            },
+            budgets = current.budgets.map { it.copy(monthlyLimit = it.monthlyLimit * fallbackRate) }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
     // ─── Settings ──────────────────────────────────────────────────
 
     suspend fun updateSettings(settings: AppSettings) {
@@ -264,6 +355,58 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         return true
     }
 
+    // ─── OCR Sections ─────────────────────────────────────────────
+
+    suspend fun addOcrSection(section: com.smartexpense.tracker.data.model.OcrSection) {
+        val current = _appData.value
+        val updated = current.copy(
+            ocrSections = current.ocrSections + section
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    suspend fun updateOcrSection(section: com.smartexpense.tracker.data.model.OcrSection) {
+        val current = _appData.value
+        val updated = current.copy(
+            ocrSections = current.ocrSections.map {
+                if (it.id == section.id) section else it
+            }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    suspend fun deleteOcrSection(id: String) {
+        val current = _appData.value
+        val updated = current.copy(
+            ocrSections = current.ocrSections.filter { it.id != id }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    suspend fun clearAllOcrSections() {
+        val current = _appData.value
+        val updated = current.copy(ocrSections = emptyList())
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    // ─── Rate History ─────────────────────────────────────────────
+
+    /**
+     * Stores a rate snapshot. Keeps only current (index 0) and previous (index 1).
+     */
+    suspend fun addRateHistoryEntry(entry: com.smartexpense.tracker.data.model.RateHistoryEntry) {
+        val current = _appData.value
+        val updated = current.copy(
+            rateHistory = (listOf(entry) + current.rateHistory).take(2)
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
     // ─── Export/Import ─────────────────────────────────────────────
 
     suspend fun exportData(): String = storage.exportData()
@@ -276,10 +419,22 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
 
     suspend fun clearAllData() {
         val current = _appData.value
-        // Preserve user-configured settings (banking apps, scan keywords, currency,
-        // theme, etc.) and custom categories across data clears.
+        // Reset currency to the device's country default
+        val localeCurrency = try {
+            java.util.Currency.getInstance(Locale.getDefault()).currencyCode
+        } catch (_: Exception) { null }
+        val info = localeCurrency?.let { code ->
+            SUPPORTED_CURRENCIES.firstOrNull { it.code == code }
+        }
+        val resetSettings = if (info != null) {
+            current.settings.copy(currencyCode = info.code, currency = info.symbol)
+        } else {
+            current.settings
+        }
+        // Preserve user-configured settings (banking apps, scan keywords, theme,
+        // etc.) and custom categories across data clears.
         val preserved = AppData(
-            settings = current.settings,
+            settings = resetSettings,
             categories = current.categories
         )
         storage.clearData()

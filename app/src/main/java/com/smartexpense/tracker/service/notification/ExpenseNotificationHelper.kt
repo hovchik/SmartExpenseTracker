@@ -19,8 +19,13 @@ object ExpenseNotificationHelper {
     private const val CHANNEL_NAME_SALARY = "Salary Scheduler"
     private const val CHANNEL_DESC_SALARY = "Confirmation when a scheduled salary is added"
 
+    private const val CHANNEL_ID_SCHEDULED = "scheduled_expenses"
+    private const val CHANNEL_NAME_SCHEDULED = "Scheduled Expense Reminders"
+    private const val CHANNEL_DESC_SCHEDULED = "Reminders for upcoming loan and subscription payments"
+
     private const val NOTIF_ID_BUDGET = 1001
     private const val NOTIF_ID_SALARY = 1002
+    private const val NOTIF_ID_SCHEDULED_BASE = 2000
 
     fun createChannels(context: Context) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -32,6 +37,11 @@ object ExpenseNotificationHelper {
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_ID_SALARY, CHANNEL_NAME_SALARY, NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = CHANNEL_DESC_SALARY
+            }
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_ID_SCHEDULED, CHANNEL_NAME_SCHEDULED, NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = CHANNEL_DESC_SCHEDULED
             }
         )
     }
@@ -99,6 +109,46 @@ object ExpenseNotificationHelper {
 
         try {
             NotificationManagerCompat.from(context).notify(NOTIF_ID_SALARY, notification)
+        } catch (_: SecurityException) {
+            // POST_NOTIFICATIONS permission not granted
+        }
+    }
+
+    /**
+     * Posts a reminder that a scheduled expense payment is due tomorrow.
+     * Each expense gets a unique notification ID so multiple reminders
+     * can be visible at the same time.
+     */
+    fun postScheduledExpenseReminder(
+        context: Context,
+        expenseName: String,
+        amount: Double,
+        currencySymbol: String,
+        paymentDay: Int,
+        index: Int
+    ) {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pi = PendingIntent.getActivity(
+            context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID_SCHEDULED)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("Payment reminder: $expenseName")
+            .setContentText(
+                "$currencySymbol${String.format("%.2f", amount)} is due on day $paymentDay. " +
+                    "Prepare your payment."
+            )
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(pi)
+            .setAutoCancel(true)
+            .build()
+
+        try {
+            NotificationManagerCompat.from(context)
+                .notify(NOTIF_ID_SCHEDULED_BASE + index, notification)
         } catch (_: SecurityException) {
             // POST_NOTIFICATIONS permission not granted
         }

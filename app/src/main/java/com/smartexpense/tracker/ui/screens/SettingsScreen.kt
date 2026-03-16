@@ -1,7 +1,11 @@
 package com.smartexpense.tracker.ui.screens
 
+import android.Manifest
+import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -30,25 +34,35 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.smartexpense.tracker.data.model.AppSettings
 import com.smartexpense.tracker.data.model.AiEnginePreference
+import com.smartexpense.tracker.data.model.ScheduledExpense
 import java.io.File
 import com.smartexpense.tracker.data.model.Category
 import com.smartexpense.tracker.data.model.SUPPORTED_CURRENCIES
 import com.smartexpense.tracker.data.model.ThemeMode
 import com.smartexpense.tracker.data.model.currencyInfoFor
+import com.smartexpense.tracker.BuildConfig
 import com.smartexpense.tracker.service.currency.CurrencyConverterService
+import com.smartexpense.tracker.ui.components.PremiumBadge
 import com.smartexpense.tracker.ui.theme.*
 
 @Composable
 fun SettingsScreen(
     settings: AppSettings,
     storageInfo: String,
+    isSubscribed: Boolean = false,
+    isTrialActive: Boolean = false,
+    activePlanName: String? = null,
+    onShowPaywall: (featureName: String) -> Unit = {},
+    onRestorePurchases: () -> Unit = {},
     onUpdateSettings: (AppSettings) -> Unit,
     onExportToUri: (Uri) -> Unit,
     onImportFromUri: (Uri) -> Unit,
@@ -69,6 +83,9 @@ fun SettingsScreen(
     onDeleteCategory: (String) -> Unit = {},
     onSetMonthlyLimit: (Double) -> Unit = {},
     onConfigureSalary: (enabled: Boolean, amount: Double, dayOfMonth: Int, description: String) -> Unit = { _, _, _, _ -> },
+    onAddScheduledExpense: (ScheduledExpense) -> Unit = {},
+    onUpdateScheduledExpense: (ScheduledExpense) -> Unit = {},
+    onDeleteScheduledExpense: (String) -> Unit = {},
     /** Discovered banking apps from device scan. */
     discoveredBankingApps: List<com.smartexpense.tracker.ui.viewmodel.MainViewModel.DiscoveredApp> = emptyList(),
     isScanningBankingApps: Boolean = false,
@@ -132,18 +149,20 @@ fun SettingsScreen(
     // Category management state
     var newCategoryText by remember { mutableStateOf("") }
 
-    // Section expanded state (all open by default)
-    var appearanceExpanded by remember { mutableStateOf(true) }
-    var currencyExpanded by remember { mutableStateOf(true) }
-    var dataSourcesExpanded by remember { mutableStateOf(true) }
-    var appScannerExpanded by remember { mutableStateOf(true) }
+    // Section expanded state (all closed by default)
+    var appearanceExpanded by remember { mutableStateOf(false) }
+    var currencyExpanded by remember { mutableStateOf(false) }
+    var dataSourcesExpanded by remember { mutableStateOf(false) }
+    var appScannerExpanded by remember { mutableStateOf(false) }
     var connectedAppsExpanded by remember { mutableStateOf(false) }
-    var budgetExpanded by remember { mutableStateOf(true) }
-    var salaryExpanded by remember { mutableStateOf(true) }
-    var categoriesExpanded by remember { mutableStateOf(true) }
-    var localAiExpanded by remember { mutableStateOf(true) }
-    var importExportExpanded by remember { mutableStateOf(true) }
-    var storageExpanded by remember { mutableStateOf(true) }
+    var budgetExpanded by remember { mutableStateOf(false) }
+    var salaryExpanded by remember { mutableStateOf(false) }
+    var scheduledExpensesExpanded by remember { mutableStateOf(false) }
+    var categoriesExpanded by remember { mutableStateOf(false) }
+    var localAiExpanded by remember { mutableStateOf(false) }
+    var importExportExpanded by remember { mutableStateOf(false) }
+    var storageExpanded by remember { mutableStateOf(false) }
+    var permissionsExpanded by remember { mutableStateOf(false) }
 
     // Currency selector state
     var showCurrencyDropdown by remember { mutableStateOf(false) }
@@ -262,11 +281,11 @@ fun SettingsScreen(
             enter = expandVertically(),
             exit = shrinkVertically()
         ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
                 // Currency picker row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -396,6 +415,52 @@ fun SettingsScreen(
                             },
                             leadingIcon = if (selected) {
                                 { Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            } else null
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // ── Rate Update Frequency ────────────────────────
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.Schedule, contentDescription = null,
+                        tint = GreenPrimary, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Rate Update Frequency", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Text(settings.rateUpdateFrequency.label,
+                            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val visibleFreqs = listOf(
+                        com.smartexpense.tracker.data.model.RateUpdateFrequency.EVERY_HOUR,
+                        com.smartexpense.tracker.data.model.RateUpdateFrequency.EVERY_3_HOURS,
+                        com.smartexpense.tracker.data.model.RateUpdateFrequency.DAILY,
+                        com.smartexpense.tracker.data.model.RateUpdateFrequency.MANUAL
+                    )
+                    visibleFreqs.forEach { freq ->
+                        val selected = settings.rateUpdateFrequency == freq
+                        FilterChip(
+                            selected = selected,
+                            onClick = {
+                                if (!selected) {
+                                    onUpdateSettings(settings.copy(rateUpdateFrequency = freq))
+                                }
+                            },
+                            label = { Text(freq.label, fontSize = 11.sp) },
+                            leadingIcon = if (selected) {
+                                { Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
                             } else null
                         )
                     }
@@ -569,12 +634,13 @@ fun SettingsScreen(
                                 )
                             }
                         }
+                        val freqLabel = settings.rateUpdateFrequency.label.lowercase()
                         Text(
                             when (settings.rateSource) {
                                 com.smartexpense.tracker.data.model.RateSource.RATE_AM ->
-                                    "Rates from rate.am \u00B7 Armenian bank averages \u00B7 refreshed hourly"
+                                    "Rates from rate.am \u00B7 Armenian bank averages \u00B7 $freqLabel"
                                 else ->
-                                    "Rates from open.er-api.com \u00B7 refreshed hourly"
+                                    "Rates from open.er-api.com \u00B7 $freqLabel"
                             },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -910,10 +976,18 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         // ─── Application Scanner Section ─────────────────────────
-        CollapsibleSectionHeader("APPLICATION SCANNER", appScannerExpanded) { appScannerExpanded = !appScannerExpanded }
+        CollapsibleSectionHeader(
+            title = "APPLICATION SCANNER",
+            expanded = appScannerExpanded,
+            isPremium = !isSubscribed,
+            onToggle = {
+                if (isSubscribed) appScannerExpanded = !appScannerExpanded
+                else onShowPaywall("Application Scanner")
+            }
+        )
 
         AnimatedVisibility(
-            visible = appScannerExpanded,
+            visible = appScannerExpanded && isSubscribed,
             enter = expandVertically(),
             exit = shrinkVertically()
         ) {
@@ -1325,10 +1399,18 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         // ─── Monthly Expense Limit Section ────────────────────────
-        CollapsibleSectionHeader("BUDGET THRESHOLD", budgetExpanded) { budgetExpanded = !budgetExpanded }
+        CollapsibleSectionHeader(
+            title = "BUDGET THRESHOLD",
+            expanded = budgetExpanded,
+            isPremium = !isSubscribed,
+            onToggle = {
+                if (isSubscribed) budgetExpanded = !budgetExpanded
+                else onShowPaywall("Budget Threshold")
+            }
+        )
 
         AnimatedVisibility(
-            visible = budgetExpanded,
+            visible = budgetExpanded && isSubscribed,
             enter = expandVertically(),
             exit = shrinkVertically()
         ) {
@@ -1409,10 +1491,18 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         // ─── Salary Scheduler Section ──────────────────────────────
-        CollapsibleSectionHeader("SALARY SCHEDULER", salaryExpanded) { salaryExpanded = !salaryExpanded }
+        CollapsibleSectionHeader(
+            title = "SALARY SCHEDULER",
+            expanded = salaryExpanded,
+            isPremium = !isSubscribed,
+            onToggle = {
+                if (isSubscribed) salaryExpanded = !salaryExpanded
+                else onShowPaywall("Salary Scheduler")
+            }
+        )
 
         AnimatedVisibility(
-            visible = salaryExpanded,
+            visible = salaryExpanded && isSubscribed,
             enter = expandVertically(),
             exit = shrinkVertically()
         ) {
@@ -1553,8 +1643,39 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // ─── Scheduled Expenses Section ─────────────────────────────
+        CollapsibleSectionHeader(
+            title = "SCHEDULED EXPENSES",
+            expanded = scheduledExpensesExpanded,
+            isPremium = !isSubscribed,
+            onToggle = {
+                if (isSubscribed) scheduledExpensesExpanded = !scheduledExpensesExpanded
+                else onShowPaywall("Scheduled Expenses")
+            }
+        )
+
+        AnimatedVisibility(
+            visible = scheduledExpensesExpanded && isSubscribed,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            ScheduledExpensesSection(
+                expenses = settings.scheduledExpenses,
+                currencyCode = settings.currencyCode,
+                onAdd = onAddScheduledExpense,
+                onUpdate = onUpdateScheduledExpense,
+                onDelete = onDeleteScheduledExpense
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
         // ─── Categories Section ────────────────────────────────────
-        CollapsibleSectionHeader("CATEGORIES", categoriesExpanded) { categoriesExpanded = !categoriesExpanded }
+        CollapsibleSectionHeader(
+            title = "CATEGORIES",
+            expanded = categoriesExpanded,
+            onToggle = { categoriesExpanded = !categoriesExpanded }
+        )
 
         AnimatedVisibility(
             visible = categoriesExpanded,
@@ -1567,30 +1688,42 @@ fun SettingsScreen(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 // Add new category row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedTextField(
-                        value = newCategoryText,
-                        onValueChange = { newCategoryText = it },
-                        label = { Text("New category name") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    FilledTonalIconButton(
-                        onClick = {
-                            val name = newCategoryText.trim()
-                            if (name.isNotEmpty()) {
-                                onAddCategory(name)
-                                newCategoryText = ""
-                            }
-                        },
-                        modifier = Modifier.size(48.dp)
+                if (isSubscribed) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Filled.Add, contentDescription = "Add category")
+                        OutlinedTextField(
+                            value = newCategoryText,
+                            onValueChange = { newCategoryText = it },
+                            label = { Text("New category name") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        FilledTonalIconButton(
+                            onClick = {
+                                val name = newCategoryText.trim()
+                                if (name.isNotEmpty()) {
+                                    onAddCategory(name)
+                                    newCategoryText = ""
+                                }
+                            },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = "Add category")
+                        }
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = { onShowPaywall("Custom Categories") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        PremiumBadge()
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Add Custom Categories")
                     }
                 }
 
@@ -2100,6 +2233,63 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // ─── Permissions Section ─────────────────────────────────────
+        CollapsibleSectionHeader("PERMISSIONS", permissionsExpanded) { permissionsExpanded = !permissionsExpanded }
+
+        AnimatedVisibility(
+            visible = permissionsExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            PermissionsSectionContent(context)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ─── Subscription Section ──────────────────────────────────
+        Text(
+            "SUBSCRIPTION",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(4.dp)) {
+                SettingsClickItem(
+                    icon = Icons.Filled.WorkspacePremium,
+                    title = if (isSubscribed) {
+                        when {
+                            isTrialActive -> "Premium Trial Active"
+                            activePlanName != null -> "Premium · $activePlanName"
+                            else -> "Premium Active"
+                        }
+                    } else "Free Plan",
+                    subtitle = if (isSubscribed) {
+                        if (isTrialActive) "Your 3-day free trial is active"
+                        else "You have full access to all premium features"
+                    } else "Upgrade to unlock all premium features",
+                    onClick = {
+                        if (!isSubscribed) onShowPaywall("Premium")
+                    }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                SettingsClickItem(
+                    icon = Icons.Filled.Restore,
+                    title = "Restore Purchases",
+                    subtitle = "Reinstalled the app? Recover your subscription here",
+                    onClick = onRestorePurchases
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
         // ─── About Section ─────────────────────────────────────────
         Text(
             "ABOUT",
@@ -2122,9 +2312,9 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Text("Smart Expense Tracker", fontWeight = FontWeight.SemiBold)
+                        Text("FlowSense", fontWeight = FontWeight.SemiBold)
                         Text(
-                            "Version 1.0 · AI-Powered Finance Manager",
+                            "Version ${BuildConfig.VERSION_NAME} · AI-Powered Finance Manager",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -2140,7 +2330,7 @@ fun SettingsScreen(
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    "Smart Expense Tracker automatically detects transactions from banking " +
+                    "FlowSense automatically detects transactions from banking " +
                             "SMS messages and app notifications, scans paper receipts with your camera, " +
                             "and categorizes everything using on-device AI powered by Gemini Nano. " +
                             "It generates detailed reports with spending trends, savings insights, " +
@@ -2277,6 +2467,7 @@ private fun ThemeModePicker(
 private fun CollapsibleSectionHeader(
     title: String,
     expanded: Boolean,
+    isPremium: Boolean = false,
     onToggle: () -> Unit
 ) {
     val rotation by animateFloatAsState(
@@ -2296,6 +2487,10 @@ private fun CollapsibleSectionHeader(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f)
         )
+        if (isPremium) {
+            PremiumBadge()
+            Spacer(modifier = Modifier.width(8.dp))
+        }
         Icon(
             Icons.Filled.KeyboardArrowDown,
             contentDescription = if (expanded) "Collapse" else "Expand",
@@ -2364,6 +2559,591 @@ private fun SettingsClickItem(
                 Icons.Filled.ChevronRight, contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp)
             )
+        }
+    }
+}
+
+// ─── Permissions Section ─────────────────────────────────────────────
+
+/**
+ * Data class representing a permission to display in the Permissions section.
+ */
+private data class AppPermission(
+    val permission: String,
+    val label: String,
+    val description: String,
+    val icon: ImageVector,
+    /** True for permissions that can't be checked via ContextCompat (e.g. Notification Listener). */
+    val isSpecial: Boolean = false
+)
+
+/**
+ * All the permissions the app needs, shown in the Settings > Permissions section.
+ */
+private val appPermissions = listOf(
+    AppPermission(
+        Manifest.permission.CAMERA,
+        "Camera",
+        "Required for scanning receipts via OCR",
+        Icons.Filled.CameraAlt
+    ),
+    AppPermission(
+        Manifest.permission.READ_SMS,
+        "Read SMS",
+        "Detect transactions from banking SMS messages",
+        Icons.Filled.Sms
+    ),
+    AppPermission(
+        Manifest.permission.RECEIVE_SMS,
+        "Receive SMS",
+        "Real-time capture of incoming banking SMS",
+        Icons.Filled.Message
+    ),
+    AppPermission(
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        "Fine Location",
+        "Geo-tag transactions and pin stores on map",
+        Icons.Filled.MyLocation
+    ),
+    AppPermission(
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+        "Coarse Location",
+        "Approximate location for store mapping",
+        Icons.Filled.LocationOn
+    ),
+    AppPermission(
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "Background Location",
+        "Geo-tag SMS/notification transactions in background",
+        Icons.Filled.LocationOn
+    ),
+    AppPermission(
+        "android.permission.POST_NOTIFICATIONS",
+        "Notifications",
+        "Budget alerts and transaction confirmations",
+        Icons.Filled.Notifications
+    ),
+    AppPermission(
+        "notification_listener",
+        "Notification Listener",
+        "Monitor banking app notifications for auto-capture",
+        Icons.Filled.NotificationsActive,
+        isSpecial = true
+    )
+)
+
+/**
+ * Checks whether the Notification Listener service is enabled for this app.
+ */
+private fun isNotificationListenerEnabled(context: android.content.Context): Boolean {
+    val cn = ComponentName(context, "com.smartexpense.tracker.service.notification.BankingNotificationListener")
+    val enabledListeners = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
+    return enabledListeners?.contains(cn.flattenToString()) == true
+}
+
+@Composable
+private fun PermissionsSectionContent(context: android.content.Context) {
+    // Permission launcher for runtime requests
+    var permissionToRequest by remember { mutableStateOf<String?>(null) }
+    var showDeniedAlert by remember { mutableStateOf(false) }
+    var deniedPermissionLabel by remember { mutableStateOf("") }
+
+    // Force recomposition when returning from settings
+    var refreshKey by remember { mutableIntStateOf(0) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        refreshKey++
+        if (!granted) {
+            deniedPermissionLabel = appPermissions
+                .find { it.permission == permissionToRequest }?.label ?: "Permission"
+            showDeniedAlert = true
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(vertical = 4.dp)) {
+            // Use refreshKey to force recheck of permission states
+            key(refreshKey) {
+                appPermissions.forEachIndexed { index, perm ->
+                    val isGranted = if (perm.isSpecial) {
+                        isNotificationListenerEnabled(context)
+                    } else {
+                        ContextCompat.checkSelfPermission(
+                            context, perm.permission
+                        ) == PackageManager.PERMISSION_GRANTED
+                    }
+
+                    PermissionRow(
+                        icon = perm.icon,
+                        label = perm.label,
+                        description = perm.description,
+                        isGranted = isGranted,
+                        onClick = {
+                            if (!isGranted) {
+                                if (perm.isSpecial) {
+                                    // Open notification listener settings
+                                    context.startActivity(
+                                        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                                    )
+                                } else {
+                                    permissionToRequest = perm.permission
+                                    permissionLauncher.launch(perm.permission)
+                                }
+                            }
+                        }
+                    )
+
+                    if (index < appPermissions.lastIndex) {
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    }
+                }
+            }
+        }
+    }
+
+    // Alert dialog when permission is denied
+    if (showDeniedAlert) {
+        AlertDialog(
+            onDismissRequest = { showDeniedAlert = false },
+            icon = {
+                Icon(Icons.Filled.Warning, contentDescription = null, tint = RedExpense)
+            },
+            title = { Text("Permission Denied") },
+            text = {
+                Text(
+                    "\"$deniedPermissionLabel\" permission was denied. " +
+                        "Some features may not work correctly without it. " +
+                        "You can grant it from the app settings."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeniedAlert = false
+                    // Open app settings so user can grant manually
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", context.packageName, null)
+                    }
+                    context.startActivity(intent)
+                }) {
+                    Text("Open Settings")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeniedAlert = false }) {
+                    Text("Dismiss")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun PermissionRow(
+    icon: ImageVector,
+    label: String,
+    description: String,
+    isGranted: Boolean,
+    onClick: () -> Unit
+) {
+    val bgColor by animateColorAsState(
+        targetValue = if (isGranted) GreenPrimary.copy(alpha = 0.08f) else RedExpense.copy(alpha = 0.08f),
+        label = "permission_bg"
+    )
+    val statusColor = if (isGranted) GreenPrimary else RedExpense
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !isGranted) { onClick() }
+            .background(bgColor)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(statusColor.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = statusColor, modifier = Modifier.size(20.dp))
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+            Text(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = statusColor.copy(alpha = 0.12f)
+        ) {
+            Text(
+                if (isGranted) "Granted" else "Denied",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = statusColor,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+            )
+        }
+    }
+}
+
+// ─── Scheduled Expenses Section ─────────────────────────────────────────
+
+@Composable
+private fun ScheduledExpensesSection(
+    expenses: List<ScheduledExpense>,
+    currencyCode: String,
+    onAdd: (ScheduledExpense) -> Unit,
+    onUpdate: (ScheduledExpense) -> Unit,
+    onDelete: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val currencySymbol = currencyInfoFor(currencyCode).symbol
+
+    // Form state for adding a new expense
+    var newName by remember { mutableStateOf("") }
+    var newAmountText by remember { mutableStateOf("") }
+    var newDayText by remember { mutableStateOf("") }
+
+    // Which expense ID is currently being edited (null = none)
+    var editingId by remember { mutableStateOf<String?>(null) }
+    var editName by remember { mutableStateOf("") }
+    var editAmountText by remember { mutableStateOf("") }
+    var editDayText by remember { mutableStateOf("") }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Header
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.EventRepeat,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text("Recurring Payments", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                    Text(
+                        "Add loans, subscriptions, or any recurring payment. " +
+                            "You'll be notified on the last working day before each payment date.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // ── Existing expenses list ──
+            if (expenses.isEmpty()) {
+                Text(
+                    "No scheduled expenses yet. Add one below.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            } else {
+                expenses.forEach { expense ->
+                    if (editingId == expense.id) {
+                        // Inline edit form
+                        ScheduledExpenseEditRow(
+                            name = editName,
+                            onNameChange = { editName = it },
+                            amountText = editAmountText,
+                            onAmountChange = { editAmountText = it.filter { c -> c.isDigit() || c == '.' } },
+                            dayText = editDayText,
+                            onDayChange = {
+                                val filtered = it.filter { c -> c.isDigit() }
+                                val num = filtered.toIntOrNull()
+                                if (num == null || num in 1..31) editDayText = filtered
+                            },
+                            currencyCode = currencyCode,
+                            currencySymbol = currencySymbol,
+                            onSave = {
+                                val amount = editAmountText.toDoubleOrNull() ?: 0.0
+                                val day = editDayText.toIntOrNull()?.coerceIn(1, 31) ?: 1
+                                if (editName.isNotBlank() && amount > 0) {
+                                    onUpdate(expense.copy(name = editName, amount = amount, dayOfMonth = day))
+                                    editingId = null
+                                    Toast.makeText(context, "Updated: ${editName}", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            onCancel = { editingId = null }
+                        )
+                    } else {
+                        ScheduledExpenseRow(
+                            expense = expense,
+                            currencySymbol = currencySymbol,
+                            onToggle = { onUpdate(expense.copy(enabled = it)) },
+                            onEdit = {
+                                editingId = expense.id
+                                editName = expense.name
+                                editAmountText = if (expense.amount > 0) expense.amount.toLong().toString() else ""
+                                editDayText = expense.dayOfMonth.toString()
+                            },
+                            onDelete = { onDelete(expense.id) }
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // ── Add new expense form ──
+            Text(
+                "Add New Payment",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = newName,
+                onValueChange = { newName = it },
+                label = { Text("Name (e.g. Mortgage, Car Loan)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = newAmountText,
+                    onValueChange = { newAmountText = it.filter { c -> c.isDigit() || c == '.' } },
+                    label = { Text("Amount ($currencyCode)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier.weight(2f),
+                    shape = RoundedCornerShape(10.dp),
+                    leadingIcon = {
+                        Text(currencySymbol, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp))
+                    }
+                )
+                OutlinedTextField(
+                    value = newDayText,
+                    onValueChange = {
+                        val filtered = it.filter { c -> c.isDigit() }
+                        val num = filtered.toIntOrNull()
+                        if (num == null || num in 1..31) newDayText = filtered
+                    },
+                    label = { Text("Pay Day (1–31)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Button(
+                onClick = {
+                    val amount = newAmountText.toDoubleOrNull() ?: 0.0
+                    val day = newDayText.toIntOrNull()?.coerceIn(1, 31) ?: 1
+                    if (newName.isBlank()) {
+                        Toast.makeText(context, "Please enter a name", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    if (amount <= 0) {
+                        Toast.makeText(context, "Please enter a valid amount", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    if (newDayText.isBlank()) {
+                        Toast.makeText(context, "Please enter the payment day", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    onAdd(ScheduledExpense(name = newName.trim(), amount = amount, dayOfMonth = day))
+                    Toast.makeText(
+                        context,
+                        "${newName.trim()} added — reminder on working day before day $day",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    newName = ""
+                    newAmountText = ""
+                    newDayText = ""
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Add Scheduled Payment", fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScheduledExpenseRow(
+    expense: ScheduledExpense,
+    currencySymbol: String,
+    onToggle: (Boolean) -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (expense.enabled)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            else
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    Icons.Filled.Payment,
+                    contentDescription = null,
+                    tint = if (expense.enabled) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        expense.name,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        color = if (expense.enabled) MaterialTheme.colorScheme.onSurface
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "$currencySymbol${String.format("%.2f", expense.amount)} · Day ${expense.dayOfMonth} of each month",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = expense.enabled,
+                    onCheckedChange = onToggle,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onEdit, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                    Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Edit", fontSize = 12.sp)
+                }
+                TextButton(
+                    onClick = onDelete,
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Delete", fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScheduledExpenseEditRow(
+    name: String,
+    onNameChange: (String) -> Unit,
+    amountText: String,
+    onAmountChange: (String) -> Unit,
+    dayText: String,
+    onDayChange: (String) -> Unit,
+    currencyCode: String,
+    currencySymbol: String,
+    onSave: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            OutlinedTextField(
+                value = name,
+                onValueChange = onNameChange,
+                label = { Text("Name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = onAmountChange,
+                    label = { Text("Amount ($currencyCode)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier.weight(2f),
+                    shape = RoundedCornerShape(10.dp),
+                    leadingIcon = {
+                        Text(currencySymbol, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp))
+                    }
+                )
+                OutlinedTextField(
+                    value = dayText,
+                    onValueChange = onDayChange,
+                    label = { Text("Day (1–31)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onCancel) { Text("Cancel") }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = onSave,
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Save")
+                }
+            }
         }
     }
 }
