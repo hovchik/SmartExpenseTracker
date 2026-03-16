@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Խելացի Ծախսերի Հետաքոտիչ</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Գլխավոր</string>
+    <string name="nav_reports">Հաշվետվություններ</string>
+    <string name="nav_add">Ավելացնել</string>
+    <string name="nav_scan">Սկան</string>
+    <string name="nav_settings">Կարգավորումներ</string>
+
+    <!-- Common -->
+    <string name="back">Հետ</string>
+    <string name="cancel">Չեղարկել</string>
+    <string name="delete">Ջնջել</string>
+    <string name="done">Պատրաստ</string>
+    <string name="dismiss">Փակել</string>
+    <string name="remove">Հեռացնել</string>
+    <string name="retry">Կրկնել</string>
+    <string name="go_back">Վերադառնալ</string>
+    <string name="income">Եկամուտ</string>
+    <string name="expenses">Ծախսեր</string>
+    <string name="expense">Ծախս</string>
+    <string name="today">Այսօր</string>
+    <string name="this_week">Այս շաբաթ</string>
+    <string name="this_month">Այս ամիս</string>
+    <string name="transactions">Գործարքներ</string>
+    <string name="category">Կատեգորիա</string>
+    <string name="amount">Գումար</string>
+    <string name="description">Նկարագրություն</string>
+
+    <!-- Dashboard -->
+    <string name="monthly_balance">Ամսական մնացորդ</string>
+    <string name="ai_insights">ԱԻ վերլուծություն</string>
+    <string name="spending_by_category">Ծախսերը ըստ կատեգորիաների</string>
+    <string name="recent_transactions">Վերջին գործարքներ</string>
+    <string name="no_transactions_yet">Գործարքներ դեռ չկան</string>
+    <string name="no_transactions_hint">Ավելացրեք ձեռքով, սկանավորեք կտրոն կամ միացրեք SMS/ծանուցումների հետագծումը</string>
+    <string name="potential_saving_format">Հնարավոր խնայողություն՝ %s/ամիս</string>
+
+    <!-- Add Transaction -->
+    <string name="add_transaction">Ավելացնել գործարք</string>
+    <string name="merchant_optional">Վաճառական (կամավոր)</string>
+    <string name="notes_optional">Նշումներ (կամավոր)</string>
+    <string name="scan_receipt_instead">Սկանավորել կտրոնը</string>
+    <string name="add_expense">Ավելացնել ծախս</string>
+    <string name="add_income">Ավելացնել եկամուտ</string>
+    <string name="error_valid_amount_description">Մուտքագրեք վավեր գումար և նկարագրություն</string>
+
+    <!-- Reports -->
+    <string name="reports">Հաշվետվություններ</string>
+    <string name="net_balance">Զուտ մնացորդ</string>
+    <string name="avg_daily">Միջին օրական</string>
+    <string name="vs_previous_period">նախորդ ժամանակաշրջանի համեմատ</string>
+    <string name="transactions_count_format">%d գործարք</string>
+    <string name="spending_down">Ծախսերը նվազել են</string>
+    <string name="spending_up">Ծախսերը աճել են</string>
+    <string name="spending_by_day">Ծախսերը ըստ օրերի</string>
+    <string name="top_merchants">Լավագույն վաճառականներ</string>
+    <string name="transaction_sources">Գործարքների աղբյուրներ</string>
+    <string name="source_manual">Ձեռքով</string>
+    <string name="source_ocr">OCR</string>
+    <string name="source_sms">SMS</string>
+    <string name="source_notif">Ծանուց.</string>
+    <string name="source_import">Ներմուծ</string>
+    <string name="top_expenses">Խոշոր ծախսեր</string>
+    <string name="transactions_by_date">Գործարքները ըստ ամսաթվի</string>
+    <string name="no_transactions_this_period">Այս ժամանակաշրջանում գործարքներ չկան</string>
+    <string name="add_expenses_to_see_reports">Ավելացրեք ծախսեր հաշվետվություններ տեսնելու համար</string>
+
+    <!-- Scan Receipt -->
+    <string name="scan_receipt">Սկանավորել կտրոնը</string>
+    <string name="scanning_all_languages">Սկանավորում բոլոր լեզուներով…</string>
+    <string name="capture_or_select_receipt">Լուսանկարեք կամ ընտրեք կտրոնի նկարը</string>
+    <string name="supports_scripts">Աջակցում է լատինական, չինական, ճապոնական, կորեական, դևանագարի գրերը</string>
+    <string name="take_photo">Լուսանկարել</string>
+    <string name="choose_from_gallery">Ընտրել պատկերասրահից</string>
+    <string name="transaction_saved">Գործարքը պահպանվեց</string>
+    <string name="scan_result">Սկանավորման արդյունք</string>
+    <string name="extracted_text">Հանված տեքստ</string>
+    <string name="tips_best_results">Խորհուրդներ լավ արդյունքի համար</string>
+    <string name="tip_good_lighting">Ապահովեք լավ լուսավորություն</string>
+    <string name="tip_flat_aligned">Կտրոնը պետք է հարթ և հավասարեցված լինի</string>
+    <string name="tip_total_visible">Համոզվեք որ ընդհանուր գումարը երևանում է</string>
+    <string name="tip_any_language">Աշխատում է ցանկացած լեզվով և գրով</string>
+    <string name="camera_permission_required">Խցիկի թույլտվություն է պահանջվում</string>
+    <string name="cannot_create_temp_file">Հնարավոր չէ ստեղծել ժամանակավոր ֆայլ</string>
+    <string name="error_loading_image_format">Պատկերի բեռնման սխալ՝ %s</string>
+    <string name="no_text_detected">Տեքստ չի հայտնաբերվել։ Փորձեք ավելի հանգիստ լուսանկար լավ լուսավորությամբ։</string>
+
+    <!-- SMS Scanner -->
+    <string name="sms_scanner">SMS սկաներ</string>
+    <string name="scanning_sms_messages">SMS հաղորդագրությունների սկանավորում…</string>
+    <string name="looking_for_banking_transactions">Բանկային գործարքների որոնում</string>
+    <string name="scanned">Սկանավորված</string>
+    <string name="financial">Ֆինանսական</string>
+    <string name="parsed">Վերլուծված</string>
+    <string name="save_all_transactions_format">Պահպանել բոլոր %d գործարքները</string>
+    <string name="transactions_saved_format">%d գործարք պահպանվեց՞</string>
+    <string name="scan_error">Սկանավորման սխալ</string>
+    <string name="no_transactions_found">Գործարքներ չեն գտնվել</string>
+    <string name="scanned_no_new_found_format">Սկանավորվել է %d հաղորդագրություն, նոր բանկային գործարքներ չեն գտնվել։</string>
+    <string name="scan_sms_inbox">Սկանավորել SMS</string>
+    <string name="sms_scan_description">Որոնեք բանկային և վճարային ծանուցումներ ձեր SMS հաղորդագրություններում։ Գործարքները հայտնաբերվում և դասակարգվում են ինքնաշխատորեն։</string>
+    <string name="all_processing_on_device">Բոլոր մշակումները կատարվում են սարքում։</string>
+    <string name="start_scanning">Սկսել սկանավորումը</string>
+    <string name="grant_permission_scan">Տալ թույլտվություն և սկանավորել</string>
+    <string name="sms_permission_required">SMS հաղորդագրություններ սկանավորելու համար պահանջվում է SMS թույլտվություն</string>
+
+    <!-- Settings -->
+    <string name="settings">Կարգավորումներ</string>
+    <string name="section_appearance">ՏԵՍՔ</string>
+    <string name="theme">Թեմա</string>
+    <string name="theme_description">Ընտրեք Լուսավոր, Մութ կամ Համակարգային</string>
+    <string name="light">Լուսավոր</string>
+    <string name="system_default">Համակարգ</string>
+    <string name="dark">Մութ</string>
+    <string name="section_language">ԼԵԶՈՒ</string>
+    <string name="app_language">Հավելվածի լեզու</string>
+    <string name="language_description">Ընտրեք հավելվածի ցուցադրման լեզուն</string>
+    <string name="lang_system">Համակարգային</string>
+    <string name="lang_english">English</string>
+    <string name="lang_russian">Русский</string>
+    <string name="lang_armenian">Հայերեն</string>
+    <string name="lang_chinese">中文</string>
+    <string name="lang_spanish">Español</string>
+    <string name="section_currency">ԱրՊՈՒՏ</string>
+    <string name="display_currency">Ցուցադրման արժույթ</string>
+    <string name="currency_description">Օգտագործվում է ձևավորման և կտրոնների սկանավորման համար</string>
+    <string name="select_currency">Ընտրեք արժույթ</string>
+    <string name="currency_converter">Արժույթի փոխարկիչ</string>
+    <string name="fetching_live_rates">Փոխարժեքների բեռնում…</string>
+    <string name="rates_source">Փոխարժեքները open.er-api.com-ից · թարմացվում է ամեն ժամ</string>
+    <string name="section_data_sources">ՏՎՅԱԼՆԵՌԻ ԱՂԲՅՈՒՆԵՌ</string>
+    <string name="sms_transaction_detection">SMS գործարքների հայտնաբերում</string>
+    <string name="sms_detection_description">Բանկային SMS հաղորդագրությունների ինքնաշխատ վերլուծություն</string>
+    <string name="banking_app_notifications">Բանկային հավելվածի ծանուցումներ</string>
+    <string name="banking_notifications_description">Բանկային հավելվածների ծանուցումների կարդացում</string>
+    <string name="ai_auto_categorization">ԱԻ ինքնադասակարգում</string>
+    <string name="ai_categorization_description">Գործարքների ինքնաշխատ դասակարգում ԱԻ-ի օգնությամբ</string>
+    <string name="scan_sms_inbox_for_transactions">Սկանավորել SMS գործարքների համար</string>
+    <string name="section_import_export">ՆԵՌՄՈՒՏ ԵՎ ԱՌՄՈՒՏ</string>
+    <string name="export_data_json">Արտահանել տվյալները JSON ձևաչափով</string>
+    <string name="export_description">Պահպանել բոլոր գործարքները, կատեգորիաները և կարգավորումները ֆայլում</string>
+    <string name="import_data_json">Ներմուծել տվյալներ JSON-ից</string>
+    <string name="import_description">Վերականգնել տվյալները նախկինում արտահանված ֆայլից</string>
+    <string name="section_storage">ՊԱՀՊԱՆՈՒՄ</string>
+    <string name="local_storage">Տեղական պահպանում</string>
+    <string name="storage_info_format">Տվյալները պահվում են JSON ձևաչափով · Ֆայլի չափ՝ %s</string>
+    <string name="clear_all_data">Մաքրել բոլոր տվյալները</string>
+    <string name="clear_all_description">Ջնջել բոլոր գործարքները և վերականգնել կանխադրյալ կարգավորումները</string>
+    <string name="section_about">ՀԱՎԵԼՎԱԾԻ ՄԱՍԻՆ</string>
+    <string name="app_name_full">Խելացի Ծախսերի Հետաքոտիչ</string>
+    <string name="version_info">Տարբերակ 1.0 · ԱԻ ֆինանսական կառավարիչ</string>
+    <string name="features_list">Կտրոնների սկանավորում · SMS և ծանուցումների հետագծում · ԱԻ դասակարգում · Խելացի օպտիմալացման առաջարկներ · Օրական / Շաբաթական / Ամսական հաշվետվություններ · Տեղական JSON պահպանում · Բազմաթիվ արժույթ · Ներմուծում և արտահանում · Մութ թեմա · Բազմալեզվություն</string>
+    <string name="clear_all_data_question">Մաքրե՞լ բոլոր տվյալները՟</string>
+    <string name="clear_data_warning">Սա ընդմիշտ կջնջի բոլոր գործարքները, կատեգորիաները, բյուջեները և կարգավորումները։ Այս գործողությունը հնարավոր չէ հետ վերածել։</string>
+    <string name="clear_everything">Ջնջել ամեն ինչ</string>
+    <string name="import_data_question">Ներմուծե՞լ տվյալները՟</string>
+    <string name="import_warning">Այսը կփոխարինի բոլոր առկա տվյալները ընտրված ֆայլի բովանդակությամբ։ Ձեր գործարքները և կարգավորումները կվերագրվեն։
+
+Նախ արտահանեք ձեր առկա տվյալները, եթե ցանկանում եք դրանք պահպանել։</string>
+    <string name="import_replace">Ներմուծել և փոխարինել</string>
+
+    <!-- Notification Keywords -->
+    <string name="section_notification_keywords">ԾԱՆՈՒՈՒՄԱՆ ԲԱՆԱԼԻ ԲԱՌԵՌ</string>
+    <string name="notification_keywords">Բանալի բառեր</string>
+    <string name="notification_keywords_description">Հարմարեցրեք բանալի բառերը եկամուտների և ծախսերի հայտնաբերման համար</string>
+    <string name="income_keywords">Եկամուտի բանալի բառեր</string>
+    <string name="income_keywords_hint">Բառեր, որոնք ցույց են տալիս մտնելու դրամ</string>
+    <string name="expense_keywords">Ծախսի բանալի բառեր</string>
+    <string name="expense_keywords_hint">Բառեր, որոնք ցույց են տալիս ելքի դրամ</string>
+    <string name="add_keyword">Ավելացնել բառ</string>
+    <string name="add_keyword_hint">Մուտքագրեք նոր բանալի բառ</string>
+    <string name="add">Ավելացնել</string>
+    <string name="reset_to_defaults">Վերականգնել լիարժեքին</string>
+    <string name="keywords_reset">Բանալի բառերը վերականգնվեց</string>
+</resources>

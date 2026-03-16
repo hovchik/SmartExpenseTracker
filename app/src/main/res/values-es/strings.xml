@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Rastreador Inteligente de Gastos</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Inicio</string>
+    <string name="nav_reports">Informes</string>
+    <string name="nav_add">Agregar</string>
+    <string name="nav_scan">Escanear</string>
+    <string name="nav_settings">Ajustes</string>
+
+    <!-- Common -->
+    <string name="back">Volver</string>
+    <string name="cancel">Cancelar</string>
+    <string name="delete">Eliminar</string>
+    <string name="done">Listo</string>
+    <string name="dismiss">Cerrar</string>
+    <string name="remove">Quitar</string>
+    <string name="retry">Reintentar</string>
+    <string name="go_back">Volver</string>
+    <string name="income">Ingresos</string>
+    <string name="expenses">Gastos</string>
+    <string name="expense">Gasto</string>
+    <string name="today">Hoy</string>
+    <string name="this_week">Esta semana</string>
+    <string name="this_month">Este mes</string>
+    <string name="transactions">Transacciones</string>
+    <string name="category">Categoria</string>
+    <string name="amount">Monto</string>
+    <string name="description">Descripcion</string>
+
+    <!-- Dashboard -->
+    <string name="monthly_balance">Balance mensual</string>
+    <string name="ai_insights">IA Analisis</string>
+    <string name="spending_by_category">Gastos por categoria</string>
+    <string name="recent_transactions">Transacciones recientes</string>
+    <string name="no_transactions_yet">Sin transacciones</string>
+    <string name="no_transactions_hint">Agregue manualmente, escanee un recibo o habilite el seguimiento de SMS/notificaciones</string>
+    <string name="potential_saving_format">Ahorro potencial: %s/mes</string>
+
+    <!-- Add Transaction -->
+    <string name="add_transaction">Agregar transaccion</string>
+    <string name="merchant_optional">Comercio (opcional)</string>
+    <string name="notes_optional">Notas (opcional)</string>
+    <string name="scan_receipt_instead">Escanear recibo</string>
+    <string name="add_expense">Agregar gasto</string>
+    <string name="add_income">Agregar ingreso</string>
+    <string name="error_valid_amount_description">Ingrese un monto y descripcion validos</string>
+
+    <!-- Reports -->
+    <string name="reports">Informes</string>
+    <string name="net_balance">Balance neto</string>
+    <string name="avg_daily">Promedio diario</string>
+    <string name="vs_previous_period">vs periodo anterior</string>
+    <string name="transactions_count_format">%d transacciones</string>
+    <string name="spending_down">Gastos en baja</string>
+    <string name="spending_up">Gastos en alza</string>
+    <string name="spending_by_day">Gastos por dia</string>
+    <string name="top_merchants">Principales comercios</string>
+    <string name="transaction_sources">Fuentes de transacciones</string>
+    <string name="source_manual">Manual</string>
+    <string name="source_ocr">OCR</string>
+    <string name="source_sms">SMS</string>
+    <string name="source_notif">Notif.</string>
+    <string name="source_import">Importar</string>
+    <string name="top_expenses">Mayores gastos</string>
+    <string name="transactions_by_date">Transacciones por fecha</string>
+    <string name="no_transactions_this_period">Sin transacciones en este periodo</string>
+    <string name="add_expenses_to_see_reports">Agregue gastos para ver informes</string>
+
+    <!-- Scan Receipt -->
+    <string name="scan_receipt">Escanear recibo</string>
+    <string name="scanning_all_languages">Escaneando en todos los idiomas\u2026</string>
+    <string name="capture_or_select_receipt">Capture o seleccione una imagen del recibo</string>
+    <string name="supports_scripts">Compatible con escrituras latina, china, japonesa, coreana y devanagari</string>
+    <string name="take_photo">Tomar foto</string>
+    <string name="choose_from_gallery">Elegir de galeria</string>
+    <string name="transaction_saved">Transaccion guardada</string>
+    <string name="scan_result">Resultado del escaneo</string>
+    <string name="extracted_text">Texto extraido</string>
+    <string name="tips_best_results">Consejos para mejores resultados</string>
+    <string name="tip_good_lighting">Asegurese de tener buena iluminacion</string>
+    <string name="tip_flat_aligned">Mantenga el recibo plano y alineado</string>
+    <string name="tip_total_visible">Asegurese de que el total sea visible</string>
+    <string name="tip_any_language">Funciona con cualquier idioma o escritura</string>
+    <string name="camera_permission_required">Se requiere permiso de camara</string>
+    <string name="cannot_create_temp_file">No se puede crear archivo temporal</string>
+    <string name="error_loading_image_format">Error al cargar imagen: %s</string>
+    <string name="no_text_detected">No se detecto texto. Intente con una foto mas clara y buena iluminacion.</string>
+
+    <!-- SMS Scanner -->
+    <string name="sms_scanner">Escaner de SMS</string>
+    <string name="scanning_sms_messages">Escaneando mensajes SMS\u2026</string>
+    <string name="looking_for_banking_transactions">Buscando transacciones bancarias</string>
+    <string name="scanned">Escaneados</string>
+    <string name="financial">Financieros</string>
+    <string name="parsed">Analizados</string>
+    <string name="save_all_transactions_format">Guardar las %d transacciones</string>
+    <string name="transactions_saved_format">\u00a1%d transacciones guardadas!</string>
+    <string name="scan_error">Error de escaneo</string>
+    <string name="no_transactions_found">No se encontraron transacciones</string>
+    <string name="scanned_no_new_found_format">Se escanearon %d mensajes pero no se encontraron nuevas transacciones bancarias.</string>
+    <string name="scan_sms_inbox">Escanear bandeja SMS</string>
+    <string name="sms_scan_description">Busque notificaciones bancarias y de pago en sus mensajes SMS. Las transacciones se detectan y categorizan automaticamente.</string>
+    <string name="all_processing_on_device">Todo el procesamiento se realiza en el dispositivo.</string>
+    <string name="start_scanning">Iniciar escaneo</string>
+    <string name="grant_permission_scan">Dar permiso y escanear</string>
+    <string name="sms_permission_required">Se requiere permiso de SMS para escanear mensajes</string>
+
+    <!-- Settings -->
+    <string name="settings">Ajustes</string>
+    <string name="section_appearance">APARIENCIA</string>
+    <string name="theme">Tema</string>
+    <string name="theme_description">Elija entre Claro, Oscuro o Sistema</string>
+    <string name="light">Claro</string>
+    <string name="system_default">Sistema</string>
+    <string name="dark">Oscuro</string>
+    <string name="section_language">IDIOMA</string>
+    <string name="app_language">Idioma de la app</string>
+    <string name="language_description">Seleccione el idioma de la aplicacion</string>
+    <string name="lang_system">Predeterminado del sistema</string>
+    <string name="lang_english">English</string>
+    <string name="lang_russian">\u0420\u0443\u0441\u0441\u043a\u0438\u0439</string>
+    <string name="lang_armenian">\u0540\u0561\u0575\u0565\u0580\u0565\u0576</string>
+    <string name="lang_chinese">\u4e2d\u6587</string>
+    <string name="lang_spanish">Espanol</string>
+    <string name="section_currency">MONEDA</string>
+    <string name="display_currency">Moneda de visualizacion</string>
+    <string name="currency_description">Usada para formato y escaneo de recibos</string>
+    <string name="select_currency">Seleccionar moneda</string>
+    <string name="currency_converter">Conversor de monedas</string>
+    <string name="fetching_live_rates">Obteniendo tasas en vivo\u2026</string>
+    <string name="rates_source">Tasas de open.er-api.com \u00b7 actualizadas cada hora</string>
+    <string name="section_data_sources">FUENTES DE DATOS</string>
+    <string name="sms_transaction_detection">Deteccion de transacciones SMS</string>
+    <string name="sms_detection_description">Analizar automaticamente los SMS bancarios</string>
+    <string name="banking_app_notifications">Notificaciones de apps bancarias</string>
+    <string name="banking_notifications_description">Leer notificaciones de aplicaciones bancarias</string>
+    <string name="ai_auto_categorization">IA Categorizacion automatica</string>
+    <string name="ai_categorization_description">Categorizar transacciones automaticamente usando IA</string>
+    <string name="scan_sms_inbox_for_transactions">Escanear SMS para buscar transacciones</string>
+    <string name="section_import_export">IMPORTAR Y EXPORTAR</string>
+    <string name="export_data_json">Exportar datos como JSON</string>
+    <string name="export_description">Guardar todas las transacciones, categorias y ajustes en un archivo</string>
+    <string name="import_data_json">Importar datos desde JSON</string>
+    <string name="import_description">Restaurar datos desde un archivo exportado previamente</string>
+    <string name="section_storage">ALMACENAMIENTO</string>
+    <string name="local_storage">Almacenamiento local</string>
+    <string name="storage_info_format">Datos almacenados en JSON \u00b7 Tamano: %s</string>
+    <string name="clear_all_data">Borrar todos los datos</string>
+    <string name="clear_all_description">Eliminar todas las transacciones y restablecer valores predeterminados</string>
+    <string name="section_about">ACERCA DE</string>
+    <string name="app_name_full">Rastreador Inteligente de Gastos</string>
+    <string name="version_info">Version 1.0 \u00b7 Gestor financiero con IA</string>
+    <string name="features_list">Escaneo de recibos \u00b7 Seguimiento de SMS y notificaciones \u00b7 Categorizacion IA \u00b7 Sugerencias de optimizacion \u00b7 Informes diarios / semanales / mensuales \u00b7 Almacenamiento JSON local \u00b7 Soporte multimoneda \u00b7 Importar y exportar \u00b7 Modo oscuro \u00b7 Soporte multiidioma</string>
+    <string name="clear_all_data_question">\u00bfBorrar todos los datos?</string>
+    <string name="clear_data_warning">Esto eliminara permanentemente todas las transacciones, categorias, presupuestos y ajustes. Esta accion no se puede deshacer.</string>
+    <string name="clear_everything">Borrar todo</string>
+    <string name="import_data_question">\u00bfImportar datos?</string>
+    <string name="import_warning">Esto reemplazara todos los datos actuales con el contenido del archivo seleccionado. Sus transacciones y ajustes existentes seran sobrescritos.\n\nAsegurese de exportar sus datos actuales primero si desea conservarlos.</string>
+    <string name="import_replace">Importar y reemplazar</string>
+
+    <!-- Notification Keywords -->
+    <string name="section_notification_keywords">PALABRAS CLAVE DE NOTIFICACIONES</string>
+    <string name="notification_keywords">Palabras clave</string>
+    <string name="notification_keywords_description">Personalice las palabras clave para detectar ingresos y gastos en notificaciones</string>
+    <string name="income_keywords">Palabras clave de ingresos</string>
+    <string name="income_keywords_hint">Palabras que indican dinero entrante</string>
+    <string name="expense_keywords">Palabras clave de gastos</string>
+    <string name="expense_keywords_hint">Palabras que indican dinero saliente</string>
+    <string name="add_keyword">Agregar palabra</string>
+    <string name="add_keyword_hint">Ingrese una nueva palabra clave</string>
+    <string name="add">Agregar</string>
+    <string name="reset_to_defaults">Restablecer valores predeterminados</string>
+    <string name="keywords_reset">Palabras clave restablecidas</string>
+</resources>
