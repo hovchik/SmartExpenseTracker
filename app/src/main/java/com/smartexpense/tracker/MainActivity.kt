@@ -56,6 +56,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     val isScanningBankingApps by viewModel.isScanningBankingApps.collectAsState()
     val allInstalledApps by viewModel.allInstalledApps.collectAsState()
     val ocrParsedData by viewModel.ocrParsedData.collectAsState()
+    val ocrSections by viewModel.ocrSections.collectAsState()
     val engineDescriptions by viewModel.engineDescriptions.collectAsState()
     val discoveredModels by viewModel.discoveredModels.collectAsState()
     val isLoadingModel by viewModel.isLoadingModel.collectAsState()
@@ -94,14 +95,15 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     // are handled explicitly in the when-branch below.
     BackHandler(enabled = currentScreen != "dashboard") {
         when (currentScreen) {
-            "sms_scan"  -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
-            "store_map" -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
-            else        -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+            "sms_scan"      -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
+            "store_map"     -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+            "ocr_sections"  -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+            else            -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
         }
     }
 
     // Hide the top bar on full-screen sub-screens (they have their own top bar)
-    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze")
+    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ocr_sections")
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -131,6 +133,16 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         }) {
                             Icon(Icons.Filled.Map, contentDescription = "Store Map")
                         }
+                        IconButton(onClick = {
+                            if (isSubscribed) {
+                                currentScreen = "ocr_sections"
+                            } else {
+                                paywallFeatureName = "Scanned Sections"
+                                showPaywall = true
+                            }
+                        }) {
+                            Icon(Icons.Filled.Inventory2, contentDescription = "Scanned Sections")
+                        }
                         NotificationBell(
                             notifications  = inAppNotifications,
                             unreadCount    = unreadCount,
@@ -144,7 +156,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
             }
         },
         bottomBar = {
-            if (currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze")) {
+            if (currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ocr_sections")) {
                 NavigationBar(tonalElevation = 2.dp) {
                     // Home
                     NavigationBarItem(
@@ -240,6 +252,13 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                             viewModel.confirmOcrTransaction(amount, merchant, category)
                         },
                         onClearOcr = { viewModel.clearOcrData() },
+                        onSaveToSection = { label, merchant, items, total, raw, langs ->
+                            viewModel.saveOcrSection(
+                                label = label, merchantName = merchant,
+                                items = items, totalAmount = total,
+                                rawOcrText = raw, detectedLanguages = langs
+                            )
+                        },
                         ocrParsedData = ocrParsedData,
                         categories = uiState.categories.map { it.name },
                         onNavigateBack = {
@@ -247,7 +266,18 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                             currentScreen = "dashboard"
                             viewModel.setSelectedTab(0)
                         },
+                        onNavigateToSections = { currentScreen = "ocr_sections" },
                         lastResult = uiState.lastOcrResult
+                    )
+                    "ocr_sections" -> OcrSectionsScreen(
+                        sections = ocrSections,
+                        onDeleteSection = { viewModel.deleteOcrSection(it) },
+                        onUpdateSection = { viewModel.updateOcrSection(it) },
+                        onClearAll = { viewModel.clearAllOcrSections() },
+                        onGenerateReport = { since -> viewModel.generateOcrSectionsReport(since) },
+                        onGetGoodsReportItems = { since -> viewModel.getGoodsReportItems(since) },
+                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) },
+                        onNavigateToScan = { currentScreen = "scan" }
                     )
                     "sms_scan" -> SmsScanScreen(
                         scanState = smsScanState,
