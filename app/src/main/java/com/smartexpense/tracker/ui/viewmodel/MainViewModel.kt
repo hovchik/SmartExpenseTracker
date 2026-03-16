@@ -39,6 +39,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** On-device Gemini Nano service – null responses mean "not available / not enabled". */
     private val localAiService = LocalAiService(application.applicationContext)
 
+    // ── Tri-mode AI (must be initialized before init block) ───────────
+    private val localModelManager = com.smartexpense.tracker.ai.modelmanager.LocalModelManager(
+        application.applicationContext
+    )
+    private val aiProviderSelector = com.smartexpense.tracker.ai.provider.AiProviderSelector(
+        application.applicationContext,
+        localModelManager
+    )
+    private val benchmarkRunner = com.smartexpense.tracker.ai.benchmark.LocalAiBenchmarkRunner()
+
     /** Human-readable AI backend status shown in Settings (null = not yet checked). */
     private val _localAiStatus = MutableStateFlow<String?>(null)
     val localAiStatus: StateFlow<String?> = _localAiStatus.asStateFlow()
@@ -590,15 +600,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun isGalleryInstalled(): Boolean = localAiService.mediaPipeLlm.isGalleryInstalled()
 
     // ─── Tri-Mode AI Architecture ─────────────────────────────────────
-
-    private val localModelManager = com.smartexpense.tracker.ai.modelmanager.LocalModelManager(
-        getApplication<Application>().applicationContext
-    )
-    private val aiProviderSelector = com.smartexpense.tracker.ai.provider.AiProviderSelector(
-        getApplication<Application>().applicationContext,
-        localModelManager
-    )
-    private val benchmarkRunner = com.smartexpense.tracker.ai.benchmark.LocalAiBenchmarkRunner()
 
     /** Status message for the tri-mode AI engine. */
     private val _aiModeStatus = MutableStateFlow<String?>(null)
