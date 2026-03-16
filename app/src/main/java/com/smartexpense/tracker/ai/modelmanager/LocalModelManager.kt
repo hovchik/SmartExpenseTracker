@@ -24,6 +24,11 @@ class LocalModelManager(private val context: Context) {
     /** Download manager for observing download progress. */
     val downloads: ModelDownloadManager get() = downloadManager
 
+    /** Sets the HuggingFace token for downloading gated models. */
+    fun setHuggingFaceToken(token: String) {
+        downloadManager.huggingFaceToken = token
+    }
+
     /** Installer for import/register operations. */
     val install: ModelInstaller get() = installer
 

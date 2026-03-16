@@ -699,6 +699,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (settings.claudeApiKey.isNotBlank()) {
                 aiProviderSelector.cloudProvider.updateApiKey(settings.claudeApiKey)
             }
+            // Pass HuggingFace token for gated model downloads
+            if (settings.huggingFaceToken.isNotBlank()) {
+                localModelManager.setHuggingFaceToken(settings.huggingFaceToken)
+            }
             withContext(Dispatchers.IO) {
                 aiProviderSelector.selectProvider(settings.aiModePreference)
             }

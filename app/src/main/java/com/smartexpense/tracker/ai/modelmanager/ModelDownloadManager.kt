@@ -46,9 +46,13 @@ class ModelDownloadManager(private val context: Context) {
     /** App-private directory for model files. */
     fun modelsDir(): File = File(context.filesDir, "ai_models").also { it.mkdirs() }
 
+    /** HuggingFace token for gated repos (set from AppSettings.huggingFaceToken). */
+    var huggingFaceToken: String = ""
+
     /**
      * Checks if a URL is accessible (returns HTTP 200/206) without downloading content.
      * Returns the content length if available, or -1 if unknown.
+     * Automatically adds HuggingFace auth header for huggingface.co URLs.
      */
     suspend fun checkUrlAccessibility(url: String): Pair<Boolean, Long> = withContext(Dispatchers.IO) {
         try {
@@ -57,6 +61,7 @@ class ModelDownloadManager(private val context: Context) {
                 connectTimeout = CONNECT_TIMEOUT
                 readTimeout = CONNECT_TIMEOUT
                 setRequestProperty("User-Agent", USER_AGENT)
+                addAuthHeader(this, url)
                 instanceFollowRedirects = true
             }
 
@@ -66,12 +71,22 @@ class ModelDownloadManager(private val context: Context) {
 
             val accessible = responseCode in 200..299
             if (!accessible) {
-                Log.w(TAG, "URL not accessible: HTTP $responseCode for $url")
+                val hint = if (responseCode == 401 && url.contains("huggingface.co"))
+                    " (gated repo — add your HuggingFace token in Settings)"
+                else ""
+                Log.w(TAG, "URL not accessible: HTTP $responseCode for $url$hint")
             }
             accessible to contentLength
         } catch (e: Exception) {
             Log.w(TAG, "URL accessibility check failed for $url: ${e.message}")
             false to -1L
+        }
+    }
+
+    /** Adds HuggingFace Bearer token for gated model repos. */
+    private fun addAuthHeader(conn: HttpURLConnection, url: String) {
+        if (huggingFaceToken.isNotBlank() && url.contains("huggingface.co")) {
+            conn.setRequestProperty("Authorization", "Bearer $huggingFaceToken")
         }
     }
 
@@ -124,6 +139,7 @@ class ModelDownloadManager(private val context: Context) {
                 connectTimeout = CONNECT_TIMEOUT
                 readTimeout = READ_TIMEOUT
                 setRequestProperty("User-Agent", USER_AGENT)
+                addAuthHeader(this, model.downloadUrl)
                 instanceFollowRedirects = true
             }
 
