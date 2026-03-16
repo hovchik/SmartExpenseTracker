@@ -6,6 +6,7 @@ import com.smartexpense.tracker.data.repository.ExpenseRepository
 import com.smartexpense.tracker.service.notification.ExpenseNotificationHelper
 import com.smartexpense.tracker.service.scheduler.SalarySchedulerWorker
 import com.smartexpense.tracker.service.scheduler.ScheduledExpenseWorker
+import com.smartexpense.tracker.service.subscription.SubscriptionManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,11 +22,15 @@ class SmartExpenseApp : Application() {
     lateinit var repository: ExpenseRepository
         private set
 
+    lateinit var subscriptionManager: SubscriptionManager
+        private set
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
         instance = this
+        subscriptionManager = SubscriptionManager(this)
         val storage = JsonStorageManager(this)
         repository = ExpenseRepository(storage)
         appScope.launch {

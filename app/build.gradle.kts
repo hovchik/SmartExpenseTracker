@@ -38,6 +38,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
@@ -78,11 +79,15 @@ dependencies {
 
     // ML Kit for OCR — all script recognizers for multi-language support
     // Updated to 16.0.1 for 16 KB page-size alignment (Android 15+ requirement)
-    implementation("com.google.mlkit:text-recognition:16.0.1")              // Latin
+    implementation("com.google.mlkit:text-recognition:16.0.1")              // Latin + Cyrillic (Russian)
     implementation("com.google.mlkit:text-recognition-chinese:16.0.1")      // Chinese
     implementation("com.google.mlkit:text-recognition-devanagari:16.0.1")   // Devanagari (Hindi etc)
     implementation("com.google.mlkit:text-recognition-japanese:16.0.1")     // Japanese
     implementation("com.google.mlkit:text-recognition-korean:16.0.1")       // Korean
+
+    // Tesseract OCR for Armenian script (ML Kit has no Armenian model)
+    // Tesseract4Android wraps Tesseract 5.x — modern, actively maintained replacement for tess-two
+    implementation("cz.adaptech.tesseract4android:tesseract4android:4.7.0")
 
     // ML Kit Barcode scanning — for QR codes on receipts
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
@@ -107,6 +112,9 @@ dependencies {
 
     // WorkManager for salary scheduling
     implementation("androidx.work:work-runtime-ktx:2.9.0")
+
+    // Google Play Billing for subscriptions & one-time purchases
+    implementation("com.android.billingclient:billing-ktx:7.1.1")
 
     // Testing
     testImplementation("junit:junit:4.13.2")
