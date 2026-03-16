@@ -6,16 +6,13 @@
     android:viewportHeight="108">
 
     <!--
-        FlowSense — Modern Adaptive Icon Foreground
-        Single bold white silhouette: wallet card whose top-right
-        rises into an upward growth arrow. Immediately communicates
-        "finance + growth" at any size, even 48dp.
-        Safe zone: 18–90 on each axis. Content: 28–78.
+        FlowSense — Monochrome Icon for Android 13+ Themed Icons
+        Single-color version of the foreground silhouette.
     -->
 
-    <!-- ── Main shape: Wallet-card with integrated upward arrow ── -->
+    <!-- Wallet-card with integrated upward arrow -->
     <path
-        android:fillColor="#FFFFFF"
+        android:fillColor="#000000"
         android:pathData="
             M36,46
             L56,46
@@ -29,9 +26,9 @@
             Q30,46 36,46
             Z" />
 
-    <!-- Wallet clasp bump (right side) -->
+    <!-- Wallet clasp -->
     <path
-        android:fillColor="#FFFFFF"
+        android:fillColor="#000000"
         android:pathData="
             M78,58
             L82,58
@@ -40,15 +37,10 @@
             L78,66
             Z" />
 
-    <!-- Clasp dot -->
-    <path
-        android:fillColor="#059669"
-        android:pathData="M81,62 A1.5,1.5,0,1,1,81,62.01 Z" />
-
-    <!-- ── Dollar sign (bold, dark green on white card) ── -->
+    <!-- Dollar S-curve (cutout effect via lighter fill) -->
     <path
         android:fillColor="@android:color/transparent"
-        android:strokeColor="#059669"
+        android:strokeColor="#000000"
         android:strokeWidth="3.2"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
@@ -62,15 +54,15 @@
     <!-- Dollar vertical bar -->
     <path
         android:fillColor="@android:color/transparent"
-        android:strokeColor="#059669"
+        android:strokeColor="#000000"
         android:strokeWidth="2.8"
         android:strokeLineCap="round"
         android:pathData="M50,58 L50,80" />
 
-    <!-- ── Arrow accent line inside the arrow peak ── -->
+    <!-- Arrow accent inside peak -->
     <path
         android:fillColor="@android:color/transparent"
-        android:strokeColor="#059669"
+        android:strokeColor="#000000"
         android:strokeWidth="2.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
