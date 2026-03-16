@@ -116,6 +116,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _ocrSections = MutableStateFlow<List<OcrSection>>(emptyList())
     val ocrSections: StateFlow<List<OcrSection>> = _ocrSections.asStateFlow()
 
+    // ── Tri-mode AI state (must be declared before init) ──────────────
+    private val _aiModeStatus = MutableStateFlow<String?>(null)
+    val aiModeStatus: StateFlow<String?> = _aiModeStatus.asStateFlow()
+    private val _aiPrivacyMessage = MutableStateFlow<String?>(null)
+    val aiPrivacyMessage: StateFlow<String?> = _aiPrivacyMessage.asStateFlow()
+    private val _deviceCapability = MutableStateFlow<com.smartexpense.tracker.ai.capability.DeviceAiCapabilityDetector.DeviceCapability?>(null)
+    val deviceCapability: StateFlow<com.smartexpense.tracker.ai.capability.DeviceAiCapabilityDetector.DeviceCapability?> = _deviceCapability.asStateFlow()
+    private val _isScanning = MutableStateFlow(false)
+    val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
+    private val _catalogModels = MutableStateFlow<List<com.smartexpense.tracker.ai.modelmanager.LocalAiModel>>(emptyList())
+    val catalogModels: StateFlow<List<com.smartexpense.tracker.ai.modelmanager.LocalAiModel>> = _catalogModels.asStateFlow()
+    val modelDownloadState: StateFlow<com.smartexpense.tracker.ai.modelmanager.ModelDownloadManager.DownloadState> =
+        localModelManager.downloads.downloadState
+    private val _benchmarkResult = MutableStateFlow<com.smartexpense.tracker.ai.benchmark.LocalAiBenchmarkRunner.BenchmarkResult?>(null)
+    val benchmarkResult: StateFlow<com.smartexpense.tracker.ai.benchmark.LocalAiBenchmarkRunner.BenchmarkResult?> = _benchmarkResult.asStateFlow()
+    private val _isRunningBenchmark = MutableStateFlow(false)
+    val isRunningBenchmark: StateFlow<Boolean> = _isRunningBenchmark.asStateFlow()
+    private val _installedModelName = MutableStateFlow("")
+    val installedModelName: StateFlow<String> = _installedModelName.asStateFlow()
+    private val _modelStorageUsageMb = MutableStateFlow(0L)
+    val modelStorageUsageMb: StateFlow<Long> = _modelStorageUsageMb.asStateFlow()
+    private val _wizardImportMessage = MutableStateFlow<String?>(null)
+    val wizardImportMessage: StateFlow<String?> = _wizardImportMessage.asStateFlow()
+
     init {
         viewModelScope.launch {
             repository.initialize()
@@ -600,48 +624,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun isGalleryInstalled(): Boolean = localAiService.mediaPipeLlm.isGalleryInstalled()
 
     // ─── Tri-Mode AI Architecture ─────────────────────────────────────
-
-    /** Status message for the tri-mode AI engine. */
-    private val _aiModeStatus = MutableStateFlow<String?>(null)
-    val aiModeStatus: StateFlow<String?> = _aiModeStatus.asStateFlow()
-
-    /** Privacy message (non-null when provider is local). */
-    private val _aiPrivacyMessage = MutableStateFlow<String?>(null)
-    val aiPrivacyMessage: StateFlow<String?> = _aiPrivacyMessage.asStateFlow()
-
-    /** Device capability scan result. */
-    private val _deviceCapability = MutableStateFlow<com.smartexpense.tracker.ai.capability.DeviceAiCapabilityDetector.DeviceCapability?>(null)
-    val deviceCapability: StateFlow<com.smartexpense.tracker.ai.capability.DeviceAiCapabilityDetector.DeviceCapability?> = _deviceCapability.asStateFlow()
-
-    private val _isScanning = MutableStateFlow(false)
-    val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
-
-    /** Catalog models with install state. */
-    private val _catalogModels = MutableStateFlow<List<com.smartexpense.tracker.ai.modelmanager.LocalAiModel>>(emptyList())
-    val catalogModels: StateFlow<List<com.smartexpense.tracker.ai.modelmanager.LocalAiModel>> = _catalogModels.asStateFlow()
-
-    /** Download state from the download manager. */
-    val modelDownloadState: StateFlow<com.smartexpense.tracker.ai.modelmanager.ModelDownloadManager.DownloadState> =
-        localModelManager.downloads.downloadState
-
-    /** Benchmark result. */
-    private val _benchmarkResult = MutableStateFlow<com.smartexpense.tracker.ai.benchmark.LocalAiBenchmarkRunner.BenchmarkResult?>(null)
-    val benchmarkResult: StateFlow<com.smartexpense.tracker.ai.benchmark.LocalAiBenchmarkRunner.BenchmarkResult?> = _benchmarkResult.asStateFlow()
-
-    private val _isRunningBenchmark = MutableStateFlow(false)
-    val isRunningBenchmark: StateFlow<Boolean> = _isRunningBenchmark.asStateFlow()
-
-    /** Name of the currently installed/active model. */
-    private val _installedModelName = MutableStateFlow("")
-    val installedModelName: StateFlow<String> = _installedModelName.asStateFlow()
-
-    /** Model storage usage. */
-    private val _modelStorageUsageMb = MutableStateFlow(0L)
-    val modelStorageUsageMb: StateFlow<Long> = _modelStorageUsageMb.asStateFlow()
-
-    /** Import message for setup wizard. */
-    private val _wizardImportMessage = MutableStateFlow<String?>(null)
-    val wizardImportMessage: StateFlow<String?> = _wizardImportMessage.asStateFlow()
 
     /** Sets the AI execution mode and persists it. */
     fun setAiMode(mode: com.smartexpense.tracker.data.model.AiModePreference) {
