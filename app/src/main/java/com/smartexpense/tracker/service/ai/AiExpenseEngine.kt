@@ -1270,9 +1270,16 @@ class AiExpenseEngine {
             // Arabic
             "المجموع", "الإجمالي", "الضريبة", "نقد",
             // Armenian (Unicode)
-            "\u0538\u0576\u0564\u0561\u0574\u0565\u0576\u0568",
-            "\u0533\u0578\u0582\u0574\u0561\u0580",
-            "\u0540\u0561\u0576\u0580\u0561\u0563\u0578\u0582\u0574\u0561\u0580"
+            "\u0538\u0576\u0564\u0561\u0574\u0565\u0576\u0568",       // Delays (total)
+            "\u0533\u0578\u0582\u0574\u0561\u0580",                   // Delays (sum)
+            "\u0540\u0561\u0576\u0580\u0561\u0563\u0578\u0582\u0574\u0561\u0580", // Delays (subtotal)
+            "\u0563\u0578\u0582\u0574\u0561\u0580",                   // delays (sum, lowercase)
+            "\u0568\u0576\u0564\u0561\u0574\u0565\u0576\u0568",       // delays (total, lowercase)
+            "\u057e\u0573\u0561\u057c\u0576\u057e\u0561\u056e",       // delays (paid)
+            "\u056f\u0561\u0576\u056d\u0561\u057e\u056e\u0561\u0580", // delays (cash)
+            "\u0574\u0561\u0576\u0580",                               // delays (change)
+            "\u0566\u0565\u0572\u0573",                               // delays (discount)
+            "\u057a\u0561\u0570\u057a\u0561\u0576\u0565\u0584"        // delays (keep/save receipt)
         )
     }
 
@@ -1410,6 +1417,71 @@ class AiExpenseEngine {
 
             // Extract items
             val items = mutableListOf<Pair<String, Double>>()
+
+            // ── Armenian numbered-item receipt parser ──────────────────
+            // Armenian grocery receipts (e.g. Yerevan City / SAS) use a numbered format:
+            //   1.Մածուն <<Երdelays>> 3.6% 450delays
+            //   0403/1102359 1delaysdelays 594/6 600
+            // The product name follows the number, the price is the LAST number on the
+            // (possibly multi-line) item block. Metadata like weight, codes, quantities
+            // appear in between and should be ignored.
+            val armenianNumberedItem = Regex("""^\d{1,3}\.""")
+            val hasArmenianNumberedItems = lines.any { armenianNumberedItem.containsMatchIn(it) } &&
+                    lines.any { it.any { c -> c.code in 0x0530..0x058F } }  // has Armenian chars
+
+            if (hasArmenianNumberedItems) {
+                // Group lines into item blocks: each block starts with "N." (number-dot)
+                val itemBlocks = mutableListOf<String>()
+                val currentBlock = StringBuilder()
+                for (line in lines) {
+                    if (armenianNumberedItem.containsMatchIn(line)) {
+                        if (currentBlock.isNotEmpty()) {
+                            itemBlocks.add(currentBlock.toString())
+                        }
+                        currentBlock.clear()
+                        currentBlock.append(line)
+                    } else if (currentBlock.isNotEmpty()) {
+                        // Continuation line for current item
+                        currentBlock.append(" ").append(line)
+                    }
+                }
+                if (currentBlock.isNotEmpty()) itemBlocks.add(currentBlock.toString())
+
+                for (block in itemBlocks) {
+                    // Remove the leading number + dot: "1." / "12."
+                    val withoutNumber = block.replace(armenianNumberedItem, "").trim()
+
+                    // Extract product name: Armenian text (Unicode 0530-058F) plus
+                    // allowed punctuation (<<>>, quotes, hyphens, spaces, &, digits within name)
+                    val nameMatch = Regex("^([\\u0530-\\u058F][\\u0530-\\u058F\\s\\d&.,'\u201C\u201D\u00AB\u00BB<>\\-()]+)")
+                        .find(withoutNumber)
+                    val rawName = nameMatch?.groupValues?.get(1)?.trim() ?: continue
+
+                    // Clean up name: remove trailing digits, punctuation artifacts
+                    val name = rawName
+                        .replace(Regex("""\s*\d+[.,]?\d*\s*$"""), "")  // trailing numbers
+                        .replace(Regex("[<>\u00AB\u00BB\u201C\u201D]+"), "")  // quote marks
+                        .replace(Regex("""\s{2,}"""), " ")             // collapse whitespace
+                        .trim()
+
+                    if (name.length < 2) continue
+
+                    // Price is the last standalone number in the block
+                    // Match integers or decimals (comma or dot), take the last one
+                    val allNumbers = Regex("""\b(\d[\d.,]*\d|\d+)\b""").findAll(block).toList()
+                    val priceStr = allNumbers.lastOrNull()?.groupValues?.get(1) ?: continue
+                    val price = parseReceiptPrice(priceStr)
+
+                    if (price != null && price > 0 && price < 1_000_000 &&
+                        !name.lowercase().let { n -> itemSkipKeywords.any { kw -> n.contains(kw) } }
+                    ) {
+                        items.add(name to price)
+                    }
+                }
+            }
+
+            // ── Generic item patterns (used when Armenian parser didn't find items) ──
+            if (items.isEmpty()) {
             val itemPatterns = listOf(
                 // ── Period-decimal patterns (US, UK, Asia, etc.) ──
                 // Item   <currency>AMOUNT  e.g. "Coffee  $4.99" / "Coffee  €4.99"
@@ -1499,6 +1571,7 @@ class AiExpenseEngine {
                     }
                 }
             }
+            } // end if (items.isEmpty()) – generic patterns fallback
 
             // ── Total extraction ──────────────────────────────────────
             // Priority-1: currency-specific total markers
