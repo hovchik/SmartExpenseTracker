@@ -13,25 +13,29 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.smartexpense.tracker.R
 import com.smartexpense.tracker.data.model.Category
 import com.smartexpense.tracker.data.model.TransactionSource
 import com.smartexpense.tracker.data.model.TransactionType
 import com.smartexpense.tracker.ui.theme.*
+import com.smartexpense.tracker.util.CurrencyUtils
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTransactionScreen(
     categories: List<Category>,
-    onAdd: (Double, String, String, TransactionType, TransactionSource, String) -> Unit,
+    onAdd: (Double, String, String, TransactionType, TransactionSource, String, String, Long) -> Unit,
     onScanReceipt: () -> Unit,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    currencyCode: String = "USD"
 ) {
+    val currencySymbol = CurrencyUtils.symbolFor(currencyCode)
     var amount by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("") }
@@ -39,6 +43,30 @@ fun AddTransactionScreen(
     var merchantName by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var showError by remember { mutableStateOf(false) }
+
+    // Date/time selection
+    var selectedDateMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    val dateDisplayFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
+    val displayDate = dateDisplayFormatter.format(Date(selectedDateMillis))
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDateMillis)
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { selectedDateMillis = it }
+                    showDatePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -53,10 +81,10 @@ fun AddTransactionScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onNavigateBack) {
-                Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
             }
             Text(
-                stringResource(R.string.add_transaction),
+                "Add Transaction",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
@@ -73,7 +101,7 @@ fun AddTransactionScreen(
             FilterChip(
                 selected = isExpense,
                 onClick = { isExpense = true },
-                label = { Text(stringResource(R.string.expense)) },
+                label = { Text("Expense") },
                 leadingIcon = {
                     Icon(Icons.Filled.ArrowUpward, contentDescription = null, modifier = Modifier.size(18.dp))
                 },
@@ -86,7 +114,7 @@ fun AddTransactionScreen(
             FilterChip(
                 selected = !isExpense,
                 onClick = { isExpense = false },
-                label = { Text(stringResource(R.string.income)) },
+                label = { Text("Income") },
                 leadingIcon = {
                     Icon(Icons.Filled.ArrowDownward, contentDescription = null, modifier = Modifier.size(18.dp))
                 },
@@ -109,8 +137,8 @@ fun AddTransactionScreen(
                     showError = false
                 }
             },
-            label = { Text(stringResource(R.string.amount)) },
-            leadingIcon = { Text("$", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+            label = { Text("Amount") },
+            leadingIcon = { Text(currencySymbol, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
@@ -124,7 +152,7 @@ fun AddTransactionScreen(
         OutlinedTextField(
             value = description,
             onValueChange = { description = it; showError = false },
-            label = { Text(stringResource(R.string.description)) },
+            label = { Text("Description") },
             leadingIcon = { Icon(Icons.Filled.Description, contentDescription = null) },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
@@ -134,11 +162,30 @@ fun AddTransactionScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Date field (tap to open picker)
+        OutlinedTextField(
+            value = displayDate,
+            onValueChange = {},
+            label = { Text("Date") },
+            leadingIcon = { Icon(Icons.Filled.CalendarToday, contentDescription = null) },
+            trailingIcon = {
+                IconButton(onClick = { showDatePicker = true }) {
+                    Icon(Icons.Filled.EditCalendar, contentDescription = "Pick date")
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            readOnly = true,
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         // Merchant Name
         OutlinedTextField(
             value = merchantName,
             onValueChange = { merchantName = it },
-            label = { Text(stringResource(R.string.merchant_optional)) },
+            label = { Text("Merchant (optional)") },
             leadingIcon = { Icon(Icons.Filled.Store, contentDescription = null) },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
@@ -149,7 +196,7 @@ fun AddTransactionScreen(
 
         // Category Selection
         Text(
-            stringResource(R.string.category),
+            "Category",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold
         )
@@ -176,7 +223,7 @@ fun AddTransactionScreen(
         OutlinedTextField(
             value = notes,
             onValueChange = { notes = it },
-            label = { Text(stringResource(R.string.notes_optional)) },
+            label = { Text("Notes (optional)") },
             leadingIcon = { Icon(Icons.Filled.Notes, contentDescription = null) },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
@@ -194,7 +241,7 @@ fun AddTransactionScreen(
         ) {
             Icon(Icons.Filled.CameraAlt, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text(stringResource(R.string.scan_receipt_instead))
+            Text("Scan Receipt Instead")
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -210,7 +257,9 @@ fun AddTransactionScreen(
                         selectedCategory.ifEmpty { "Other" },
                         if (isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                         TransactionSource.MANUAL,
-                        merchantName
+                        merchantName,
+                        notes,
+                        selectedDateMillis
                     )
                     onNavigateBack()
                 } else {
@@ -228,7 +277,7 @@ fun AddTransactionScreen(
             Icon(Icons.Filled.Add, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                if (isExpense) stringResource(R.string.add_expense) else stringResource(R.string.add_income),
+                if (isExpense) "Add Expense" else "Add Income",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp
             )
@@ -237,7 +286,7 @@ fun AddTransactionScreen(
         if (showError) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                stringResource(R.string.error_valid_amount_description),
+                "Please enter a valid amount and description",
                 color = MaterialTheme.colorScheme.error,
                 fontSize = 12.sp
             )
