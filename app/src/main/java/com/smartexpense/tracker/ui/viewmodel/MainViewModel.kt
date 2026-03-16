@@ -718,33 +718,54 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Uses the AI provider selector for categorization when the new mode is active,
      * falls back to existing local AI service otherwise.
      */
-    private suspend fun smartCategorizeWithProvider(description: String, isExpense: Boolean = true): String? {
+    private val promptAdapter = com.smartexpense.tracker.ai.provider.PromptAdapter()
+
+    /**
+     * Uses the AI provider for categorization with rich context.
+     * Supports AI-driven new category creation when the AI suggests one.
+     */
+    private suspend fun smartCategorizeWithProvider(
+        description: String,
+        isExpense: Boolean = true,
+        merchantName: String = "",
+        amount: Double = 0.0
+    ): String? {
         val provider = aiProviderSelector.getActiveProvider()
         if (!provider.isAvailable()) return null
 
-        val categories = repository.appData.value.categories.map { it.name }
-        val promptAdapter = com.smartexpense.tracker.ai.provider.PromptAdapter()
-        val prompt = promptAdapter.createCategorizationPrompt(description, categories, isExpense)
-
-        val result = provider.generateAnalysis(
-            com.smartexpense.tracker.ai.provider.AnalysisInput(
-                prompt = prompt,
-                availableCategories = categories,
-                isExpense = isExpense,
-                type = com.smartexpense.tracker.ai.provider.AnalysisType.CATEGORIZE
-            )
+        val data = repository.appData.value
+        val categories = data.categories.map { it.name }
+        val currencyCode = data.settings.currencyCode
+        val prompt = promptAdapter.createCategorizationPrompt(
+            description, categories, isExpense, merchantName, amount, currencyCode
         )
 
+        val result = withContext(Dispatchers.IO) {
+            provider.generateAnalysis(
+                com.smartexpense.tracker.ai.provider.AnalysisInput(
+                    prompt = prompt,
+                    availableCategories = categories,
+                    isExpense = isExpense,
+                    type = com.smartexpense.tracker.ai.provider.AnalysisType.CATEGORIZE
+                )
+            )
+        }
+
         if (result.success && result.text.isNotBlank()) {
-            val cleaned = result.text.trim().removeSurrounding("\"")
-            return categories.find { it.equals(cleaned, ignoreCase = true) }
-                ?: categories.find { cleaned.contains(it, ignoreCase = true) }
+            val parsed = promptAdapter.parseCategorization(result.text, categories)
+            if (parsed.category != null) {
+                if (parsed.isNewCategory) {
+                    // AI suggested a brand-new category — auto-create it
+                    repository.ensureCategoryExists(parsed.category)
+                }
+                return parsed.category
+            }
         }
         return null
     }
 
     /**
-     * Uses the AI provider selector for insight generation.
+     * Uses the AI provider for insight generation with comprehensive financial data.
      */
     suspend fun generateInsightWithProvider(
         totalExpenses: Double,
@@ -757,39 +778,130 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val provider = aiProviderSelector.getActiveProvider()
         if (!provider.isAvailable()) return null
 
-        val promptAdapter = com.smartexpense.tracker.ai.provider.PromptAdapter()
+        val data = repository.appData.value
+        val now = System.currentTimeMillis()
+        val monthStart = DateUtils.getStartOfMonth(now)
+        val transactions = data.transactions.filter { it.timestamp >= monthStart }
+
+        // Build category breakdown
+        val categoryBreakdown = transactions
+            .filter { it.type == TransactionType.EXPENSE }
+            .groupBy { it.category }
+            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+
+        // Build budget limits map
+        val budgetLimits = data.budgets.associate { budget ->
+            val catName = data.categories.find { it.id == budget.categoryId }?.name ?: budget.categoryId
+            catName to budget.monthlyLimit
+        }
+
+        // Get recent large transactions
+        val recentLarge = transactions
+            .filter { it.type == TransactionType.EXPENSE }
+            .sortedByDescending { it.amount }
+            .take(5)
+            .map { com.smartexpense.tracker.ai.provider.PromptAdapter.TransactionSummary(it.description, it.amount, it.category) }
+
+        // Previous period expenses for comparison
+        val prevMonthStart = DateUtils.getStartOfMonth(monthStart - 1)
+        val prevMonthEnd = monthStart - 1
+        val previousPeriodExpenses = data.transactions
+            .filter { it.type == TransactionType.EXPENSE && it.timestamp in prevMonthStart..prevMonthEnd }
+            .sumOf { it.amount }
+
+        val avgDaily = if (transactionCount > 0) {
+            val days = ((now - monthStart) / (24 * 60 * 60 * 1000.0)).coerceAtLeast(1.0)
+            totalExpenses / days
+        } else 0.0
+
         val prompt = promptAdapter.createInsightPrompt(
-            totalExpenses, totalIncome, topCategory,
-            topCategoryAmount, transactionCount, currencyCode
+            totalExpenses, totalIncome, topCategory, topCategoryAmount,
+            transactionCount, currencyCode,
+            categoryBreakdown = categoryBreakdown,
+            recentTransactions = recentLarge,
+            previousPeriodExpenses = previousPeriodExpenses,
+            averageDailySpend = avgDaily,
+            budgetLimits = budgetLimits
         )
 
-        val result = provider.generateAnalysis(
-            com.smartexpense.tracker.ai.provider.AnalysisInput(
-                prompt = prompt,
-                totalExpenses = totalExpenses,
-                totalIncome = totalIncome,
-                topCategory = topCategory,
-                topCategoryAmount = topCategoryAmount,
-                transactionCount = transactionCount,
-                currencyCode = currencyCode,
-                type = com.smartexpense.tracker.ai.provider.AnalysisType.INSIGHT
+        val result = withContext(Dispatchers.IO) {
+            provider.generateAnalysis(
+                com.smartexpense.tracker.ai.provider.AnalysisInput(
+                    prompt = prompt,
+                    totalExpenses = totalExpenses,
+                    totalIncome = totalIncome,
+                    topCategory = topCategory,
+                    topCategoryAmount = topCategoryAmount,
+                    transactionCount = transactionCount,
+                    currencyCode = currencyCode,
+                    type = com.smartexpense.tracker.ai.provider.AnalysisType.INSIGHT
+                )
             )
-        )
+        }
 
-        return if (result.success) result.text else null
+        return if (result.success) promptAdapter.parseInsight(result.text) else null
     }
 
     /**
-     * Returns a category using on-device AI when enabled, otherwise falls back to rules.
-     * When AI suggests a category that doesn't exist yet, it is auto-created.
+     * Generates an AI insight for a completed report, enriching it with provider analysis.
      */
-    private suspend fun smartCategorize(description: String, isExpense: Boolean = true): String {
+    private suspend fun enrichReportWithAiInsight(report: ExpenseReport, currencyCode: String): ExpenseReport {
+        val provider = aiProviderSelector.getActiveProvider()
+        if (!provider.isAvailable()) return report
+
+        val periodLabel = when (report.periodType) {
+            ReportPeriod.DAILY -> "daily"
+            ReportPeriod.WEEKLY -> "weekly"
+            ReportPeriod.MONTHLY -> "monthly"
+            ReportPeriod.CUSTOM -> "custom period"
+        }
+
+        val prompt = promptAdapter.createReportInsightPrompt(
+            periodLabel = periodLabel,
+            totalExpenses = report.totalExpenses,
+            totalIncome = report.totalIncome,
+            categoryBreakdown = report.categoryBreakdown,
+            topMerchants = report.topMerchants,
+            transactionCount = report.transactionCount,
+            currencyCode = currencyCode,
+            comparisonWithPrevious = report.comparisonWithPrevious,
+            dayOfWeekSpending = report.dayOfWeekSpending
+        )
+
+        val result = withContext(Dispatchers.IO) {
+            provider.generateAnalysis(
+                com.smartexpense.tracker.ai.provider.AnalysisInput(
+                    prompt = prompt,
+                    totalExpenses = report.totalExpenses,
+                    totalIncome = report.totalIncome,
+                    transactionCount = report.transactionCount,
+                    currencyCode = currencyCode,
+                    type = com.smartexpense.tracker.ai.provider.AnalysisType.REPORT
+                )
+            )
+        }
+
+        return if (result.success && result.text.isNotBlank()) {
+            report.copy(aiInsight = promptAdapter.parseInsight(result.text))
+        } else report
+    }
+
+    /**
+     * Returns a category using the AI provider, with fallback to legacy local AI service
+     * and then to the rule-based engine. AI can suggest new categories that are auto-created.
+     */
+    private suspend fun smartCategorize(
+        description: String,
+        isExpense: Boolean = true,
+        merchantName: String = "",
+        amount: Double = 0.0
+    ): String {
         val settings = repository.appData.value.settings
         val userCatNames = repository.appData.value.categories
             .filter { !it.isDefault }.map { it.name }
 
-        // Try the new tri-mode AI provider first
-        val providerCategory = smartCategorizeWithProvider(description, isExpense)
+        // Try the tri-mode AI provider first (with richer context)
+        val providerCategory = smartCategorizeWithProvider(description, isExpense, merchantName, amount)
         if (providerCategory != null) {
             repository.ensureCategoryExists(providerCategory)
             return providerCategory
@@ -817,7 +929,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         timestamp: Long = System.currentTimeMillis()
     ) {
         viewModelScope.launch {
-            val finalCategory = category ?: smartCategorize(description)
+            val finalCategory = category ?: smartCategorize(
+                description, type == TransactionType.EXPENSE, merchantName, amount
+            )
             val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
             val loc = currentLocation()
             val geoLoc = loc?.let { GeoLocation(it.latitude, it.longitude) }
@@ -932,7 +1046,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 if (amount > 0) {
                     val category = smartCategorize(
-                        "${parsed.merchantName} ${parsed.items.joinToString(" ") { it.first }}"
+                        "${parsed.merchantName} ${parsed.items.joinToString(" ") { it.first }}",
+                        isExpense = true,
+                        merchantName = parsed.merchantName,
+                        amount = amount
                     )
                     _ocrParsedData.value = OcrParsedData(
                         amount = amount,
@@ -1230,10 +1347,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ReportPeriod.DAILY -> DateUtils.getStartOfDay(now) to DateUtils.getEndOfDay(now)
             ReportPeriod.WEEKLY -> DateUtils.getStartOfWeek(now) to DateUtils.getEndOfWeek(now)
             ReportPeriod.MONTHLY -> DateUtils.getStartOfMonth(now) to DateUtils.getEndOfMonth(now)
-            ReportPeriod.CUSTOM -> DateUtils.getStartOfMonth(now) to DateUtils.getEndOfMonth(now) // fallback; use generateReportForRange for custom
+            ReportPeriod.CUSTOM -> DateUtils.getStartOfMonth(now) to DateUtils.getEndOfMonth(now)
         }
         val currencyCode = repository.appData.value.settings.currencyCode
-        return aiEngine.generateReport(transactionsInDisplayCurrency(currencyCode), period, start, end, currencyCode)
+        val report = aiEngine.generateReport(transactionsInDisplayCurrency(currencyCode), period, start, end, currencyCode)
+        // Enrich with AI insight asynchronously; return base report immediately
+        viewModelScope.launch { enrichReportWithAiInsightAndNotify(report, currencyCode) }
+        return report
+    }
+
+    /** Enriches a report with AI insight and triggers a UI refresh. */
+    private suspend fun enrichReportWithAiInsightAndNotify(report: ExpenseReport, currencyCode: String) {
+        try {
+            val enriched = enrichReportWithAiInsight(report, currencyCode)
+            if (enriched.aiInsight != report.aiInsight) {
+                _uiState.update { it.copy(latestAiInsight = enriched.aiInsight) }
+            }
+        } catch (_: Exception) { /* AI enrichment is best-effort */ }
     }
 
     /**
@@ -1260,13 +1390,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             set(Calendar.MILLISECOND, 999)
         }
         val currencyCode = repository.appData.value.settings.currencyCode
-        return aiEngine.generateReport(
+        val report = aiEngine.generateReport(
             transactionsInDisplayCurrency(currencyCode),
             ReportPeriod.MONTHLY,
             startCal.timeInMillis,
             endCal.timeInMillis,
             currencyCode
         )
+        viewModelScope.launch { enrichReportWithAiInsightAndNotify(report, currencyCode) }
+        return report
     }
 
     /**
@@ -1274,21 +1406,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun generateReportForRange(startMillis: Long, endMillis: Long): ExpenseReport {
         val currencyCode = repository.appData.value.settings.currencyCode
-        return aiEngine.generateReport(
+        val report = aiEngine.generateReport(
             transactionsInDisplayCurrency(currencyCode),
             ReportPeriod.CUSTOM,
             startMillis,
             endMillis,
             currencyCode
         )
+        viewModelScope.launch { enrichReportWithAiInsightAndNotify(report, currencyCode) }
+        return report
     }
 
     fun analyzeTransactions(startMillis: Long, endMillis: Long, category: String?): String {
         val currencyCode = repository.appData.value.settings.currencyCode
-        return aiEngine.generateAnalysis(
+        val baseAnalysis = aiEngine.generateAnalysis(
             transactionsInDisplayCurrency(currencyCode),
             startMillis, endMillis, currencyCode, category
         )
+        return baseAnalysis
     }
 
     fun getWeeklyChartData(): List<Pair<String, Double>> {
@@ -1896,5 +2031,7 @@ data class UiState(
     val suggestions: List<AiSuggestion> = emptyList(),
     val transactionCount: Int = 0,
     val lastOcrResult: String? = null,
-    val settings: AppSettings = AppSettings()
+    val settings: AppSettings = AppSettings(),
+    /** Latest AI-generated insight from report enrichment. */
+    val latestAiInsight: String = ""
 )

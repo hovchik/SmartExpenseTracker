@@ -50,22 +50,12 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     val exchangeRates by viewModel.exchangeRates.collectAsState()
     val inAppNotifications by viewModel.inAppNotifications.collectAsState()
     val unreadCount by viewModel.unreadNotificationCount.collectAsState()
-    val localAiStatus by viewModel.localAiStatus.collectAsState()
-    val localAiSuggestion by viewModel.localAiSuggestion.collectAsState()
     val discoveredBankingApps by viewModel.discoveredBankingApps.collectAsState()
     val isScanningBankingApps by viewModel.isScanningBankingApps.collectAsState()
     val allInstalledApps by viewModel.allInstalledApps.collectAsState()
     val ocrParsedData by viewModel.ocrParsedData.collectAsState()
     val ocrSections by viewModel.ocrSections.collectAsState()
-    val engineDescriptions by viewModel.engineDescriptions.collectAsState()
-    val discoveredModels by viewModel.discoveredModels.collectAsState()
-    val isLoadingModel by viewModel.isLoadingModel.collectAsState()
-    val isDownloadingModel by viewModel.isDownloadingModel.collectAsState()
-    val downloadProgress by viewModel.downloadProgress.collectAsState()
-    val downloadError by viewModel.downloadError.collectAsState()
-    val modelImportMessage by viewModel.modelImportMessage.collectAsState()
-    val ollamaModels by viewModel.ollamaModels.collectAsState()
-    val ollamaConnecting by viewModel.ollamaConnecting.collectAsState()
+    // Legacy AI engine state removed — using tri-mode AI below
     // Tri-mode AI state
     val aiModeStatus by viewModel.aiModeStatus.collectAsState()
     val aiPrivacyMessage by viewModel.aiPrivacyMessage.collectAsState()
@@ -343,9 +333,6 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         onScanSms = { currentScreen = "sms_scan" },
                         exchangeRates = exchangeRates,
                         onFetchRates = { viewModel.fetchExchangeRates() },
-                        localAiStatus = localAiStatus,
-                        localAiSuggestion = localAiSuggestion,
-                        onCheckLocalAi = { viewModel.checkLocalAiAvailability() },
                         categories = uiState.categories,
                         onAddCategory = { name -> viewModel.addCategory(name) },
                         onDeleteCategory = { id -> viewModel.deleteCategory(id) },
@@ -366,26 +353,6 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         onUpdateScanKeywords = { keywords -> viewModel.updateScanKeywords(keywords) },
                         onUpdateIncomeKeywords = { keywords -> viewModel.updateIncomeKeywords(keywords) },
                         onUpdateExpenseKeywords = { keywords -> viewModel.updateExpenseKeywords(keywords) },
-                        engineDescriptions = engineDescriptions,
-                        onSetAiEngine = { pref -> viewModel.setAiEnginePreference(pref) },
-                        discoveredModels = discoveredModels,
-                        onDiscoverModels = { viewModel.discoverModels() },
-                        onLoadModel = { path -> viewModel.loadMediaPipeModel(path) },
-                        isLoadingModel = isLoadingModel,
-                        modelCatalog = viewModel.modelCatalog,
-                        onDownloadCatalogModel = { model -> viewModel.downloadCatalogModel(model) },
-                        onDeleteCatalogModel = { model -> viewModel.deleteCatalogModel(model) },
-                        isModelDownloaded = { model -> viewModel.isModelDownloaded(model) },
-                        isDownloadingModel = isDownloadingModel,
-                        downloadProgress = downloadProgress,
-                        downloadError = downloadError,
-                        onImportModelFile = { uri -> viewModel.importModelFile(uri) },
-                        modelImportMessage = modelImportMessage,
-                        isGalleryInstalled = viewModel.isGalleryInstalled(),
-                        ollamaModels = ollamaModels,
-                        ollamaConnecting = ollamaConnecting,
-                        onConnectOllama = { host -> viewModel.connectOllama(host) },
-                        onSelectOllamaModel = { name -> viewModel.selectOllamaModel(name) },
                         // Tri-mode AI
                         onSetAiMode = { mode -> viewModel.setAiMode(mode) },
                         onOpenLocalAiSetup = { currentScreen = "local_ai_setup" },
