@@ -95,6 +95,9 @@ class MediaPipeLlmService(private val context: Context) {
         private set
 
     @Volatile
+    private var currentModelPath: String? = null
+
+    @Volatile
     var errorMessage: String? = null
         private set
 
@@ -375,6 +378,7 @@ class MediaPipeLlmService(private val context: Context) {
             )
 
             llmInference = createMethod.invoke(null, context, options)
+            currentModelPath = modelPath
             modelName = file.nameWithoutExtension.replaceFirstChar { it.uppercase() }
             isReady = true
             errorMessage = null
@@ -397,7 +401,26 @@ class MediaPipeLlmService(private val context: Context) {
         } catch (_: Exception) {}
         llmInference = null
         isReady = false
+        currentModelPath = null
         modelName = ""
+    }
+
+    /**
+     * Recreates the LlmInference session after a failed invoke.
+     * After a TFLite/XNNPack error the session is corrupt — reusing it
+     * causes a native SIGSEGV. Recreating prevents the process crash.
+     */
+    private suspend fun recreateSession() {
+        val path = currentModelPath ?: return
+        try {
+            Log.w(TAG, "Recreating MediaPipe session after error")
+            releaseModel()
+            loadModel(path)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to recreate session: ${e.message}")
+            llmInference = null
+            isReady = false
+        }
     }
 
     // ── Inference ────────────────────────────────────────────────────
@@ -417,6 +440,9 @@ class MediaPipeLlmService(private val context: Context) {
             result?.trim()
         } catch (e: Exception) {
             Log.e(TAG, "Inference failed: ${e.message}")
+            // After a TFLite error the session is corrupt — recreate to
+            // prevent SIGSEGV on the next call
+            recreateSession()
             null
         }
     }
