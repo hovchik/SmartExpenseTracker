@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -38,6 +39,7 @@ private const val PAGE_COUNT = 4
  * Page 3: AI model choice
  * Page 4: Ready to go
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SplashScreen(onGetStarted: () -> Unit) {
     val pagerState = rememberPagerState(pageCount = { PAGE_COUNT })
