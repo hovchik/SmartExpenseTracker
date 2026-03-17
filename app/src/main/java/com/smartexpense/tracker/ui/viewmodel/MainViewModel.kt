@@ -148,6 +148,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _huggingFaceUsername = MutableStateFlow<String?>(null)
     val huggingFaceUsername: StateFlow<String?> = _huggingFaceUsername.asStateFlow()
 
+    /** Token validation error message shown to user, null when no error. */
+    private val _tokenValidationError = MutableStateFlow<String?>(null)
+    val tokenValidationError: StateFlow<String?> = _tokenValidationError.asStateFlow()
+
     /** The ID of the currently active local model. */
     private val _activeModelId = MutableStateFlow("")
     val activeModelId: StateFlow<String> = _activeModelId.asStateFlow()
@@ -745,7 +749,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Validate token in background to get username
                 launch(Dispatchers.IO) {
                     val username = localModelManager.validateHuggingFaceToken(settings.huggingFaceToken)
-                    _huggingFaceUsername.value = username
+                    if (username != null) {
+                        _huggingFaceUsername.value = username
+                    } else {
+                        // Token stored but no longer valid (expired/revoked) —
+                        // keep it set (may still work for some repos) but show no username
+                        _huggingFaceUsername.value = null
+                    }
                 }
             }
             withContext(Dispatchers.IO) {
@@ -765,17 +775,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Set token eagerly so subsequent download calls can use it immediately
         localModelManager.setHuggingFaceToken(token)
         _hasHuggingFaceToken.value = true
+        _tokenValidationError.value = null
 
         viewModelScope.launch {
-            // Persist token
-            val settings = repository.appData.value.settings
-            repository.updateSettings(settings.copy(huggingFaceToken = token))
-
-            // Validate and get username
+            // Validate token against HuggingFace API
             val username = withContext(Dispatchers.IO) {
                 localModelManager.validateHuggingFaceToken(token)
             }
-            _huggingFaceUsername.value = username
+
+            if (username != null) {
+                // Token is valid — persist it
+                val settings = repository.appData.value.settings
+                repository.updateSettings(settings.copy(huggingFaceToken = token))
+                _huggingFaceUsername.value = username
+                _tokenValidationError.value = null
+            } else {
+                // Token is invalid — revert
+                localModelManager.setHuggingFaceToken("")
+                _hasHuggingFaceToken.value = false
+                _huggingFaceUsername.value = null
+                _tokenValidationError.value = "Invalid HuggingFace token. Please check and try again."
+            }
         }
     }
 

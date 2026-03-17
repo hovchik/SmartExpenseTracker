@@ -71,6 +71,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     val wizardImportMessage by viewModel.wizardImportMessage.collectAsState()
     val hasHuggingFaceToken by viewModel.hasHuggingFaceToken.collectAsState()
     val huggingFaceUsername by viewModel.huggingFaceUsername.collectAsState()
+    val tokenValidationError by viewModel.tokenValidationError.collectAsState()
     val dashboardSectionOrder by viewModel.dashboardSectionOrder.collectAsState()
     val storeLocations by viewModel.storeLocations.collectAsState()
     val isSubscribed by viewModel.isSubscribed.collectAsState()
@@ -370,7 +371,8 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         hasHuggingFaceToken = hasHuggingFaceToken,
                         huggingFaceUsername = huggingFaceUsername,
                         onSaveHuggingFaceToken = { token -> viewModel.saveHuggingFaceToken(token) },
-                        onRemoveHuggingFaceToken = { viewModel.removeHuggingFaceToken() }
+                        onRemoveHuggingFaceToken = { viewModel.removeHuggingFaceToken() },
+                        tokenValidationError = tokenValidationError
                     )
                     "local_ai_setup" -> com.smartexpense.tracker.ai.setupwizard.LocalAiSetupWizardScreen(
                         capability = deviceCapability,

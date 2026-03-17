@@ -113,7 +113,8 @@ fun SettingsScreen(
     hasHuggingFaceToken: Boolean = false,
     huggingFaceUsername: String? = null,
     onSaveHuggingFaceToken: (String) -> Unit = {},
-    onRemoveHuggingFaceToken: () -> Unit = {}
+    onRemoveHuggingFaceToken: () -> Unit = {},
+    tokenValidationError: String? = null
 ) {
     val context = LocalContext.current
     var showClearDialog by remember { mutableStateOf(false) }
@@ -2091,8 +2092,31 @@ fun SettingsScreen(
                         )
                     }
                 } else {
+                    if (tokenValidationError != null) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Filled.Warning, null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.error)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(tokenValidationError,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
                     var showAddToken by remember { mutableStateOf(false) }
-                    val context = LocalContext.current
                     OutlinedButton(
                         onClick = { showAddToken = true },
                         modifier = Modifier.fillMaxWidth(),
