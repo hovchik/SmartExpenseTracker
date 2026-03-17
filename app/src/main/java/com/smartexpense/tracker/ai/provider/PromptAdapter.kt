@@ -150,15 +150,21 @@ class PromptAdapter {
         comparisonWithPrevious: Double,
         dayOfWeekSpending: Map<String, Double> = emptyMap()
     ): String {
+        val sym = com.smartexpense.tracker.data.model.currencyInfoFor(currencyCode).symbol
         val sb = StringBuilder()
-        sb.appendLine("You are a financial analyst. Provide a brief AI insight for this $periodLabel expense report.")
+        sb.appendLine("You are a financial analyst providing a brief insight for a client's $periodLabel expense report.")
         sb.appendLine()
-        sb.appendLine("Total expenses: $currencyCode ${String.format("%.2f", totalExpenses)}")
-        sb.appendLine("Total income: $currencyCode ${String.format("%.2f", totalIncome)}")
+        sb.appendLine("IMPORTANT: All monetary amounts in your response MUST use \"$sym\" ($currencyCode). Never convert to another currency.")
+        sb.appendLine()
+        sb.appendLine("=== Report Data (all amounts in $sym $currencyCode) ===")
+        sb.appendLine("Total expenditure: $sym${String.format("%.2f", totalExpenses)}")
+        sb.appendLine("Total income: $sym${String.format("%.2f", totalIncome)}")
+        sb.appendLine("Net cash flow: $sym${String.format("%.2f", totalIncome - totalExpenses)}")
         sb.appendLine("Transactions: $transactionCount")
 
         if (comparisonWithPrevious != 0.0) {
-            sb.appendLine("Change vs previous period: ${String.format("%+.1f", comparisonWithPrevious)}%")
+            val direction = if (comparisonWithPrevious > 0) "increase" else "decrease"
+            sb.appendLine("Period-over-period: ${String.format("%.1f", kotlin.math.abs(comparisonWithPrevious))}% $direction")
         }
 
         if (categoryBreakdown.isNotEmpty()) {
@@ -178,12 +184,13 @@ class PromptAdapter {
         }
 
         sb.appendLine()
-        sb.appendLine("Write 1-2 sentence insight. Be specific and actionable. Do not restate the numbers.")
+        sb.appendLine("Write 1-2 sentence financial insight. Use $sym ($currencyCode) for any amounts. Be specific, actionable, and use proper financial terminology. Do not restate raw numbers.")
         return sb.toString()
     }
 
     /**
      * Creates a prompt for generating actionable expense reduction tips based on report data.
+     * The prompt enforces financial terminology and consistent currency usage.
      */
     fun createExpenseReductionPrompt(
         totalExpenses: Double,
@@ -196,23 +203,36 @@ class PromptAdapter {
         dayOfWeekSpending: Map<String, Double> = emptyMap(),
         averageDailySpend: Double = 0.0
     ): String {
+        val sym = com.smartexpense.tracker.data.model.currencyInfoFor(currencyCode).symbol
         val sb = StringBuilder()
-        sb.appendLine("You are a personal finance advisor. Based on the spending data below, provide 3-4 specific, actionable tips to reduce expenses.")
+        sb.appendLine("You are a certified financial planner reviewing a client's personal expense report.")
+        sb.appendLine("Analyze the financial data below and provide 3-4 precise, actionable expense-reduction recommendations.")
         sb.appendLine()
-        sb.appendLine("=== Spending Data ===")
-        sb.appendLine("Total expenses: $currencyCode ${String.format("%.2f", totalExpenses)}")
-        sb.appendLine("Total income: $currencyCode ${String.format("%.2f", totalIncome)}")
-        sb.appendLine("Transactions: $transactionCount")
+        sb.appendLine("CRITICAL RULES:")
+        sb.appendLine("- ALL monetary amounts in your response MUST use the currency symbol \"$sym\" ($currencyCode). Never convert to another currency.")
+        sb.appendLine("- Use proper financial terminology (e.g. discretionary spending, fixed vs variable costs, debt-to-income ratio, expense-to-income ratio, cash flow).")
+        sb.appendLine("- Each recommendation must cite specific categories or merchants from the data and include a concrete $sym savings estimate where possible.")
+        sb.appendLine("- Base recommendations on established personal finance principles (e.g. 50/30/20 rule, zero-based budgeting, envelope method).")
+        sb.appendLine()
+        sb.appendLine("=== Client Financial Summary (all amounts in $sym $currencyCode) ===")
+        sb.appendLine("Gross income: $sym${String.format("%.2f", totalIncome)}")
+        sb.appendLine("Total expenditure: $sym${String.format("%.2f", totalExpenses)}")
+        val netCashFlow = totalIncome - totalExpenses
+        sb.appendLine("Net cash flow: $sym${String.format("%.2f", netCashFlow)}")
+        sb.appendLine("Transaction volume: $transactionCount transactions")
 
         if (averageDailySpend > 0) {
-            sb.appendLine("Average daily spend: $currencyCode ${String.format("%.2f", averageDailySpend)}")
+            sb.appendLine("Average daily expenditure: $sym${String.format("%.2f", averageDailySpend)}")
         }
         if (comparisonWithPrevious != 0.0) {
-            sb.appendLine("Change vs previous period: ${String.format("%+.1f", comparisonWithPrevious)}%")
+            val direction = if (comparisonWithPrevious > 0) "increase" else "decrease"
+            sb.appendLine("Period-over-period change: ${String.format("%.1f", kotlin.math.abs(comparisonWithPrevious))}% $direction")
         }
         if (totalIncome > 0) {
             val savingsRate = ((totalIncome - totalExpenses) / totalIncome * 100)
-            sb.appendLine("Savings rate: ${String.format("%.1f", savingsRate)}%")
+            val expenseRatio = (totalExpenses / totalIncome * 100)
+            sb.appendLine("Expense-to-income ratio: ${String.format("%.1f", expenseRatio)}%")
+            sb.appendLine("Savings rate: ${String.format("%.1f", savingsRate)}% (recommended target: >=20%)")
         }
 
         if (categoryBreakdown.isNotEmpty()) {
@@ -220,7 +240,7 @@ class PromptAdapter {
             sb.appendLine("Category breakdown:")
             categoryBreakdown.entries.sortedByDescending { it.value }.take(5).forEach { (cat, amt) ->
                 val pct = if (totalExpenses > 0) (amt / totalExpenses * 100) else 0.0
-                sb.appendLine("  $cat: $currencyCode ${String.format("%.2f", amt)} (${String.format("%.0f", pct)}%)")
+                sb.appendLine("  $cat: $sym${String.format("%.2f", amt)} (${String.format("%.1f", pct)}% of total)")
             }
         }
 
@@ -233,12 +253,12 @@ class PromptAdapter {
         }
 
         sb.appendLine()
-        sb.appendLine("Instructions:")
-        sb.appendLine("- Provide exactly 3-4 tips, each on its own line.")
-        sb.appendLine("- Each tip should be 1-2 sentences, specific and actionable.")
-        sb.appendLine("- Reference actual categories or merchants from the data where possible.")
-        sb.appendLine("- Focus on practical savings opportunities, not generic advice.")
-        sb.appendLine("- Do not number the tips or use bullet points. Just write each tip as a separate line.")
+        sb.appendLine("=== Response Format ===")
+        sb.appendLine("- Provide exactly 3-4 recommendations, each on its own line.")
+        sb.appendLine("- Each recommendation: 1-2 sentences. Be specific — name the category or merchant, state the potential $sym savings amount.")
+        sb.appendLine("- Use only $sym ($currencyCode) for all monetary values. Do NOT use any other currency.")
+        sb.appendLine("- Do not use numbering, bullet points, or prefixes. Write each recommendation as a standalone sentence.")
+        sb.appendLine("- Do not repeat raw numbers from the data. Provide analysis and actionable advice.")
         return sb.toString()
     }
 
