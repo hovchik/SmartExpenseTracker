@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.smartexpense.tracker.ai.modelmanager.LocalModelManager
 import com.smartexpense.tracker.data.model.AiModePreference
+import com.smartexpense.tracker.data.model.CloudAiProviderType
 
 /**
  * Selects the best AI provider based on:
@@ -21,7 +22,7 @@ class AiProviderSelector(
         private const val TAG = "AiProviderSelector"
     }
 
-    val cloudProvider = CloudClaudeAiProvider()
+    val cloudProvider = CloudAiProvider()
     val systemProvider = SystemAiProvider(context)
     val customLocalProvider = CustomLocalModelProvider(context, modelManager)
 
@@ -63,6 +64,23 @@ class AiProviderSelector(
         activeProvider = provider
         Log.i(TAG, "Selected provider: ${provider.displayName()} (preference: $preference, available: ${provider.isAvailable()})")
         return provider
+    }
+
+    /**
+     * Configures the cloud provider with the selected type and API keys.
+     */
+    fun configureCloud(
+        providerType: CloudAiProviderType,
+        claudeKey: String,
+        geminiKey: String,
+        openaiKey: String,
+        deepseekKey: String
+    ) {
+        cloudProvider.setProviderType(providerType)
+        cloudProvider.updateApiKey(CloudAiProviderType.CLAUDE, claudeKey)
+        cloudProvider.updateApiKey(CloudAiProviderType.GEMINI, geminiKey)
+        cloudProvider.updateApiKey(CloudAiProviderType.CHATGPT, openaiKey)
+        cloudProvider.updateApiKey(CloudAiProviderType.DEEPSEEK, deepseekKey)
     }
 
     /**

@@ -781,9 +781,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun initAiProviderSelector() {
         viewModelScope.launch {
             val settings = repository.appData.value.settings
-            if (settings.claudeApiKey.isNotBlank()) {
-                aiProviderSelector.cloudProvider.updateApiKey(settings.claudeApiKey)
-            }
+            // Configure cloud provider with all API keys and selected provider type
+            aiProviderSelector.configureCloud(
+                providerType = settings.cloudAiProvider,
+                claudeKey = settings.claudeApiKey,
+                geminiKey = settings.geminiApiKey,
+                openaiKey = settings.openaiApiKey,
+                deepseekKey = settings.deepseekApiKey
+            )
             // Pass HuggingFace token for gated model downloads
             if (settings.huggingFaceToken.isNotBlank()) {
                 localModelManager.setHuggingFaceToken(settings.huggingFaceToken)
@@ -1869,6 +1874,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 catName to budget.monthlyLimit
             }
 
+            // Highest and lowest single expense
+            val highestExpense = expenses.maxByOrNull { it.amount }
+            val lowestExpense = expenses.minByOrNull { it.amount }
+
+            // Income breakdown by category
+            val incomeBreakdown = income.groupBy { it.category }
+                .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+
             // Build day-of-week breakdown
             val cal = java.util.Calendar.getInstance()
             val dayNames = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
@@ -1879,20 +1892,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 dayOfWeekSpending[name] = (dayOfWeekSpending[name] ?: 0.0) + e.amount
             }
 
+            val sym = com.smartexpense.tracker.data.model.currencyInfoFor(currencyCode).symbol
             val rangeLabel = "${dateFormat.format(Date(startMillis))} – ${dateFormat.format(Date(endMillis))}"
             val prompt = buildString {
-                appendLine("You are a personal finance analyst. Provide a comprehensive, detailed analysis of the following spending data.")
+                appendLine("You are a certified personal finance analyst. Provide a comprehensive, detailed analysis of the following financial data.")
+                appendLine("ALL monetary amounts in your response MUST use \"$sym\" ($currencyCode). Never convert to another currency.")
                 appendLine()
                 appendLine("=== Period: $rangeLabel ===")
                 if (category != null) appendLine("Filtered to category: $category")
-                appendLine("Total transactions: ${filtered.size}")
-                appendLine("Total expenses: $currencyCode ${String.format("%.2f", totalExpenses)}")
-                appendLine("Total income: $currencyCode ${String.format("%.2f", totalIncome)}")
-                appendLine("Net balance: $currencyCode ${String.format("%.2f", totalIncome - totalExpenses)}")
-                appendLine("Average daily spend: $currencyCode ${String.format("%.2f", totalExpenses / days)}")
+                appendLine("Total transactions: ${filtered.size} (${expenses.size} expenses, ${income.size} incomes)")
+                appendLine("Total expenses: $sym${String.format("%.2f", totalExpenses)}")
+                appendLine("Total income: $sym${String.format("%.2f", totalIncome)}")
+                appendLine("Net balance: $sym${String.format("%.2f", totalIncome - totalExpenses)}")
+                appendLine("Average daily spend: $sym${String.format("%.2f", totalExpenses / days)}")
                 if (totalIncome > 0) {
                     val savingsRate = ((totalIncome - totalExpenses) / totalIncome * 100)
+                    val expenseRatio = (totalExpenses / totalIncome * 100)
                     appendLine("Savings rate: ${String.format("%.1f", savingsRate)}%")
+                    appendLine("Expense-to-income ratio: ${String.format("%.1f", expenseRatio)}%")
+                }
+
+                // Highest and lowest single expenses
+                appendLine()
+                appendLine("=== Expense Extremes ===")
+                if (highestExpense != null) {
+                    appendLine("Highest single expense: $sym${String.format("%.2f", highestExpense.amount)} — ${highestExpense.description} (${highestExpense.category})" +
+                        if (highestExpense.merchantName.isNotBlank()) " at ${highestExpense.merchantName}" else "")
+                }
+                if (lowestExpense != null) {
+                    appendLine("Lowest single expense: $sym${String.format("%.2f", lowestExpense.amount)} — ${lowestExpense.description} (${lowestExpense.category})" +
+                        if (lowestExpense.merchantName.isNotBlank()) " at ${lowestExpense.merchantName}" else "")
+                }
+                if (expenses.isNotEmpty()) {
+                    appendLine("Median expense: $sym${String.format("%.2f", expenses.sortedBy { it.amount }.let { it[it.size / 2].amount })}")
                 }
 
                 if (categoryBreakdown.isNotEmpty() && category == null) {
@@ -1900,32 +1932,50 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     appendLine("=== Spending by Category ===")
                     categoryBreakdown.entries.sortedByDescending { it.value }.forEach { (cat, amt) ->
                         val pct = if (totalExpenses > 0) (amt / totalExpenses * 100) else 0.0
-                        appendLine("- $cat: $currencyCode ${String.format("%.2f", amt)} (${String.format("%.1f", pct)}%)")
+                        val count = expenses.count { it.category == cat }
+                        appendLine("- $cat: $sym${String.format("%.2f", amt)} (${String.format("%.1f", pct)}%, $count transactions)")
+                    }
+                }
+
+                // Income analysis
+                if (income.isNotEmpty()) {
+                    appendLine()
+                    appendLine("=== Income Analysis ===")
+                    appendLine("Total income: $sym${String.format("%.2f", totalIncome)} from ${income.size} transactions")
+                    if (incomeBreakdown.isNotEmpty()) {
+                        incomeBreakdown.entries.sortedByDescending { it.value }.forEach { (cat, amt) ->
+                            appendLine("- $cat: $sym${String.format("%.2f", amt)}")
+                        }
                     }
                 }
 
                 if (recentLarge.isNotEmpty()) {
                     appendLine()
-                    appendLine("=== Largest Expenses ===")
-                    recentLarge.forEach { tx ->
-                        appendLine("- ${tx.description}: $currencyCode ${String.format("%.2f", tx.amount)} (${tx.category})")
+                    appendLine("=== Top 5 Largest Expenses ===")
+                    recentLarge.forEachIndexed { idx, tx ->
+                        appendLine("${idx + 1}. ${tx.description}: $sym${String.format("%.2f", tx.amount)} (${tx.category})")
                     }
                 }
 
                 if (topMerchants.isNotEmpty()) {
                     appendLine()
-                    appendLine("=== Top Merchants ===")
+                    appendLine("=== Top Merchants by Spending ===")
                     topMerchants.forEach { (m, amt) ->
-                        appendLine("- $m: $currencyCode ${String.format("%.2f", amt)}")
+                        val pct = if (totalExpenses > 0) (amt / totalExpenses * 100) else 0.0
+                        appendLine("- $m: $sym${String.format("%.2f", amt)} (${String.format("%.1f", pct)}%)")
                     }
                 }
 
                 if (dayOfWeekSpending.isNotEmpty()) {
                     appendLine()
-                    appendLine("=== Day-of-Week Spending ===")
+                    appendLine("=== Day-of-Week Spending Pattern ===")
+                    val peakDay = dayOfWeekSpending.maxByOrNull { it.value }
+                    val quietDay = dayOfWeekSpending.minByOrNull { it.value }
                     dayOfWeekSpending.forEach { (day, amt) ->
-                        appendLine("- $day: $currencyCode ${String.format("%.2f", amt)}")
+                        appendLine("- $day: $sym${String.format("%.2f", amt)}")
                     }
+                    if (peakDay != null) appendLine("Peak spending day: ${peakDay.key}")
+                    if (quietDay != null) appendLine("Lowest spending day: ${quietDay.key}")
                 }
 
                 if (budgetLimits.isNotEmpty()) {
@@ -1934,18 +1984,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     budgetLimits.forEach { (cat, limit) ->
                         val spent = categoryBreakdown[cat] ?: 0.0
                         val pct = if (limit > 0) (spent / limit * 100) else 0.0
-                        appendLine("- $cat: $currencyCode ${String.format("%.2f", spent)} / $currencyCode ${String.format("%.2f", limit)} (${String.format("%.0f", pct)}% used)")
+                        val status = when {
+                            pct >= 100 -> "OVER BUDGET"
+                            pct >= 80 -> "WARNING"
+                            else -> "OK"
+                        }
+                        appendLine("- $cat: $sym${String.format("%.2f", spent)} / $sym${String.format("%.2f", limit)} (${String.format("%.0f", pct)}% — $status)")
                     }
                 }
 
                 appendLine()
-                appendLine("Instructions:")
-                appendLine("1. Start with a brief overview of the financial health for this period.")
-                appendLine("2. Analyze spending patterns across categories and identify concerning trends.")
-                appendLine("3. Highlight unusual or large transactions that deserve attention.")
-                appendLine("4. Provide 3-5 specific, actionable recommendations to improve finances.")
-                appendLine("5. If applicable, comment on day-of-week patterns or merchant concentration.")
-                appendLine("Be specific, reference actual numbers, and keep the tone helpful and concise.")
+                appendLine("=== Instructions for Analysis ===")
+                appendLine("Provide a structured analysis with these sections:")
+                appendLine()
+                appendLine("1. FINANCIAL HEALTH OVERVIEW")
+                appendLine("   Brief assessment of overall financial health for this period. Mention net balance, savings rate, and expense-to-income ratio.")
+                appendLine()
+                appendLine("2. EXPENSE ANALYSIS")
+                appendLine("   - Identify the biggest spending categories and whether they are reasonable.")
+                appendLine("   - Highlight the highest and lowest expenses and what they tell us.")
+                appendLine("   - Comment on spending patterns (day-of-week, merchant concentration).")
+                appendLine()
+                if (income.isNotEmpty()) {
+                    appendLine("3. INCOME vs EXPENSES")
+                    appendLine("   - Compare income sources against expense categories.")
+                    appendLine("   - Is the income sufficient to cover expenses sustainably?")
+                    appendLine("   - Is there income diversification or single-source dependency?")
+                    appendLine()
+                }
+                appendLine("${if (income.isNotEmpty()) "4" else "3"}. EXPENSE OPTIMIZATION")
+                appendLine("   - Provide 3-5 specific, actionable recommendations to reduce expenses.")
+                appendLine("   - For each, cite the specific category or merchant and estimate the potential $sym savings.")
+                appendLine("   - Reference principles like the 50/30/20 rule where applicable.")
+                appendLine()
+                appendLine("${if (income.isNotEmpty()) "5" else "4"}. KEY ALERTS")
+                appendLine("   - Flag any budget overruns, unusual transactions, or concerning trends.")
+                appendLine()
+                appendLine("Use $sym ($currencyCode) for all amounts. Be specific, reference actual numbers, and keep the tone professional and helpful.")
             }
 
             val result = withContext(Dispatchers.IO) {
@@ -2025,6 +2100,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val newCurrency = settings.currencyCode
             repository.updateSettings(settings)
             CurrencyConverterService.invalidateCache()
+
+            // Push cloud AI configuration changes to the provider immediately
+            aiProviderSelector.configureCloud(
+                providerType = settings.cloudAiProvider,
+                claudeKey = settings.claudeApiKey,
+                geminiKey = settings.geminiApiKey,
+                openaiKey = settings.openaiApiKey,
+                deepseekKey = settings.deepseekApiKey
+            )
 
             // When currency changes, re-convert all transaction amounts and budget limits.
             // Transactions with original foreign-currency metadata are converted directly

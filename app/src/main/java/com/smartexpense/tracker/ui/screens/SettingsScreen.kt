@@ -44,6 +44,7 @@ import androidx.core.content.ContextCompat
 import com.smartexpense.tracker.data.model.AppSettings
 import com.smartexpense.tracker.data.model.AiEnginePreference
 import com.smartexpense.tracker.data.model.AiModePreference
+import com.smartexpense.tracker.data.model.CloudAiProviderType
 import com.smartexpense.tracker.data.model.ScheduledExpense
 import java.io.File
 import com.smartexpense.tracker.data.model.Category
@@ -2164,24 +2165,66 @@ fun SettingsScreen(
                     }
                 }
 
-                // Claude API key input for Cloud mode
+                // Cloud AI provider selection and API key input
                 if (settings.aiModePreference == AiModePreference.CLOUD_AI) {
                     Spacer(modifier = Modifier.height(12.dp))
-                    var apiKeyText by remember(settings.claudeApiKey) {
-                        mutableStateOf(settings.claudeApiKey)
+                    Text(
+                        "Cloud Provider",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+
+                    // Provider selection chips
+                    val providers = CloudAiProviderType.entries
+                    providers.forEach { providerType ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = settings.cloudAiProvider == providerType,
+                                onClick = { onUpdateSettings(settings.copy(cloudAiProvider = providerType)) }
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(providerType.label, fontSize = 13.sp)
+                        }
                     }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // API key input for the selected provider
+                    val currentKey = when (settings.cloudAiProvider) {
+                        CloudAiProviderType.CLAUDE -> settings.claudeApiKey
+                        CloudAiProviderType.GEMINI -> settings.geminiApiKey
+                        CloudAiProviderType.CHATGPT -> settings.openaiApiKey
+                        CloudAiProviderType.DEEPSEEK -> settings.deepseekApiKey
+                    }
+
+                    var apiKeyText by remember(settings.cloudAiProvider, currentKey) {
+                        mutableStateOf(currentKey)
+                    }
+
                     OutlinedTextField(
                         value = apiKeyText,
                         onValueChange = { apiKeyText = it.trim() },
-                        label = { Text("Claude API Key") },
-                        placeholder = { Text("sk-ant-...", fontSize = 12.sp) },
+                        label = { Text("${settings.cloudAiProvider.label} API Key") },
+                        placeholder = { Text(settings.cloudAiProvider.placeholder, fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         trailingIcon = {
-                            if (apiKeyText != settings.claudeApiKey && apiKeyText.isNotBlank()) {
+                            if (apiKeyText != currentKey && apiKeyText.isNotBlank()) {
                                 IconButton(onClick = {
-                                    onUpdateSettings(settings.copy(claudeApiKey = apiKeyText))
+                                    val updated = when (settings.cloudAiProvider) {
+                                        CloudAiProviderType.CLAUDE -> settings.copy(claudeApiKey = apiKeyText)
+                                        CloudAiProviderType.GEMINI -> settings.copy(geminiApiKey = apiKeyText)
+                                        CloudAiProviderType.CHATGPT -> settings.copy(openaiApiKey = apiKeyText)
+                                        CloudAiProviderType.DEEPSEEK -> settings.copy(deepseekApiKey = apiKeyText)
+                                    }
+                                    onUpdateSettings(updated)
                                 }) {
                                     Icon(Icons.Filled.Check, "Save")
                                 }
