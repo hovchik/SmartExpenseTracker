@@ -204,10 +204,11 @@ private fun ConversationCard(
     conversation: AiConversation,
     onDelete: () -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var responseExpanded by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.US) }
+    val aiName = conversation.aiModelName ?: "AI"
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -217,16 +218,34 @@ private fun ConversationCard(
         )
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            // Prompt header row — always visible, tappable to expand/collapse
+            // Timestamp and delete row
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { expanded = !expanded }
-                    .padding(2.dp),
-                verticalAlignment = Alignment.Top
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // User icon
+                Text(
+                    timeFormat.format(Date(conversation.timestamp)),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                IconButton(
+                    onClick = { showDeleteDialog = true },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = "Delete",
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // ── Prompt section ──
+            Row(verticalAlignment = Alignment.Top) {
                 Box(
                     modifier = Modifier
                         .size(26.dp)
@@ -246,7 +265,7 @@ private fun ConversationCard(
                 Spacer(modifier = Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "You",
+                        "Prompt",
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.primary
@@ -254,89 +273,71 @@ private fun ConversationCard(
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         conversation.prompt,
-                        fontWeight = FontWeight.Medium,
                         fontSize = 13.sp,
-                        maxLines = if (expanded) Int.MAX_VALUE else 2,
-                        overflow = TextOverflow.Ellipsis,
                         lineHeight = 18.sp
                     )
-                    Text(
-                        timeFormat.format(Date(conversation.timestamp)),
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // ── AI name badge ──
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(
+                            Brush.linearGradient(listOf(GreenPrimary, GreenDark))
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.AutoAwesome,
+                        contentDescription = null,
+                        tint = androidx.compose.ui.graphics.Color.White,
+                        modifier = Modifier.size(16.dp)
                     )
                 }
-                // Expand/collapse indicator
-                Icon(
-                    if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                    contentDescription = if (expanded) "Collapse" else "Expand",
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    aiName,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
 
-            // AI response — collapsible
-            AnimatedVisibility(
-                visible = expanded,
-                enter = expandVertically(),
-                exit = shrinkVertically()
-            ) {
-                Column {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-                    // AI response header
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(26.dp)
-                                .clip(RoundedCornerShape(7.dp))
-                                .background(
-                                    Brush.linearGradient(listOf(GreenPrimary, GreenDark))
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Filled.AutoAwesome,
-                                contentDescription = null,
-                                tint = androidx.compose.ui.graphics.Color.White,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            conversation.aiModelName ?: "AI",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.weight(1f))
-                        // Delete button
-                        IconButton(
-                            onClick = { showDeleteDialog = true },
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(
-                                Icons.Filled.Delete,
-                                contentDescription = "Delete",
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
-                            )
-                        }
-                    }
+            // ── Response section (expandable) ──
+            Text(
+                conversation.response,
+                fontSize = 13.sp,
+                lineHeight = 19.sp,
+                fontFamily = FontFamily.Default,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = if (responseExpanded) Int.MAX_VALUE else 4,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { responseExpanded = !responseExpanded }
+                    .padding(start = 34.dp)
+            )
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Response text
-                    Text(
-                        conversation.response,
-                        fontSize = 13.sp,
-                        lineHeight = 19.sp,
-                        fontFamily = FontFamily.Default,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
+            // Show more / less toggle
+            if (!responseExpanded) {
+                Text(
+                    "Tap to expand",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                    modifier = Modifier
+                        .padding(start = 34.dp, top = 4.dp)
+                        .clickable { responseExpanded = true }
+                )
             }
         }
     }
