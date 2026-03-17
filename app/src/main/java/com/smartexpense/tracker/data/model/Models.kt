@@ -399,6 +399,8 @@ data class AiConversation(
     val id: String = UUID.randomUUID().toString(),
     val prompt: String,
     val response: String,
+    /** Display name of the AI provider that generated this response. */
+    val aiModelName: String = "AI",
     val timestamp: Long = System.currentTimeMillis(),
     /** Date string for grouping, e.g. "2026-03-17". */
     val dateKey: String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(System.currentTimeMillis()))

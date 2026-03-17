@@ -246,6 +246,13 @@ private fun ConversationCard(
                 Spacer(modifier = Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
+                        "You",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
                         conversation.prompt,
                         fontWeight = FontWeight.Medium,
                         fontSize = 13.sp,
@@ -299,7 +306,7 @@ private fun ConversationCard(
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            "AI Response",
+                            conversation.aiModelName,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.primary

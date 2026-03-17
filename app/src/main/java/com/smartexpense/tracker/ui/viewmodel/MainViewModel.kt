@@ -1571,7 +1571,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
         // Save to conversation history
         viewModelScope.launch {
-            repository.addAiConversation(AiConversation(prompt = prompt, response = baseAnalysis))
+            repository.addAiConversation(AiConversation(
+                prompt = prompt,
+                response = baseAnalysis,
+                aiModelName = aiProviderSelector.getActiveProvider().displayName()
+            ))
         }
         return baseAnalysis
     }
