@@ -261,8 +261,20 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                                 showPaywall = true
                             }
                         },
-                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) },
-                        currencyCode = currencyCode
+                        onNavigateBack = {
+                            viewModel.clearOcrData()
+                            currentScreen = "dashboard"
+                            viewModel.setSelectedTab(0)
+                        },
+                        currencyCode = currencyCode,
+                        ocrParsedData = ocrParsedData,
+                        onSaveItems = { items, merchant, total ->
+                            viewModel.saveOcrSection(
+                                label = merchant, merchantName = merchant,
+                                items = items, totalAmount = total,
+                                rawOcrText = ocrParsedData?.rawOcrText ?: ""
+                            )
+                        }
                     )
                     "transactions" -> TransactionsScreen(
                         allTransactions = uiState.allTransactions,
@@ -290,7 +302,12 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                             viewModel.setSelectedTab(0)
                         },
                         onNavigateToSections = { currentScreen = "ocr_sections" },
-                        lastResult = uiState.lastOcrResult
+                        lastResult = uiState.lastOcrResult,
+                        onEditAsTransaction = {
+                            // Navigate to AddTransactionScreen; ocrParsedData stays in the ViewModel
+                            // so AddTransactionScreen will receive it and pre-populate the form.
+                            currentScreen = "add"
+                        }
                     )
                     "ocr_sections" -> OcrSectionsScreen(
                         sections = ocrSections,

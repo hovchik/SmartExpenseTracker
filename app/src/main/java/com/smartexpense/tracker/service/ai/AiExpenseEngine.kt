@@ -1556,7 +1556,7 @@ class AiExpenseEngine {
                         // Strip trailing tax code letters that may have leaked into name
                         name = name.replace(Regex("""\s+[A-Ba-b]$"""), "")
                         val price = parseReceiptPrice(priceStr)
-                        if (price != null && price > 0 && price < 100000 &&
+                        if (price != null && price > 0 && price < 1_000_000 &&
                             name.length >= 2 &&
                             // Not just digits/quantity markers
                             !name.matches(Regex("""^\d+\s*[xX×*]?\s*$""")) &&
@@ -1735,7 +1735,9 @@ class AiExpenseEngine {
             if (total == null && items.isNotEmpty()) {
                 val sum = items.sumOf { it.second }
                 val max = items.maxOf { it.second }
-                total = if (sum > max * 1.5) sum else max
+                // Use the sum of items as the total. Only fall back to the
+                // single largest price when items has exactly one entry (i.e. sum == max).
+                total = if (items.size == 1) max else sum
             }
 
             // AMD-specific fallback: Armenian POS receipts often lose all script text through OCR

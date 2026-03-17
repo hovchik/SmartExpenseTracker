@@ -263,8 +263,18 @@ enum class AiModePreference(val label: String, val description: String) {
     SYSTEM_AI("System AI", "Use built-in on-device AI when available"),
     /** Use a user-installed or downloaded local model. */
     LOCAL_MODEL("Local model", "Run a downloaded AI model on-device"),
-    /** Use Claude API in the cloud. */
-    CLOUD_AI("Cloud AI", "Use Claude AI via internet connection")
+    /** Use a cloud AI provider (Claude, Gemini, ChatGPT, DeepSeek). */
+    CLOUD_AI("Cloud AI", "Use a cloud AI service via internet connection")
+}
+
+/**
+ * Which cloud AI provider to use when [AiModePreference.CLOUD_AI] is selected.
+ */
+enum class CloudAiProviderType(val label: String, val placeholder: String) {
+    CLAUDE("Claude (Anthropic)", "sk-ant-..."),
+    GEMINI("Gemini (Google)", "AIza..."),
+    CHATGPT("ChatGPT (OpenAI)", "sk-..."),
+    DEEPSEEK("DeepSeek", "sk-...")
 }
 
 /**
@@ -426,8 +436,16 @@ data class AppSettings(
     val aiEnginePreference: AiEnginePreference = AiEnginePreference.AUTO,
     /** High-level AI execution mode (Cloud / System / Local / Auto). */
     val aiModePreference: AiModePreference = AiModePreference.AUTO,
+    /** Which cloud AI provider to use (Claude, Gemini, ChatGPT, DeepSeek). */
+    val cloudAiProvider: CloudAiProviderType = CloudAiProviderType.CLAUDE,
     /** Claude API key for Cloud AI mode. */
     val claudeApiKey: String = "",
+    /** Google Gemini API key. */
+    val geminiApiKey: String = "",
+    /** OpenAI (ChatGPT) API key. */
+    val openaiApiKey: String = "",
+    /** DeepSeek API key. */
+    val deepseekApiKey: String = "",
     /** Active local model ID (from catalog or imported). */
     val activeLocalModelId: String = "",
     /** Whether the local AI setup wizard has been completed. */

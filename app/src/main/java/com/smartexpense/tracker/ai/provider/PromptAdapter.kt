@@ -335,7 +335,6 @@ class PromptAdapter {
             .lines()
             .filter { it.isNotBlank() }
             .joinToString("\n")
-            .take(1000) // Cap length
     }
 
     // ── OCR Receipt Parsing with AI ─────────────────────────────────
