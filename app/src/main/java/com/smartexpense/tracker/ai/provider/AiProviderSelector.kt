@@ -33,28 +33,35 @@ class AiProviderSelector(
 
     /**
      * Selects the best provider based on user preference and availability.
+     *
+     * When the user explicitly chooses LOCAL_MODEL, SYSTEM_AI, or CLOUD_AI,
+     * that provider is ALWAYS set as active — no silent fallback. The provider
+     * will attempt lazy loading at inference time if needed.
+     * Fallback only happens in AUTO mode.
      */
     suspend fun selectProvider(preference: AiModePreference): AiProvider {
         val provider = when (preference) {
             AiModePreference.CLOUD_AI -> {
-                if (cloudProvider.isAvailable()) cloudProvider
-                else fallback()
+                // Explicit choice — always honour it
+                cloudProvider
             }
             AiModePreference.SYSTEM_AI -> {
                 systemProvider.initialize()
-                if (systemProvider.isAvailable()) systemProvider
-                else fallback()
+                // Explicit choice — always honour it
+                systemProvider
             }
             AiModePreference.LOCAL_MODEL -> {
+                // Explicit choice — always set local provider as active.
+                // loadActiveModel stores model metadata even if runtime load fails;
+                // inference will lazy-retry at call time.
                 customLocalProvider.loadActiveModel()
-                if (customLocalProvider.isAvailable()) customLocalProvider
-                else fallback()
+                customLocalProvider
             }
             AiModePreference.AUTO -> autoSelect()
         }
 
         activeProvider = provider
-        Log.i(TAG, "Selected provider: ${provider.displayName()} (preference: $preference)")
+        Log.i(TAG, "Selected provider: ${provider.displayName()} (preference: $preference, available: ${provider.isAvailable()})")
         return provider
     }
 

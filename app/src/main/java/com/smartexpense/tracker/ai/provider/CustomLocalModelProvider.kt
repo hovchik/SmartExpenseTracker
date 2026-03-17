@@ -11,11 +11,19 @@ import com.smartexpense.tracker.ai.runtime.MediaPipeLlmRuntimeAdapter
 /**
  * AI provider that runs user-installed or app-downloaded local models.
  * Uses pluggable runtime adapters (MediaPipe, LiteRT) for inference.
+ *
+ * The provider always stores the active model metadata, even if the runtime
+ * fails to load. This ensures correct display names and allows lazy retry
+ * of model loading during inference.
  */
 class CustomLocalModelProvider(
     private val context: Context,
     private val modelManager: LocalModelManager
 ) : AiProvider {
+
+    companion object {
+        private const val TAG = "CustomLocalProvider"
+    }
 
     private val mediaPipeRuntime = MediaPipeLlmRuntimeAdapter(context)
     private val liteRtRuntime = LiteRtRuntimeAdapter()
@@ -29,6 +37,8 @@ class CustomLocalModelProvider(
 
     /**
      * Loads the currently active model (if any).
+     * Always stores the model metadata so displayName() is correct.
+     * Returns true if the runtime loaded successfully.
      */
     suspend fun loadActiveModel(): Boolean {
         val model = modelManager.getActiveModel() ?: return false
@@ -37,16 +47,25 @@ class CustomLocalModelProvider(
 
     /**
      * Loads a specific model using the appropriate runtime.
+     * The model metadata is always stored (even on runtime failure)
+     * so isAvailable() and displayName() work correctly.
      */
     suspend fun loadModel(model: LocalAiModel): Boolean {
         if (model.localPath.isBlank()) return false
+
+        // Always store the model metadata — the user explicitly selected it
+        activeModel = model
 
         val runtime = getRuntimeForModel(model)
         val success = runtime.loadModel(model.localPath)
 
         if (success) {
             activeRuntime = runtime
-            activeModel = model
+            android.util.Log.i(TAG, "Model loaded: ${model.displayName} via ${runtime.runtimeName()}")
+        } else {
+            // Store the runtime reference for lazy retry during inference
+            activeRuntime = runtime
+            android.util.Log.w(TAG, "Runtime load failed for ${model.displayName}, will retry on inference")
         }
 
         return success
@@ -62,14 +81,24 @@ class CustomLocalModelProvider(
     }
 
     override suspend fun generateAnalysis(input: AnalysisInput): AnalysisResult {
-        val runtime = activeRuntime
+        val model = activeModel ?: return AnalysisResult(
+            text = "", success = false, providerName = displayName(), isLocal = true
+        )
+
+        var runtime = activeRuntime
+
+        // Lazy retry: if the runtime isn't ready, attempt to reload the model
         if (runtime == null || !runtime.isReady()) {
-            return AnalysisResult(
-                text = "",
-                success = false,
-                providerName = displayName(),
-                isLocal = true
-            )
+            android.util.Log.i(TAG, "Runtime not ready, retrying load for ${model.displayName}")
+            runtime = getRuntimeForModel(model)
+            val reloaded = runtime.loadModel(model.localPath)
+            if (reloaded) {
+                activeRuntime = runtime
+            } else {
+                return AnalysisResult(
+                    text = "", success = false, providerName = displayName(), isLocal = true
+                )
+            }
         }
 
         val startTime = System.currentTimeMillis()
@@ -90,7 +119,14 @@ class CustomLocalModelProvider(
         )
     }
 
-    override fun isAvailable(): Boolean = activeRuntime?.isReady() == true
+    /**
+     * Returns true when a model is selected and has a valid local path.
+     * The runtime may not be ready yet — it will be lazy-loaded during inference.
+     */
+    override fun isAvailable(): Boolean {
+        val model = activeModel ?: return false
+        return model.localPath.isNotBlank()
+    }
 
     override fun displayName(): String {
         val model = activeModel
@@ -103,6 +139,8 @@ class CustomLocalModelProvider(
         return when {
             model != null && runtime?.isReady() == true ->
                 "${model.displayName} via ${runtime.runtimeName()}"
+            model != null && model.localPath.isNotBlank() ->
+                "${model.displayName} — ready (will load on first use)"
             model != null -> "${model.displayName} — not loaded"
             else -> "No model installed"
         }
