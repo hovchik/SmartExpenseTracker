@@ -61,7 +61,11 @@ fun ReportsScreen(
     currentPeriod: ReportPeriod,
     onPeriodChange: (ReportPeriod) -> Unit,
     allTransactions: List<Transaction> = emptyList(),
-    currencyCode: String = "AMD"
+    currencyCode: String = "AMD",
+    /** AI-generated expense reduction tips (empty = use rule-based fallback). */
+    aiExpenseReductionTips: List<String> = emptyList(),
+    /** Callback to request AI-generated tips for the given report. */
+    onRequestAiTips: (ExpenseReport, String) -> Unit = { _, _ -> }
 ) {
     // Month selector state – defaults to current month
     val nowCal = remember { Calendar.getInstance() }
@@ -106,8 +110,17 @@ fun ReportsScreen(
     var showSharePicker by remember { mutableStateOf(false) }
 
     val aiEngine = remember { com.smartexpense.tracker.service.ai.AiExpenseEngine() }
-    val expenseReductionTips = remember(report, currencyCode) {
+    // Use AI-generated tips when available, otherwise fall back to rule-based
+    val fallbackTips = remember(report, currencyCode) {
         if (report.totalExpenses > 0) aiEngine.generateExpenseReductionTips(report, currencyCode) else emptyList()
+    }
+    val expenseReductionTips = if (aiExpenseReductionTips.isNotEmpty()) aiExpenseReductionTips else fallbackTips
+
+    // Request AI-generated tips when report changes
+    LaunchedEffect(report) {
+        if (report.totalExpenses > 0) {
+            onRequestAiTips(report, currencyCode)
+        }
     }
 
     LazyColumn(

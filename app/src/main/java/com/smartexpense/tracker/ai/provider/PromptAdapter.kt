@@ -190,6 +190,91 @@ class PromptAdapter {
         return sb.toString()
     }
 
+    /**
+     * Creates a prompt for generating actionable expense reduction tips based on report data.
+     */
+    fun createExpenseReductionPrompt(
+        totalExpenses: Double,
+        totalIncome: Double,
+        categoryBreakdown: Map<String, Double>,
+        topMerchants: Map<String, Double>,
+        transactionCount: Int,
+        currencyCode: String,
+        comparisonWithPrevious: Double,
+        dayOfWeekSpending: Map<String, Double> = emptyMap(),
+        averageDailySpend: Double = 0.0
+    ): String {
+        val sb = StringBuilder()
+        sb.appendLine("You are a personal finance advisor. Based on the spending data below, provide 3-4 specific, actionable tips to reduce expenses.")
+        sb.appendLine()
+        sb.appendLine("=== Spending Data ===")
+        sb.appendLine("Total expenses: $currencyCode ${String.format("%.2f", totalExpenses)}")
+        sb.appendLine("Total income: $currencyCode ${String.format("%.2f", totalIncome)}")
+        sb.appendLine("Transactions: $transactionCount")
+
+        if (averageDailySpend > 0) {
+            sb.appendLine("Average daily spend: $currencyCode ${String.format("%.2f", averageDailySpend)}")
+        }
+        if (comparisonWithPrevious != 0.0) {
+            sb.appendLine("Change vs previous period: ${String.format("%+.1f", comparisonWithPrevious)}%")
+        }
+        if (totalIncome > 0) {
+            val savingsRate = ((totalIncome - totalExpenses) / totalIncome * 100)
+            sb.appendLine("Savings rate: ${String.format("%.1f", savingsRate)}%")
+        }
+
+        if (categoryBreakdown.isNotEmpty()) {
+            sb.appendLine()
+            sb.appendLine("Category breakdown:")
+            categoryBreakdown.entries.sortedByDescending { it.value }.take(8).forEach { (cat, amt) ->
+                val pct = if (totalExpenses > 0) (amt / totalExpenses * 100) else 0.0
+                sb.appendLine("  $cat: $currencyCode ${String.format("%.2f", amt)} (${String.format("%.0f", pct)}%)")
+            }
+        }
+
+        if (topMerchants.isNotEmpty()) {
+            sb.appendLine()
+            sb.appendLine("Top merchants:")
+            topMerchants.entries.sortedByDescending { it.value }.take(5).forEach { (m, amt) ->
+                sb.appendLine("  $m: $currencyCode ${String.format("%.2f", amt)}")
+            }
+        }
+
+        if (dayOfWeekSpending.isNotEmpty()) {
+            sb.appendLine()
+            sb.appendLine("Day-of-week spending:")
+            dayOfWeekSpending.forEach { (day, amt) ->
+                sb.appendLine("  $day: $currencyCode ${String.format("%.2f", amt)}")
+            }
+        }
+
+        sb.appendLine()
+        sb.appendLine("Instructions:")
+        sb.appendLine("- Provide exactly 3-4 tips, each on its own line.")
+        sb.appendLine("- Each tip should be 1-2 sentences, specific and actionable.")
+        sb.appendLine("- Reference actual categories or merchants from the data where possible.")
+        sb.appendLine("- Focus on practical savings opportunities, not generic advice.")
+        sb.appendLine("- Do not number the tips or use bullet points. Just write each tip as a separate line.")
+        return sb.toString()
+    }
+
+    /**
+     * Parses AI-generated expense reduction tips from a response string.
+     * Splits the response into individual tip lines.
+     */
+    fun parseExpenseReductionTips(response: String): List<String> {
+        return response.trim()
+            .lines()
+            .map { line ->
+                line.trim()
+                    .removePrefix("-").removePrefix("•").removePrefix("*")
+                    .replace(Regex("^\\d+[.):]\\s*"), "") // Remove numbering like "1. " or "1) "
+                    .trim()
+            }
+            .filter { it.length > 10 } // Filter out too-short lines
+            .take(4)
+    }
+
     // ── Response Parsing ─────────────────────────────────────────────
 
     /**

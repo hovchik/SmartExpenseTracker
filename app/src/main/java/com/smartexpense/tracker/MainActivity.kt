@@ -82,6 +82,8 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     val tokenValidationError by viewModel.tokenValidationError.collectAsState()
     val aiConversations by viewModel.aiConversations.collectAsState()
     val dashboardSectionOrder by viewModel.dashboardSectionOrder.collectAsState()
+    val batteryState by viewModel.batteryMonitor.batteryState.collectAsState()
+    val aiExpenseReductionTips by viewModel.aiExpenseReductionTips.collectAsState()
     val storeLocations by viewModel.storeLocations.collectAsState()
     val isSubscribed by viewModel.isSubscribed.collectAsState()
     val billingError by viewModel.subscriptionManager.billingError.collectAsState()
@@ -238,7 +240,11 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         currentPeriod = reportPeriod,
                         onPeriodChange = { viewModel.setReportPeriod(it) },
                         allTransactions = uiState.allTransactions,
-                        currencyCode = currencyCode
+                        currencyCode = currencyCode,
+                        aiExpenseReductionTips = aiExpenseReductionTips,
+                        onRequestAiTips = { report, code ->
+                            viewModel.generateAiExpenseReductionTips(report, code)
+                        }
                     )
                     "add" -> AddTransactionScreen(
                         categories = uiState.categories,
@@ -390,7 +396,8 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         huggingFaceUsername = huggingFaceUsername,
                         onSaveHuggingFaceToken = { token -> viewModel.saveHuggingFaceToken(token) },
                         onRemoveHuggingFaceToken = { viewModel.removeHuggingFaceToken() },
-                        tokenValidationError = tokenValidationError
+                        tokenValidationError = tokenValidationError,
+                        batteryState = batteryState
                     )
                     "local_ai_setup" -> com.smartexpense.tracker.ai.setupwizard.LocalAiSetupWizardScreen(
                         capability = deviceCapability,
