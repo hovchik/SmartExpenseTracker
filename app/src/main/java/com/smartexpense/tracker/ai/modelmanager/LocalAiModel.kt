@@ -290,22 +290,27 @@ object ModelCatalog {
      *
      * To obtain a token:
      *  1. Create a free account at https://huggingface.co/join
-     *  2. Accept model terms on each model's page (e.g. https://huggingface.co/google/gemma-3-1b-it)
+     *  2. Accept Gemma terms at https://huggingface.co/litert-community/Gemma3-1B-IT
      *  3. Create an access token at https://huggingface.co/settings/tokens
+     *
+     * Verified repos (all return HTTP 401 = gated, exists):
+     *  - litert-community/Gemma3-1B-IT
+     *  - litert-community/Gemma2-2B-IT
+     *  - google/gemma-3n-E4B-it-litert-preview
      */
     val gatedModels: List<LocalAiModel> = listOf(
 
         // ── Official Gemma models (gated, require HuggingFace token) ────
 
         LocalAiModel(
-            modelId = "gemma3-1b-it-int4-official",
-            displayName = "Gemma 3 1B IT (int4) [Official]",
+            modelId = "gemma3-1b-it-q8-official",
+            displayName = "Gemma 3 1B IT (int8) [Official]",
             runtimeType = RuntimeType.MEDIAPIPE,
             fileFormat = ".task",
-            quantization = "int4",
+            quantization = "int8",
             requiredRamMb = 1536,
             recommendedRamMb = 3072,
-            sizeMb = 529,
+            sizeMb = 1100,
             supportsTextGeneration = true,
             supportsStructuredJson = false,
             supportsStreaming = true,
@@ -316,20 +321,20 @@ object ModelCatalog {
         ),
 
         LocalAiModel(
-            modelId = "gemma2-2b-it-int8-official",
+            modelId = "gemma2-2b-it-q8-official",
             displayName = "Gemma 2 2B IT (int8) [Official]",
             runtimeType = RuntimeType.MEDIAPIPE,
             fileFormat = ".task",
             quantization = "int8",
             requiredRamMb = 3072,
             recommendedRamMb = 6144,
-            sizeMb = 2600,
+            sizeMb = 2710,
             supportsTextGeneration = true,
             supportsStructuredJson = false,
             supportsStreaming = true,
             version = "2.0",
-            downloadUrl = "https://huggingface.co/litert-community/Gemma-2-2B-IT/resolve/main/Gemma-2-2B-IT_multi-prefill-seq_q8_ekv1280.task",
-            description = "Official Google Gemma 2 2B. High quality, requires HuggingFace token.",
+            downloadUrl = "https://huggingface.co/litert-community/Gemma2-2B-IT/resolve/main/Gemma2-2B-IT_multi-prefill-seq_q8_ekv1280.task",
+            description = "Official Google Gemma 2 2B (2.71 GB). Requires HuggingFace token.",
             isGated = true
         ),
 
@@ -341,13 +346,13 @@ object ModelCatalog {
             quantization = "int4",
             requiredRamMb = 4096,
             recommendedRamMb = 8192,
-            sizeMb = 4200,
+            sizeMb = 4410,
             supportsTextGeneration = true,
             supportsStructuredJson = false,
             supportsStreaming = true,
             version = "3.0",
-            downloadUrl = "https://huggingface.co/litert-community/Gemma3n-E4B-IT/resolve/main/Gemma3n-E4B-IT_multi-prefill-seq_q8_ekv1280.task",
-            description = "Official Google Gemma 3n E4B. Largest, best quality. Requires HuggingFace token.",
+            downloadUrl = "https://huggingface.co/google/gemma-3n-E4B-it-litert-preview/resolve/main/gemma-3n-E4B-it-int4.task",
+            description = "Official Gemma 3n E4B (4.41 GB). Best quality. Requires HuggingFace token.",
             isGated = true
         )
     )

@@ -67,6 +67,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     val isRunningBenchmark by viewModel.isRunningBenchmark.collectAsState()
     val installedModelName by viewModel.installedModelName.collectAsState()
     val modelStorageUsageMb by viewModel.modelStorageUsageMb.collectAsState()
+    val activeModelId by viewModel.activeModelId.collectAsState()
     val wizardImportMessage by viewModel.wizardImportMessage.collectAsState()
     val hasHuggingFaceToken by viewModel.hasHuggingFaceToken.collectAsState()
     val huggingFaceUsername by viewModel.huggingFaceUsername.collectAsState()
@@ -361,7 +362,11 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         aiModeStatus = aiModeStatus,
                         aiPrivacyMessage = aiPrivacyMessage,
                         installedModelName = installedModelName,
-                        modelStorageUsageMb = modelStorageUsageMb
+                        modelStorageUsageMb = modelStorageUsageMb,
+                        catalogModels = catalogModels,
+                        activeModelId = activeModelId,
+                        onSetActiveModel = { model -> viewModel.setActiveLocalModel(model) },
+                        onDeleteModel = { model -> viewModel.deleteLocalModel(model) }
                     )
                     "local_ai_setup" -> com.smartexpense.tracker.ai.setupwizard.LocalAiSetupWizardScreen(
                         capability = deviceCapability,

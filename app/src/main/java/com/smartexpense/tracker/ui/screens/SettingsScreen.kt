@@ -103,7 +103,12 @@ fun SettingsScreen(
     aiModeStatus: String? = null,
     aiPrivacyMessage: String? = null,
     installedModelName: String = "",
-    modelStorageUsageMb: Long = 0
+    modelStorageUsageMb: Long = 0,
+    // ── Downloaded model management ──
+    catalogModels: List<com.smartexpense.tracker.ai.modelmanager.LocalAiModel> = emptyList(),
+    activeModelId: String = "",
+    onSetActiveModel: (com.smartexpense.tracker.ai.modelmanager.LocalAiModel) -> Unit = {},
+    onDeleteModel: (com.smartexpense.tracker.ai.modelmanager.LocalAiModel) -> Unit = {}
 ) {
     val context = LocalContext.current
     var showClearDialog by remember { mutableStateOf(false) }
@@ -1840,6 +1845,128 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Spacer(modifier = Modifier.height(4.dp))
+                }
+
+                // ── Downloaded Models Management ──
+                val downloadedModels = catalogModels.filter {
+                    it.installState == com.smartexpense.tracker.ai.modelmanager.InstallState.INSTALLED
+                }
+                if (downloadedModels.isNotEmpty()) {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                    Text(
+                        "Downloaded Models",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    downloadedModels.forEach { model ->
+                        val isActive = model.modelId == activeModelId
+                        var showDeleteConfirm by remember { mutableStateOf(false) }
+
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 3.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isActive)
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                model.displayName,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                            if (isActive) {
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Surface(
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    shape = RoundedCornerShape(4.dp)
+                                                ) {
+                                                    Text(
+                                                        "Active",
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onPrimary
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Text(
+                                            "${model.sizeMb} MB | ${model.quantization}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    if (!isActive) {
+                                        OutlinedButton(
+                                            onClick = { onSetActiveModel(model) },
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                        ) {
+                                            Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Set Active", fontSize = 12.sp)
+                                        }
+                                    }
+                                    OutlinedButton(
+                                        onClick = { showDeleteConfirm = true },
+                                        modifier = if (isActive) Modifier.fillMaxWidth() else Modifier.weight(1f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = MaterialTheme.colorScheme.error
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                    ) {
+                                        Icon(Icons.Filled.Delete, null, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Delete", fontSize = 12.sp)
+                                    }
+                                }
+                        }
+
+                        if (showDeleteConfirm) {
+                            AlertDialog(
+                                onDismissRequest = { showDeleteConfirm = false },
+                                title = { Text("Delete Model?") },
+                                text = { Text("Delete ${model.displayName} (${model.sizeMb} MB)? This will free up storage space.") },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        showDeleteConfirm = false
+                                        onDeleteModel(model)
+                                    }) {
+                                        Text("Delete", color = MaterialTheme.colorScheme.error)
+                                    }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showDeleteConfirm = false }) {
+                                        Text("Cancel")
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    }
                 }
 
                 // Privacy message for local modes

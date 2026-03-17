@@ -688,6 +688,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         localModelManager.downloads.cancelDownload()
     }
 
+    /** Sets the active local model and loads it into the provider. */
+    fun setActiveLocalModel(model: com.smartexpense.tracker.ai.modelmanager.LocalAiModel) {
+        viewModelScope.launch {
+            localModelManager.setActiveModel(model.modelId)
+            withContext(Dispatchers.IO) {
+                aiProviderSelector.customLocalProvider.loadModel(model)
+            }
+            _aiModeStatus.value = aiProviderSelector.statusMessage()
+            refreshModelInfo()
+            refreshCatalogModels()
+        }
+    }
+
+    /** Deletes a downloaded local model and refreshes the catalog. */
+    fun deleteLocalModel(model: com.smartexpense.tracker.ai.modelmanager.LocalAiModel) {
+        viewModelScope.launch {
+            localModelManager.deleteModel(model)
+            refreshCatalogModels()
+            refreshModelInfo()
+            _aiModeStatus.value = aiProviderSelector.statusMessage()
+        }
+    }
+
     /** Runs benchmark against the active provider. */
     fun runBenchmark() {
         viewModelScope.launch {
@@ -746,9 +769,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** The ID of the currently active local model. */
+    private val _activeModelId = MutableStateFlow("")
+    val activeModelId: StateFlow<String> = _activeModelId.asStateFlow()
+
     private fun refreshModelInfo() {
         val activeModel = localModelManager.getActiveModel()
         _installedModelName.value = activeModel?.displayName ?: ""
+        _activeModelId.value = activeModel?.modelId ?: ""
         _modelStorageUsageMb.value = localModelManager.getStorageUsageMb()
     }
 
