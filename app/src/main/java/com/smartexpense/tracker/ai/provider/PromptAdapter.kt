@@ -103,7 +103,7 @@ class PromptAdapter {
             sb.appendLine("=== Category Breakdown ===")
             categoryBreakdown.entries
                 .sortedByDescending { it.value }
-                .take(8)
+                .take(5)
                 .forEach { (cat, amount) ->
                     val pct = if (totalExpenses > 0) (amount / totalExpenses * 100) else 0.0
                     sb.appendLine("- $cat: $currencyCode ${String.format("%.2f", amount)} (${String.format("%.1f", pct)}%)")
@@ -113,7 +113,7 @@ class PromptAdapter {
         if (budgetLimits.isNotEmpty()) {
             sb.appendLine()
             sb.appendLine("=== Budget Status ===")
-            budgetLimits.forEach { (cat, limit) ->
+            budgetLimits.entries.take(3).forEach { (cat, limit) ->
                 val spent = categoryBreakdown[cat] ?: 0.0
                 val pct = if (limit > 0) (spent / limit * 100) else 0.0
                 sb.appendLine("- $cat: $currencyCode ${String.format("%.2f", spent)} / $currencyCode ${String.format("%.2f", limit)} (${String.format("%.0f", pct)}% used)")
@@ -123,7 +123,7 @@ class PromptAdapter {
         if (recentTransactions.isNotEmpty()) {
             sb.appendLine()
             sb.appendLine("=== Recent Large Transactions ===")
-            recentTransactions.take(5).forEach { tx ->
+            recentTransactions.take(3).forEach { tx ->
                 sb.appendLine("- ${tx.description}: $currencyCode ${String.format("%.2f", tx.amount)} (${tx.category})")
             }
         }
@@ -170,24 +170,16 @@ class PromptAdapter {
         if (categoryBreakdown.isNotEmpty()) {
             sb.appendLine()
             sb.appendLine("Category breakdown:")
-            categoryBreakdown.entries.sortedByDescending { it.value }.take(6).forEach { (cat, amt) ->
-                sb.appendLine("  $cat: $sym${String.format("%.2f", amt)}")
+            categoryBreakdown.entries.sortedByDescending { it.value }.take(5).forEach { (cat, amt) ->
+                sb.appendLine("  $cat: $currencyCode ${String.format("%.2f", amt)}")
             }
         }
 
         if (topMerchants.isNotEmpty()) {
             sb.appendLine()
             sb.appendLine("Top merchants:")
-            topMerchants.entries.sortedByDescending { it.value }.take(5).forEach { (m, amt) ->
-                sb.appendLine("  $m: $sym${String.format("%.2f", amt)}")
-            }
-        }
-
-        if (dayOfWeekSpending.isNotEmpty()) {
-            sb.appendLine()
-            sb.appendLine("Day-of-week spending:")
-            dayOfWeekSpending.forEach { (day, amt) ->
-                sb.appendLine("  $day: $sym${String.format("%.2f", amt)}")
+            topMerchants.entries.sortedByDescending { it.value }.take(3).forEach { (m, amt) ->
+                sb.appendLine("  $m: $currencyCode ${String.format("%.2f", amt)}")
             }
         }
 
@@ -245,8 +237,8 @@ class PromptAdapter {
 
         if (categoryBreakdown.isNotEmpty()) {
             sb.appendLine()
-            sb.appendLine("=== Expenditure by Category ===")
-            categoryBreakdown.entries.sortedByDescending { it.value }.take(8).forEach { (cat, amt) ->
+            sb.appendLine("Category breakdown:")
+            categoryBreakdown.entries.sortedByDescending { it.value }.take(5).forEach { (cat, amt) ->
                 val pct = if (totalExpenses > 0) (amt / totalExpenses * 100) else 0.0
                 sb.appendLine("  $cat: $sym${String.format("%.2f", amt)} (${String.format("%.1f", pct)}% of total)")
             }
@@ -254,23 +246,9 @@ class PromptAdapter {
 
         if (topMerchants.isNotEmpty()) {
             sb.appendLine()
-            sb.appendLine("=== Top Merchants by Spend ===")
-            topMerchants.entries.sortedByDescending { it.value }.take(5).forEach { (m, amt) ->
-                sb.appendLine("  $m: $sym${String.format("%.2f", amt)}")
-            }
-        }
-
-        if (dayOfWeekSpending.isNotEmpty()) {
-            sb.appendLine()
-            sb.appendLine("=== Spending Distribution by Day of Week ===")
-            val weekendDays = listOf("Sat", "Sun")
-            val weekendTotal = dayOfWeekSpending.filter { it.key in weekendDays }.values.sum()
-            val weekdayTotal = dayOfWeekSpending.filter { it.key !in weekendDays }.values.sum()
-            dayOfWeekSpending.forEach { (day, amt) ->
-                sb.appendLine("  $day: $sym${String.format("%.2f", amt)}")
-            }
-            if (weekendTotal > 0 && weekdayTotal > 0) {
-                sb.appendLine("  Weekend total: $sym${String.format("%.2f", weekendTotal)} | Weekday total: $sym${String.format("%.2f", weekdayTotal)}")
+            sb.appendLine("Top merchants:")
+            topMerchants.entries.sortedByDescending { it.value }.take(3).forEach { (m, amt) ->
+                sb.appendLine("  $m: $currencyCode ${String.format("%.2f", amt)}")
             }
         }
 
