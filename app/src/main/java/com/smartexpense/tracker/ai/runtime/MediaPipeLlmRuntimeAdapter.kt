@@ -17,9 +17,14 @@ class MediaPipeLlmRuntimeAdapter(private val context: Context) : LocalModelRunti
 
     companion object {
         private const val TAG = "MediaPipeLlmRuntime"
-        private const val MAX_TOKENS = 2048
-        // Reserve tokens for the model's response
-        private const val MAX_INPUT_CHARS = 3500
+        // Most catalog models use ekv1280 (1280-token KV cache).
+        // Setting maxTokens higher than the KV cache causes GATHER_ND
+        // out-of-bounds errors in TFLite, leading to a native SIGSEGV.
+        private const val MAX_TOKENS = 1280
+        // Reserve ~256 tokens for output → ~1024 input tokens.
+        // Financial prompts with numbers/amounts tokenize at ~2-3 chars/token,
+        // so cap input chars conservatively.
+        private const val MAX_INPUT_CHARS = 2048
     }
 
     @Volatile
@@ -29,11 +34,14 @@ class MediaPipeLlmRuntimeAdapter(private val context: Context) : LocalModelRunti
     private var ready = false
 
     @Volatile
+    private var currentModelPath: String? = null
+
+    @Volatile
     var modelName: String = ""
         private set
 
     override suspend fun runPrompt(prompt: String): String = withContext(Dispatchers.IO) {
-        val inference = llmInference ?: return@withContext ""
+        var inference = llmInference ?: return@withContext ""
         try {
             // Truncate input to avoid exceeding the combined input+output token limit
             // which causes a native crash (SIGSEGV) in MediaPipe
@@ -47,7 +55,35 @@ class MediaPipeLlmRuntimeAdapter(private val context: Context) : LocalModelRunti
             result?.trim() ?: ""
         } catch (e: Exception) {
             Log.e(TAG, "MediaPipe inference failed: ${e.message}")
+            // After a TFLite error the session is corrupt ("Please create a
+            // new Session and start over"). Recreate to prevent SIGSEGV on
+            // subsequent calls.
+            recreateSession()
             ""
+        }
+    }
+
+    /**
+     * Recreates the LlmInference session after a failed invoke.
+     * This prevents use-after-error SIGSEGV crashes.
+     */
+    private fun recreateSession() {
+        val path = currentModelPath ?: return
+        try {
+            Log.w(TAG, "Recreating MediaPipe session after error")
+            llmInference?.close()
+            llmInference = null
+
+            val options = LlmInference.LlmInferenceOptions.builder()
+                .setModelPath(path)
+                .setMaxTokens(MAX_TOKENS)
+                .build()
+            llmInference = LlmInference.createFromOptions(context, options)
+            Log.d(TAG, "Session recreated successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to recreate session: ${e.message}")
+            llmInference = null
+            ready = false
         }
     }
 
@@ -73,6 +109,7 @@ class MediaPipeLlmRuntimeAdapter(private val context: Context) : LocalModelRunti
                 .build()
 
             llmInference = LlmInference.createFromOptions(context, options)
+            currentModelPath = modelPath
             modelName = file.nameWithoutExtension.replaceFirstChar { it.uppercase() }
             ready = true
             Log.d(TAG, "MediaPipe model loaded: $modelName")
@@ -91,6 +128,7 @@ class MediaPipeLlmRuntimeAdapter(private val context: Context) : LocalModelRunti
         } catch (_: Exception) {}
         llmInference = null
         ready = false
+        currentModelPath = null
         modelName = ""
     }
 

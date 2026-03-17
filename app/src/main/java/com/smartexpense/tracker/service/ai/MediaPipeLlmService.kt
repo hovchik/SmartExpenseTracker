@@ -26,7 +26,10 @@ class MediaPipeLlmService(private val context: Context) {
 
     companion object {
         private const val TAG = "MediaPipeLlm"
-        private const val MAX_INPUT_CHARS = 3500
+        // Most catalog models use ekv1280 (1280-token KV cache).
+        // Financial prompts with numbers tokenize at ~2-3 chars/token,
+        // so 2048 chars ≈ 700-1024 tokens, leaving room for output.
+        private const val MAX_INPUT_CHARS = 2048
 
         /** File extensions recognized as MediaPipe model files. */
         private val MODEL_EXTENSIONS = listOf(".task", ".bin", ".tflite")
@@ -349,7 +352,7 @@ class MediaPipeLlmService(private val context: Context) {
             val builder = optionsBuilderClass.invoke(null)
             val builderClass = builder.javaClass
             builderClass.getMethod("setModelPath", String::class.java).invoke(builder, modelPath)
-            builderClass.getMethod("setMaxTokens", Int::class.javaPrimitiveType).invoke(builder, 2048)
+            builderClass.getMethod("setMaxTokens", Int::class.javaPrimitiveType).invoke(builder, 1280)
             try {
                 builderClass.getMethod("setTopK", Int::class.javaPrimitiveType).invoke(builder, 40)
             } catch (_: NoSuchMethodException) {
