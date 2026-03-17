@@ -36,6 +36,21 @@ class MediaPipeLlmService(private val context: Context) {
         /** Play Store URL for Google AI Edge Gallery. */
         const val GALLERY_PLAY_STORE_URL =
             "https://play.google.com/store/apps/details?id=$GALLERY_PACKAGE"
+
+        /**
+         * Maximum number of characters allowed in a prompt.
+         *
+         * On-device models (e.g. Gemma-2B) typically support 2048 tokens of
+         * combined input + output.  With ~4 characters per token and 512
+         * tokens reserved for the response (see [setMaxTokens] in
+         * [loadModel]), that leaves ~1536 input tokens ≈ 6144 characters.
+         * We use a slightly lower budget to account for special tokens added
+         * by the runtime.
+         */
+        private const val MAX_PROMPT_CHARS = 6000
+
+        /** Number of output tokens configured at model-load time. */
+        private const val MAX_OUTPUT_TOKENS = 512
     }
 
     // ── Model catalog ────────────────────────────────────────────────
@@ -348,7 +363,7 @@ class MediaPipeLlmService(private val context: Context) {
             val builder = optionsBuilderClass.invoke(null)
             val builderClass = builder.javaClass
             builderClass.getMethod("setModelPath", String::class.java).invoke(builder, modelPath)
-            builderClass.getMethod("setMaxTokens", Int::class.javaPrimitiveType).invoke(builder, 512)
+            builderClass.getMethod("setMaxTokens", Int::class.javaPrimitiveType).invoke(builder, MAX_OUTPUT_TOKENS)
             builderClass.getMethod("setTopK", Int::class.javaPrimitiveType).invoke(builder, 40)
             builderClass.getMethod("setTemperature", Float::class.javaPrimitiveType).invoke(builder, 0.3f)
             val options = builderClass.getMethod("build").invoke(builder)
@@ -392,12 +407,33 @@ class MediaPipeLlmService(private val context: Context) {
 
     suspend fun generateResponse(prompt: String): String? = withContext(Dispatchers.IO) {
         val inference = llmInference ?: return@withContext null
+
+        // Guard: truncate prompts that would exceed the model's context window.
+        // Exceeding the limit causes a GATHER_ND out-of-bounds error inside
+        // TFLite which results in a fatal SIGSEGV (not catchable by the JVM).
+        val safePrompt = if (prompt.length > MAX_PROMPT_CHARS) {
+            Log.w(TAG, "Prompt too long (${prompt.length} chars), truncating to $MAX_PROMPT_CHARS chars")
+            prompt.take(MAX_PROMPT_CHARS)
+        } else {
+            prompt
+        }
+
         try {
             val method = inference.javaClass.getMethod("generateResponse", String::class.java)
-            val result = method.invoke(inference, prompt) as? String
+            val result = method.invoke(inference, safePrompt) as? String
             result?.trim()
         } catch (e: Exception) {
-            Log.e(TAG, "Inference failed: ${e.message}")
+            val cause = e.cause ?: e
+            Log.e(TAG, "Inference failed: ${cause.message}", cause)
+            // If the underlying engine signalled a fatal state we should
+            // invalidate the session so the next call re-creates it.
+            if (cause.message?.contains("GATHER_ND") == true ||
+                cause.message?.contains("RET_CHECK") == true ||
+                cause.message?.contains("failed to invoke") == true
+            ) {
+                Log.e(TAG, "Model session in bad state — releasing model")
+                releaseModel()
+            }
             null
         }
     }
@@ -410,9 +446,15 @@ class MediaPipeLlmService(private val context: Context) {
     ): String {
         if (!isReady) return ruleEngine.categorize(description, isExpense, userCategoryNames)
 
-        val categoriesList = availableCategories.joinToString(", ")
+        // Build the categories string, trimming if necessary so the whole
+        // prompt stays within the safe context window.
+        val preambleLen = 120 + description.length // rough overhead of the template
+        val maxCategoriesLen = (MAX_PROMPT_CHARS - preambleLen).coerceAtLeast(200)
+        val categoriesList = availableCategories.joinToString(", ").let {
+            if (it.length > maxCategoriesLen) it.take(maxCategoriesLen) + "…" else it
+        }
         val prompt = """Categorize this transaction into exactly one category.
-Transaction: "$description"
+Transaction: "${description.take(500)}"
 Type: ${if (isExpense) "expense" else "income"}
 Available categories: $categoriesList
 Reply with ONLY the category name, nothing else."""
