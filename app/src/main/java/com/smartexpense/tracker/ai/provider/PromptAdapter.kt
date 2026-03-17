@@ -345,27 +345,38 @@ class PromptAdapter {
      * The AI extracts structured data (merchant, items, total, currency)
      * from raw OCR text, which is often noisy and multilingual.
      */
-    fun createOcrParsingPrompt(ocrText: String, currencyCode: String): String {
+    fun createOcrParsingPrompt(
+        ocrText: String,
+        currencyCode: String,
+        availableCategories: List<String> = emptyList()
+    ): String {
         // Keep the prompt compact — local models (MediaPipe) have a 1280 combined
         // input+output token limit. Multilingual text (Armenian, CJK) tokenizes at
         // ~1.5 chars/token, so total prompt must stay under ~1200 chars.
         // Cloud providers handle longer prompts but benefit from conciseness too.
-        val maxOcrChars = 600
+        val maxOcrChars = 500
         val truncatedOcr = if (ocrText.length > maxOcrChars) {
             ocrText.take(maxOcrChars) + "\n[...]"
         } else {
             ocrText
         }
 
+        val categoriesHint = if (availableCategories.isNotEmpty()) {
+            "Categories: ${availableCategories.take(10).joinToString(", ")}\n"
+        } else ""
+
         return buildString {
-            appendLine("Parse this receipt OCR text. Reply EXACTLY in this format:")
+            appendLine("Parse receipt and suggest expense. EXACT format:")
             appendLine("MERCHANT: <name>")
             appendLine("CURRENCY: <3-letter code, default $currencyCode>")
             appendLine("TOTAL: <number>")
+            appendLine("CATEGORY: <best category>")
+            appendLine("SUGGESTION: <1 sentence: what was bought and why you suggest this category>")
             appendLine("ITEMS:")
             appendLine("<item> | <price>")
             appendLine()
-            appendLine("OCR text:")
+            if (categoriesHint.isNotBlank()) append(categoriesHint)
+            appendLine("OCR:")
             appendLine(truncatedOcr)
         }
     }
@@ -381,6 +392,8 @@ class PromptAdapter {
         var merchant = "Unknown"
         var currency = fallbackCurrency
         var total: Double? = null
+        var category: String? = null
+        var suggestion: String? = null
         val items = mutableListOf<Pair<String, Double>>()
         var inItems = false
 
@@ -409,6 +422,20 @@ class PromptAdapter {
                     total = parseDecimalNumber(value)
                     inItems = false
                 }
+                trimmed.startsWith("CATEGORY:", ignoreCase = true) -> {
+                    val value = trimmed.substringAfter(":").trim()
+                    if (value.isNotBlank() && value.length <= 40) {
+                        category = value
+                    }
+                    inItems = false
+                }
+                trimmed.startsWith("SUGGESTION:", ignoreCase = true) -> {
+                    val value = trimmed.substringAfter(":").trim()
+                    if (value.isNotBlank()) {
+                        suggestion = value.take(200)
+                    }
+                    inItems = false
+                }
                 trimmed.equals("ITEMS:", ignoreCase = true) -> {
                     inItems = true
                 }
@@ -435,7 +462,9 @@ class PromptAdapter {
             merchantName = merchant,
             currencyCode = currency,
             totalAmount = total,
-            items = items
+            items = items,
+            suggestedCategory = category,
+            aiSuggestion = suggestion
         )
     }
 
@@ -463,7 +492,11 @@ class PromptAdapter {
         val merchantName: String,
         val currencyCode: String,
         val totalAmount: Double?,
-        val items: List<Pair<String, Double>>
+        val items: List<Pair<String, Double>>,
+        /** AI-suggested category for the expense (e.g. "Groceries", "Dining"). */
+        val suggestedCategory: String? = null,
+        /** AI-generated suggestion explaining what was bought and why this category fits. */
+        val aiSuggestion: String? = null
     )
 
     data class CategoryResult(

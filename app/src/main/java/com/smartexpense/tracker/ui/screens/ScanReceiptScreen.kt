@@ -331,6 +331,40 @@ fun ScanReceiptScreen(
             }
             var nextItemId by remember(ocrParsedData) { mutableIntStateOf(ocrParsedData.items.size) }
 
+            // AI suggestion card — shown when AI understood the receipt
+            if (ocrParsedData.aiSuggestion != null) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = BluePrimary.copy(alpha = 0.08f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Icon(
+                            Icons.Filled.AutoAwesome, null,
+                            tint = BluePrimary, modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                "AI Suggestion",
+                                fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                                color = BluePrimary
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                ocrParsedData.aiSuggestion,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 18.sp
+                            )
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
             Card(
                 modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
