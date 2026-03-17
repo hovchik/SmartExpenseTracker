@@ -152,6 +152,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _activeModelId = MutableStateFlow("")
     val activeModelId: StateFlow<String> = _activeModelId.asStateFlow()
 
+    /** Descriptions for each engine option, updated after availability check. */
+    private val _engineDescriptions = MutableStateFlow<Map<AiEnginePreference, String>>(emptyMap())
+    val engineDescriptions: StateFlow<Map<AiEnginePreference, String>> = _engineDescriptions.asStateFlow()
+
     init {
         viewModelScope.launch {
             repository.initialize()
@@ -378,10 +382,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ─── Local AI Engine ────────────────────────────────────────────
-
-    /** Descriptions for each engine option, updated after availability check. */
-    private val _engineDescriptions = MutableStateFlow<Map<AiEnginePreference, String>>(emptyMap())
-    val engineDescriptions: StateFlow<Map<AiEnginePreference, String>> = _engineDescriptions.asStateFlow()
 
     /** Discovered model files for MediaPipe LLM. */
     private val _discoveredModels = MutableStateFlow<List<Pair<String, String>>>(emptyList())
@@ -708,6 +708,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Deletes a downloaded local model and refreshes the catalog. */
     fun deleteLocalModel(model: com.smartexpense.tracker.ai.modelmanager.LocalAiModel) {
         viewModelScope.launch {
+            // If deleting the active model, release it from the provider first
+            if (model.modelId == _activeModelId.value) {
+                aiProviderSelector.customLocalProvider.release()
+            }
             localModelManager.deleteModel(model)
             refreshCatalogModels()
             refreshModelInfo()
@@ -758,12 +762,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Persists to AppSettings, sets on download manager, and validates against HuggingFace API.
      */
     fun saveHuggingFaceToken(token: String) {
+        // Set token eagerly so subsequent download calls can use it immediately
+        localModelManager.setHuggingFaceToken(token)
+        _hasHuggingFaceToken.value = true
+
         viewModelScope.launch {
             // Persist token
             val settings = repository.appData.value.settings
             repository.updateSettings(settings.copy(huggingFaceToken = token))
-            localModelManager.setHuggingFaceToken(token)
-            _hasHuggingFaceToken.value = true
 
             // Validate and get username
             val username = withContext(Dispatchers.IO) {
@@ -777,12 +783,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Removes the stored HuggingFace token.
      */
     fun removeHuggingFaceToken() {
+        // Clear token eagerly for immediate UI update
+        localModelManager.setHuggingFaceToken("")
+        _hasHuggingFaceToken.value = false
+        _huggingFaceUsername.value = null
+
         viewModelScope.launch {
             val settings = repository.appData.value.settings
             repository.updateSettings(settings.copy(huggingFaceToken = ""))
-            localModelManager.setHuggingFaceToken("")
-            _hasHuggingFaceToken.value = false
-            _huggingFaceUsername.value = null
         }
     }
 

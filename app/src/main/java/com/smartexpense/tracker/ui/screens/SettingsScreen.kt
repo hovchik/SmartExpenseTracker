@@ -2046,11 +2046,11 @@ fun SettingsScreen(
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
+                    var showChangeToken by remember { mutableStateOf(false) }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        var showChangeToken by remember { mutableStateOf(false) }
                         OutlinedButton(
                             onClick = { showChangeToken = true },
                             modifier = Modifier.weight(1f),
@@ -2072,24 +2072,23 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Remove", fontSize = 12.sp)
                         }
+                    }
 
-                        if (showChangeToken) {
-                            val context = LocalContext.current
-                            com.smartexpense.tracker.ai.setupwizard.HuggingFaceTokenDialog(
-                                onDismiss = { showChangeToken = false },
-                                onTokenSubmit = { token ->
-                                    showChangeToken = false
-                                    onSaveHuggingFaceToken(token)
-                                },
-                                onOpenBrowser = {
-                                    val intent = android.content.Intent(
-                                        android.content.Intent.ACTION_VIEW,
-                                        Uri.parse("https://huggingface.co/settings/tokens")
-                                    )
-                                    context.startActivity(intent)
-                                }
-                            )
-                        }
+                    if (showChangeToken) {
+                        com.smartexpense.tracker.ai.setupwizard.HuggingFaceTokenDialog(
+                            onDismiss = { showChangeToken = false },
+                            onTokenSubmit = { token ->
+                                showChangeToken = false
+                                onSaveHuggingFaceToken(token)
+                            },
+                            onOpenBrowser = {
+                                val intent = android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    Uri.parse("https://huggingface.co/settings/tokens")
+                                )
+                                context.startActivity(intent)
+                            }
+                        )
                     }
                 } else {
                     var showAddToken by remember { mutableStateOf(false) }

@@ -52,6 +52,9 @@ class ModelDownloadManager(private val context: Context) {
     /** Holds the active HTTP connection so cancel can disconnect it immediately. */
     private val activeConnection = AtomicReference<HttpURLConnection?>(null)
 
+    /** Guards against concurrent download starts (atomic check-and-set). */
+    private val downloading = AtomicBoolean(false)
+
     /** App-private directory for model files. */
     fun modelsDir(): File = File(context.filesDir, "ai_models").also { it.mkdirs() }
 
@@ -197,12 +200,14 @@ class ModelDownloadManager(private val context: Context) {
         model: LocalAiModel,
         onProgress: ((Float) -> Unit)? = null
     ): String? = withContext(Dispatchers.IO) {
-        if (_downloadState.value.isDownloading) {
+        if (!downloading.compareAndSet(false, true)) {
             _downloadState.value = _downloadState.value.copy(
                 error = "A download is already in progress"
             )
             return@withContext null
         }
+        try {
+        // --- guarded section start ---
 
         if (model.downloadUrl.isBlank()) {
             _downloadState.value = DownloadState(error = "No download URL for this model")
@@ -392,6 +397,10 @@ class ModelDownloadManager(private val context: Context) {
                 )
             }
             null
+        }
+        // --- guarded section end ---
+        } finally {
+            downloading.set(false)
         }
     }
 
