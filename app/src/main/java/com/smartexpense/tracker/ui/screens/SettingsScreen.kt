@@ -114,7 +114,10 @@ fun SettingsScreen(
     huggingFaceUsername: String? = null,
     onSaveHuggingFaceToken: (String) -> Unit = {},
     onRemoveHuggingFaceToken: () -> Unit = {},
-    tokenValidationError: String? = null
+    tokenValidationError: String? = null,
+    // ── Battery monitoring ──
+    batteryState: com.smartexpense.tracker.service.battery.BatteryMonitorService.BatteryState =
+        com.smartexpense.tracker.service.battery.BatteryMonitorService.BatteryState()
 ) {
     val context = LocalContext.current
     var showClearDialog by remember { mutableStateOf(false) }
@@ -155,6 +158,7 @@ fun SettingsScreen(
     // localAiExpanded removed — LOCAL AI section replaced by AI ENGINE
     var importExportExpanded by remember { mutableStateOf(false) }
     var storageExpanded by remember { mutableStateOf(false) }
+    var batteryExpanded by remember { mutableStateOf(false) }
     var permissionsExpanded by remember { mutableStateOf(false) }
 
     // Currency selector state
@@ -2259,6 +2263,126 @@ fun SettingsScreen(
             }
         }
         } // end AnimatedVisibility for Storage
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ─── Battery Monitoring Section ──────────────────────────────
+        CollapsibleSectionHeader("BATTERY MONITOR", batteryExpanded) { batteryExpanded = !batteryExpanded }
+
+        AnimatedVisibility(
+            visible = batteryExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    // Battery level with icon
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = when {
+                                batteryState.isCharging -> Icons.Filled.BatteryChargingFull
+                                batteryState.level > 90 -> Icons.Filled.BatteryFull
+                                batteryState.level > 50 -> Icons.Filled.Battery5Bar
+                                batteryState.level > 20 -> Icons.Filled.Battery3Bar
+                                else -> Icons.Filled.Battery1Bar
+                            },
+                            contentDescription = "Battery",
+                            tint = when {
+                                batteryState.isCritical -> Color(0xFFF44336)
+                                batteryState.isLow -> Color(0xFFFF9800)
+                                batteryState.isCharging -> Color(0xFF4CAF50)
+                                else -> MaterialTheme.colorScheme.primary
+                            },
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                if (batteryState.level >= 0) "${batteryState.level}%" else "Unknown",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                batteryState.summary,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    if (batteryState.isLow) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFFFFF3E0)
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.Warning, null, tint = Color(0xFFFF9800), modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    if (batteryState.isCritical) "Critical battery! AI features paused to save power."
+                                    else "Low battery. Consider charging to ensure AI features work smoothly.",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF5D4037)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Details grid
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Health", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(batteryState.health, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Temperature", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("${String.format("%.1f", batteryState.temperatureCelsius)}°C", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Voltage", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("${String.format("%.2f", batteryState.voltage)}V", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Technology", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(batteryState.technology, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Power Saver", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                if (batteryState.isPowerSaveMode) "Active" else "Off",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = if (batteryState.isPowerSaveMode) Color(0xFFFF9800) else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Charging", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(batteryState.chargingSource, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
 

@@ -32,6 +32,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val repository: ExpenseRepository = (application as SmartExpenseApp).repository
     val aiEngine = AiExpenseEngine()
 
+    /** Battery monitoring service for tracking device battery state. */
+    val batteryMonitor = com.smartexpense.tracker.service.battery.BatteryMonitorService(application.applicationContext)
+
     /** Subscription manager for premium feature gating. */
     val subscriptionManager = (application as SmartExpenseApp).subscriptionManager
     val isSubscribed: StateFlow<Boolean> = subscriptionManager.isSubscribed
@@ -165,6 +168,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val engineDescriptions: StateFlow<Map<AiEnginePreference, String>> = _engineDescriptions.asStateFlow()
 
     init {
+        // Start battery monitoring immediately
+        batteryMonitor.startMonitoring()
+
         viewModelScope.launch {
             repository.initialize()
             val settings = repository.appData.value.settings
@@ -1575,6 +1581,62 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } catch (_: Exception) { /* AI enrichment is best-effort */ }
     }
 
+    /** AI-generated expense reduction tips for the Reports screen. */
+    private val _aiExpenseReductionTips = MutableStateFlow<List<String>>(emptyList())
+    val aiExpenseReductionTips: StateFlow<List<String>> = _aiExpenseReductionTips.asStateFlow()
+
+    /**
+     * Generates AI-powered expense reduction tips for a report.
+     * Falls back to rule-based tips if the AI provider fails.
+     */
+    fun generateAiExpenseReductionTips(report: ExpenseReport, currencyCode: String) {
+        // Emit rule-based tips immediately as fallback
+        val fallbackTips = if (report.totalExpenses > 0)
+            aiEngine.generateExpenseReductionTips(report, currencyCode) else emptyList()
+        _aiExpenseReductionTips.value = fallbackTips
+
+        if (report.totalExpenses <= 0) return
+
+        viewModelScope.launch {
+            try {
+                val provider = aiProviderSelector.getActiveProvider()
+                val prompt = promptAdapter.createExpenseReductionPrompt(
+                    totalExpenses = report.totalExpenses,
+                    totalIncome = report.totalIncome,
+                    categoryBreakdown = report.categoryBreakdown,
+                    topMerchants = report.topMerchants,
+                    transactionCount = report.transactionCount,
+                    currencyCode = currencyCode,
+                    comparisonWithPrevious = report.comparisonWithPrevious,
+                    dayOfWeekSpending = report.dayOfWeekSpending,
+                    averageDailySpend = report.averageDailySpend
+                )
+
+                val result = withContext(Dispatchers.IO) {
+                    provider.generateAnalysis(
+                        com.smartexpense.tracker.ai.provider.AnalysisInput(
+                            prompt = prompt,
+                            totalExpenses = report.totalExpenses,
+                            totalIncome = report.totalIncome,
+                            transactionCount = report.transactionCount,
+                            currencyCode = currencyCode,
+                            type = com.smartexpense.tracker.ai.provider.AnalysisType.REPORT
+                        )
+                    )
+                }
+
+                if (result.success && result.text.isNotBlank()) {
+                    val aiTips = promptAdapter.parseExpenseReductionTips(result.text)
+                    if (aiTips.isNotEmpty()) {
+                        _aiExpenseReductionTips.value = aiTips
+                    }
+                }
+            } catch (_: Exception) {
+                // Keep the rule-based fallback tips already emitted
+            }
+        }
+    }
+
     /**
      * Generates a report for any arbitrary month/year (0-based month, matching [Calendar.MONTH]).
      * Called by the month selector in ReportsScreen.
@@ -2375,6 +2437,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearAllInAppNotifications() {
         viewModelScope.launch { repository.clearNotifications() }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        batteryMonitor.stopMonitoring()
     }
 }
 
