@@ -271,8 +271,8 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                     )
                     "scan" -> ScanReceiptScreen(
                         onOcrResult = { text, qrData -> viewModel.processOcrText(text, qrData) },
-                        onConfirmOcr = { amount, merchant, category ->
-                            viewModel.confirmOcrTransaction(amount, merchant, category)
+                        onConfirmOcr = { amount, merchant, category, items ->
+                            viewModel.confirmOcrTransaction(amount, merchant, category, items)
                         },
                         onClearOcr = { viewModel.clearOcrData() },
                         onSaveToSection = { label, merchant, items, total, raw, langs ->

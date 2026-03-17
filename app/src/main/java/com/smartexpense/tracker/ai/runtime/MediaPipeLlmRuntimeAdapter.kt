@@ -22,9 +22,10 @@ class MediaPipeLlmRuntimeAdapter(private val context: Context) : LocalModelRunti
         // out-of-bounds errors in TFLite, leading to a native SIGSEGV.
         private const val MAX_TOKENS = 1280
         // Reserve ~256 tokens for output → ~1024 input tokens.
-        // Financial prompts with numbers/amounts tokenize at ~2-3 chars/token,
-        // so cap input chars conservatively.
-        private const val MAX_INPUT_CHARS = 2048
+        // Multilingual text (Armenian, CJK, Cyrillic) tokenizes at ~1.5 chars/token
+        // so we need a tighter char limit than pure English would require.
+        // 1200 chars ≈ 800 tokens, leaving ~480 for output.
+        private const val MAX_INPUT_CHARS = 1200
     }
 
     @Volatile

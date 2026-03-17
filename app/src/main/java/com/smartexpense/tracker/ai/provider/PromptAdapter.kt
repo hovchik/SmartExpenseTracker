@@ -338,6 +338,167 @@ class PromptAdapter {
             .take(1000) // Cap length
     }
 
+    // ── OCR Receipt Parsing with AI ─────────────────────────────────
+
+    /**
+     * Creates a prompt for AI-powered OCR receipt parsing.
+     * The AI extracts structured data (merchant, items, total, currency)
+     * from raw OCR text, which is often noisy and multilingual.
+     */
+    fun createOcrParsingPrompt(
+        ocrText: String,
+        currencyCode: String,
+        availableCategories: List<String> = emptyList()
+    ): String {
+        // Keep the prompt compact — local models (MediaPipe) have a 1280 combined
+        // input+output token limit. Multilingual text (Armenian, CJK) tokenizes at
+        // ~1.5 chars/token, so total prompt must stay under ~1200 chars.
+        // Cloud providers handle longer prompts but benefit from conciseness too.
+        val maxOcrChars = 500
+        val truncatedOcr = if (ocrText.length > maxOcrChars) {
+            ocrText.take(maxOcrChars) + "\n[...]"
+        } else {
+            ocrText
+        }
+
+        val categoriesHint = if (availableCategories.isNotEmpty()) {
+            "Categories: ${availableCategories.take(10).joinToString(", ")}\n"
+        } else ""
+
+        return buildString {
+            appendLine("Parse receipt and suggest expense. EXACT format:")
+            appendLine("MERCHANT: <name>")
+            appendLine("CURRENCY: <3-letter code, default $currencyCode>")
+            appendLine("TOTAL: <number>")
+            appendLine("CATEGORY: <best category>")
+            appendLine("SUGGESTION: <1 sentence: what was bought and why you suggest this category>")
+            appendLine("ITEMS:")
+            appendLine("<item> | <price>")
+            appendLine()
+            if (categoriesHint.isNotBlank()) append(categoriesHint)
+            appendLine("OCR:")
+            appendLine(truncatedOcr)
+        }
+    }
+
+    /**
+     * Parses the AI response from an OCR parsing prompt into structured receipt data.
+     * Returns null if the response is unparseable.
+     */
+    fun parseOcrResponse(response: String, fallbackCurrency: String): OcrParseResult? {
+        if (response.isBlank()) return null
+
+        val lines = response.trim().lines()
+        var merchant = "Unknown"
+        var currency = fallbackCurrency
+        var total: Double? = null
+        var category: String? = null
+        var suggestion: String? = null
+        val items = mutableListOf<Pair<String, Double>>()
+        var inItems = false
+
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (trimmed.isBlank()) continue
+
+            when {
+                trimmed.startsWith("MERCHANT:", ignoreCase = true) -> {
+                    val value = trimmed.substringAfter(":").trim()
+                    if (value.isNotBlank() && !value.equals("UNKNOWN", ignoreCase = true)) {
+                        merchant = value.take(50)
+                    }
+                    inItems = false
+                }
+                trimmed.startsWith("CURRENCY:", ignoreCase = true) -> {
+                    val value = trimmed.substringAfter(":").trim().uppercase()
+                    if (value.length == 3 && value.all { it.isLetter() }) {
+                        currency = value
+                    }
+                    inItems = false
+                }
+                trimmed.startsWith("TOTAL:", ignoreCase = true) -> {
+                    val value = trimmed.substringAfter(":").trim()
+                        .replace(Regex("[^\\d.,]"), "")
+                    total = parseDecimalNumber(value)
+                    inItems = false
+                }
+                trimmed.startsWith("CATEGORY:", ignoreCase = true) -> {
+                    val value = trimmed.substringAfter(":").trim()
+                    if (value.isNotBlank() && value.length <= 40) {
+                        category = value
+                    }
+                    inItems = false
+                }
+                trimmed.startsWith("SUGGESTION:", ignoreCase = true) -> {
+                    val value = trimmed.substringAfter(":").trim()
+                    if (value.isNotBlank()) {
+                        suggestion = value.take(200)
+                    }
+                    inItems = false
+                }
+                trimmed.equals("ITEMS:", ignoreCase = true) -> {
+                    inItems = true
+                }
+                inItems && trimmed.contains("|") -> {
+                    val parts = trimmed.split("|", limit = 2)
+                    val itemName = parts[0].trim()
+                        .removePrefix("-").removePrefix("•")
+                        .replace(Regex("^\\d+[.):]\\s*"), "")
+                        .trim()
+                    val priceStr = parts.getOrNull(1)?.trim()
+                        ?.replace(Regex("[^\\d.,]"), "") ?: ""
+                    val price = parseDecimalNumber(priceStr)
+                    if (itemName.isNotBlank() && price != null && price > 0) {
+                        items.add(itemName to price)
+                    }
+                }
+            }
+        }
+
+        // Only return a result if we got something useful
+        if (merchant == "Unknown" && total == null && items.isEmpty()) return null
+
+        return OcrParseResult(
+            merchantName = merchant,
+            currencyCode = currency,
+            totalAmount = total,
+            items = items,
+            suggestedCategory = category,
+            aiSuggestion = suggestion
+        )
+    }
+
+    private fun parseDecimalNumber(value: String): Double? {
+        if (value.isBlank()) return null
+        // Handle both comma and dot as decimal separators
+        val normalized = if (value.contains(",") && value.contains(".")) {
+            // Has both — last one is decimal separator
+            if (value.lastIndexOf(",") > value.lastIndexOf(".")) {
+                value.replace(".", "").replace(",", ".")
+            } else {
+                value.replace(",", "")
+            }
+        } else if (value.contains(",")) {
+            // Comma only — check if it's thousands or decimal
+            val afterComma = value.substringAfterLast(",")
+            if (afterComma.length <= 2) value.replace(",", ".") else value.replace(",", "")
+        } else {
+            value
+        }
+        return normalized.toDoubleOrNull()
+    }
+
+    data class OcrParseResult(
+        val merchantName: String,
+        val currencyCode: String,
+        val totalAmount: Double?,
+        val items: List<Pair<String, Double>>,
+        /** AI-suggested category for the expense (e.g. "Groceries", "Dining"). */
+        val suggestedCategory: String? = null,
+        /** AI-generated suggestion explaining what was bought and why this category fits. */
+        val aiSuggestion: String? = null
+    )
+
     data class CategoryResult(
         val category: String?,
         val isNewCategory: Boolean

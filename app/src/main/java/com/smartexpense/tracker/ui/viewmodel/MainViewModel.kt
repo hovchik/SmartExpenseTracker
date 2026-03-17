@@ -2,6 +2,7 @@ package com.smartexpense.tracker.ui.viewmodel
 
 import android.app.Application
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.smartexpense.tracker.SmartExpenseApp
@@ -1225,8 +1226,85 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Result of AI-powered OCR parsing, wrapping the parsed receipt data
+     * plus AI-generated suggestion and category.
+     */
+    private data class AiOcrResult(
+        val receipt: AiExpenseEngine.ParsedReceipt,
+        val suggestedCategory: String?,
+        val aiSuggestion: String?
+    )
+
+    /**
+     * Attempts AI-powered OCR parsing using the active AI provider.
+     * The AI parses the receipt text AND suggests a category and explanation
+     * for the expense. Returns null to fall back to rule-based parsing.
+     *
+     * Requirements for AI OCR:
+     *  - Device has >= 3 GB RAM (meets [DeviceAiCapabilityDetector.MIN_RAM_MB_LOCAL])
+     *  - An AI provider is available (local model loaded, system AI, or cloud API key set)
+     */
+    private suspend fun tryAiOcrParsing(
+        ocrText: String,
+        currencyCode: String
+    ): AiOcrResult? {
+        try {
+            val provider = aiProviderSelector.getActiveProvider()
+            if (!provider.isAvailable()) return null
+
+            // Check device capability — skip AI OCR on low-RAM devices
+            val capability = com.smartexpense.tracker.ai.capability.DeviceAiCapabilityDetector(
+                getApplication()
+            ).detect()
+            if (capability.totalRamMb < com.smartexpense.tracker.ai.capability.DeviceAiCapabilityDetector.MIN_RAM_MB_LOCAL) {
+                Log.d("OCR", "Skipping AI OCR: insufficient RAM (${capability.totalRamMb} MB)")
+                return null
+            }
+
+            val categories = repository.appData.value.categories.map { it.name }
+            val prompt = promptAdapter.createOcrParsingPrompt(ocrText, currencyCode, categories)
+            val result = withContext(Dispatchers.IO) {
+                provider.generateAnalysis(
+                    com.smartexpense.tracker.ai.provider.AnalysisInput(
+                        prompt = prompt,
+                        type = com.smartexpense.tracker.ai.provider.AnalysisType.INSIGHT
+                    )
+                )
+            }
+
+            if (!result.success || result.text.isBlank()) return null
+
+            val parsed = promptAdapter.parseOcrResponse(result.text, currencyCode) ?: return null
+            Log.d("OCR", "AI OCR parsed: merchant=${parsed.merchantName}, " +
+                    "total=${parsed.totalAmount}, items=${parsed.items.size}, " +
+                    "currency=${parsed.currencyCode}, category=${parsed.suggestedCategory}, " +
+                    "suggestion=${parsed.aiSuggestion}, provider=${result.providerName}")
+
+            return AiOcrResult(
+                receipt = AiExpenseEngine.ParsedReceipt(
+                    totalAmount = parsed.totalAmount,
+                    items = parsed.items,
+                    merchantName = parsed.merchantName,
+                    date = null,
+                    detectedCurrencyCode = parsed.currencyCode,
+                    isTerminalReceipt = false
+                ),
+                suggestedCategory = parsed.suggestedCategory,
+                aiSuggestion = parsed.aiSuggestion
+            )
+        } catch (e: Exception) {
+            Log.w("OCR", "AI OCR parsing failed, falling back to rules: ${e.message}")
+            return null
+        }
+    }
+
+    /**
      * Parses OCR/QR receipt data and stores it in [ocrParsedData] for the user to review
      * and edit before saving. Does NOT save the transaction automatically.
+     *
+     * When an AI model is available and the device meets the requirements (>= 3 GB RAM,
+     * provider ready), uses the AI model for smarter receipt parsing. Falls back to
+     * the rule-based engine if the AI is unavailable or returns no result.
      */
     fun processOcrText(ocrText: String, qrData: String? = null) {
         viewModelScope.launch {
@@ -1234,7 +1312,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val settings = repository.appData.value.settings
                 val appCurrencyCode = settings.currencyCode
 
-                val ocrParsed = if (ocrText.isNotBlank()) aiEngine.parseReceiptText(ocrText, appCurrencyCode) else null
+                // Try AI-powered OCR parsing first, fall back to rule-based
+                val aiResult = if (ocrText.isNotBlank()) tryAiOcrParsing(ocrText, appCurrencyCode) else null
+                val ocrParsed = aiResult?.receipt
+                    ?: if (ocrText.isNotBlank()) aiEngine.parseReceiptText(ocrText, appCurrencyCode) else null
                 val ocrAmount = (ocrParsed?.totalAmount ?: ocrParsed?.items?.sumOf { it.second }) ?: 0.0
 
                 // Use detected currency from receipt text, fallback to app default
@@ -1260,22 +1341,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val amount = parsed.totalAmount ?: parsed.items.sumOf { it.second }
 
                 if (amount > 0) {
-                    val catResult = smartCategorize(
-                        "${parsed.merchantName} ${parsed.items.joinToString(" ") { it.first }}",
-                        isExpense = true,
-                        merchantName = parsed.merchantName,
-                        amount = amount
-                    )
+                    // Use AI-suggested category if available, otherwise fall back to smart categorization
+                    val aiCategory = aiResult?.suggestedCategory
+                    val category: String
+                    if (aiCategory != null) {
+                        repository.ensureCategoryExists(aiCategory)
+                        category = aiCategory
+                    } else {
+                        val catResult = smartCategorize(
+                            "${parsed.merchantName} ${parsed.items.joinToString(" ") { it.first }}",
+                            isExpense = true,
+                            merchantName = parsed.merchantName,
+                            amount = amount
+                        )
+                        category = catResult.category
+                    }
+
                     _ocrParsedData.value = OcrParsedData(
                         amount = amount,
                         merchantName = parsed.merchantName,
-                        category = catResult.category,
+                        category = category,
                         items = parsed.items,
                         fromQr = fromQr,
                         rawOcrText = ocrText,
                         currencySymbol = currencySymbol,
                         detectedCurrencyCode = detectedCurrency,
-                        isTerminalReceipt = parsed.isTerminalReceipt
+                        isTerminalReceipt = parsed.isTerminalReceipt,
+                        aiSuggestion = aiResult?.aiSuggestion
                     )
                     _uiState.value = _uiState.value.copy(lastOcrResult = null)
                 } else {
@@ -1294,8 +1386,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Saves the user-reviewed OCR transaction after edits.
+     * Also automatically saves items to OCR sections when the receipt contains goods,
+     * so both the expense and the itemized goods list are persisted in one step.
      */
-    fun confirmOcrTransaction(amount: Double, merchantName: String, category: String) {
+    fun confirmOcrTransaction(
+        amount: Double,
+        merchantName: String,
+        category: String,
+        editedItems: List<Pair<String, Double>> = emptyList()
+    ) {
         viewModelScope.launch {
             try {
                 val settings = repository.appData.value.settings
@@ -1304,7 +1403,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val currencyCode = data?.detectedCurrencyCode?.takeIf { it.isNotBlank() } ?: settings.currencyCode
                 val currencySymbol = currencyInfoFor(currencyCode).symbol
 
-                val items = data?.items ?: emptyList()
+                // Use user-edited items if provided, fall back to original parsed items
+                val items = editedItems.ifEmpty { data?.items ?: emptyList() }
                 val fromQr = data?.fromQr ?: false
 
                 val itemsNote = if (items.isNotEmpty())
@@ -1353,10 +1453,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 ))
                 autoCreateStoreIfNeeded(merchantName, geoLoc)
 
+                // Auto-save items to OCR sections when goods are present
+                // (not terminal receipts — those are payment slips with no goods)
+                if (items.isNotEmpty() && data?.isTerminalReceipt != true) {
+                    val ocrItems = items.map { (name, price) ->
+                        val catResult = smartCategorize(name)
+                        OcrItem(name = name, price = price, category = catResult.category)
+                    }
+                    val section = OcrSection(
+                        label = merchantName,
+                        merchantName = merchantName,
+                        currencyCode = currencyCode,
+                        items = ocrItems,
+                        totalAmount = amount,
+                        detectedLanguages = "",
+                        rawOcrText = data?.rawOcrText ?: "",
+                        notes = ""
+                    )
+                    repository.addOcrSection(section)
+                    Log.d("OCR", "Auto-saved ${items.size} items to sections for $merchantName")
+                }
+
                 val resultMsg = buildString {
                     append("Found: $merchantName — $currencySymbol${String.format("%.2f", amount)}")
                     if (category.isNotEmpty()) append(" · $category")
                     if (fromQr) append(" (from QR)")
+                    if (items.isNotEmpty() && data?.isTerminalReceipt != true) {
+                        append(" · ${items.size} items saved to sections")
+                    }
                 }
                 _uiState.value = _uiState.value.copy(lastOcrResult = resultMsg)
                 _ocrParsedData.value = null
@@ -2470,7 +2594,9 @@ data class OcrParsedData(
     /** ISO-4217 currency code detected from the receipt (e.g. "AMD", "USD", "EUR"). */
     val detectedCurrencyCode: String = "",
     /** True when the scanned document is a bank/POS terminal slip (no goods). */
-    val isTerminalReceipt: Boolean = false
+    val isTerminalReceipt: Boolean = false,
+    /** AI-generated suggestion explaining what was bought and the recommended category. */
+    val aiSuggestion: String? = null
 )
 
 data class UiState(
