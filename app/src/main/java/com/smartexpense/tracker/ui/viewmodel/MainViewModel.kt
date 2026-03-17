@@ -748,13 +748,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _hasHuggingFaceToken.value = true
                 // Validate token in background to get username
                 launch(Dispatchers.IO) {
-                    val username = localModelManager.validateHuggingFaceToken(settings.huggingFaceToken)
-                    if (username != null) {
-                        _huggingFaceUsername.value = username
-                    } else {
-                        // Token stored but no longer valid (expired/revoked) —
-                        // keep it set (may still work for some repos) but show no username
-                        _huggingFaceUsername.value = null
+                    when (val result = localModelManager.validateHuggingFaceToken(settings.huggingFaceToken)) {
+                        is com.smartexpense.tracker.ai.modelmanager.ModelDownloadManager.TokenValidationResult.Valid -> {
+                            _huggingFaceUsername.value = result.username
+                        }
+                        is com.smartexpense.tracker.ai.modelmanager.ModelDownloadManager.TokenValidationResult.Invalid -> {
+                            // Token definitely invalid — clear it
+                            _huggingFaceUsername.value = null
+                            _hasHuggingFaceToken.value = false
+                            localModelManager.setHuggingFaceToken("")
+                            repository.updateSettings(settings.copy(huggingFaceToken = ""))
+                            _tokenValidationError.value = "Saved HuggingFace token is no longer valid."
+                        }
+                        is com.smartexpense.tracker.ai.modelmanager.ModelDownloadManager.TokenValidationResult.NetworkError -> {
+                            // Network issue — keep token, just don't show username
+                            _huggingFaceUsername.value = null
+                        }
                     }
                 }
             }
@@ -778,23 +787,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _tokenValidationError.value = null
 
         viewModelScope.launch {
+            // Persist token immediately so it survives restarts
+            val settings = repository.appData.value.settings
+            repository.updateSettings(settings.copy(huggingFaceToken = token))
+
             // Validate token against HuggingFace API
-            val username = withContext(Dispatchers.IO) {
+            val result = withContext(Dispatchers.IO) {
                 localModelManager.validateHuggingFaceToken(token)
             }
 
-            if (username != null) {
-                // Token is valid — persist it
-                val settings = repository.appData.value.settings
-                repository.updateSettings(settings.copy(huggingFaceToken = token))
-                _huggingFaceUsername.value = username
-                _tokenValidationError.value = null
-            } else {
-                // Token is invalid — revert
-                localModelManager.setHuggingFaceToken("")
-                _hasHuggingFaceToken.value = false
-                _huggingFaceUsername.value = null
-                _tokenValidationError.value = "Invalid HuggingFace token. Please check and try again."
+            when (result) {
+                is com.smartexpense.tracker.ai.modelmanager.ModelDownloadManager.TokenValidationResult.Valid -> {
+                    _huggingFaceUsername.value = result.username
+                    _tokenValidationError.value = null
+                }
+                is com.smartexpense.tracker.ai.modelmanager.ModelDownloadManager.TokenValidationResult.Invalid -> {
+                    // Definitively invalid (HTTP 401) — revert only if no download is running
+                    if (!localModelManager.downloads.downloadState.value.isDownloading) {
+                        localModelManager.setHuggingFaceToken("")
+                        repository.updateSettings(
+                            repository.appData.value.settings.copy(huggingFaceToken = "")
+                        )
+                        _hasHuggingFaceToken.value = false
+                    }
+                    _huggingFaceUsername.value = null
+                    _tokenValidationError.value = "Invalid HuggingFace token. Please check and try again."
+                }
+                is com.smartexpense.tracker.ai.modelmanager.ModelDownloadManager.TokenValidationResult.NetworkError -> {
+                    // Network issue — keep token (it might be valid), show warning
+                    _huggingFaceUsername.value = null
+                    _tokenValidationError.value = "Could not verify token (network error). Token saved — try downloading."
+                }
             }
         }
     }

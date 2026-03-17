@@ -68,13 +68,21 @@ class ModelDownloadManager(private val context: Context) {
      * Handles HuggingFace redirects manually so the auth header isn't stripped.
      * Returns the content length if available, or -1 if unknown.
      */
+    /** Stores the last error detail for UI display. */
+    var lastAccessError: String = ""
+        private set
+
     suspend fun checkUrlAccessibility(url: String): Pair<Boolean, Long> = withContext(Dispatchers.IO) {
+        lastAccessError = ""
         try {
             // Try HEAD first (fast, no body)
+            Log.d(TAG, "Checking accessibility: HEAD $url")
             val headConn = openConnectionWithRedirects(url, "HEAD")
             val headCode = headConn.responseCode
             val headLength = headConn.contentLengthLong
+            val hfErrorCode = headConn.getHeaderField("x-error-code")
             headConn.disconnect()
+            Log.d(TAG, "HEAD result: HTTP $headCode, length=$headLength, hf-error=$hfErrorCode")
 
             if (headCode in 200..299) {
                 return@withContext true to headLength
@@ -85,22 +93,36 @@ class ModelDownloadManager(private val context: Context) {
             Log.d(TAG, "HEAD returned $headCode for $url, falling back to GET with Range")
             val getConn = openConnectionWithRedirects(url, "GET", "bytes=0-0")
             val getCode = getConn.responseCode
+            val getHfError = getConn.getHeaderField("x-error-code") ?: hfErrorCode
+            val getHfMessage = getConn.getHeaderField("x-error-message")
             // Content-Range: bytes 0-0/TOTAL — extract total size
             val contentRange = getConn.getHeaderField("Content-Range") // e.g. "bytes 0-0/1234567"
             val totalSize = contentRange?.substringAfter("/", "")?.toLongOrNull() ?: -1L
             getConn.disconnect()
 
             val accessible = getCode in 200..299
-            if (!accessible) {
-                val hint = if (getCode == 401 && url.contains("huggingface.co"))
-                    " (gated repo — add your HuggingFace token in Settings)"
-                else if (getCode == 403 && url.contains("huggingface.co"))
-                    " (access denied — your token may not have access to this model. Accept the model license on HuggingFace first.)"
-                else ""
-                Log.w(TAG, "URL not accessible: HTTP $getCode for $url$hint")
+            if (!accessible && url.contains("huggingface.co")) {
+                lastAccessError = when (getHfError) {
+                    "GatedRepo" -> "This model requires you to accept its license terms on HuggingFace before downloading. " +
+                        "Visit the model page and click \"Agree and access repository\", then try again."
+                    "RepoNotFound" -> "Model repository not found. The URL may be incorrect."
+                    else -> when (getCode) {
+                        401 -> if (huggingFaceToken.isBlank())
+                            "This model requires a HuggingFace token. Add your token in Settings > AI ENGINE."
+                        else
+                            "Authentication failed (HTTP 401). Your token may be expired or revoked."
+                        403 -> "Access denied (HTTP 403). Accept the model license on HuggingFace and verify your token."
+                        else -> "HTTP $getCode: ${getHfMessage ?: "Unknown error"}"
+                    }
+                }
+                Log.w(TAG, "URL not accessible: HTTP $getCode, hf-error=$getHfError, msg=$getHfMessage for $url")
+            } else if (!accessible) {
+                lastAccessError = "HTTP $getCode"
+                Log.w(TAG, "URL not accessible: HTTP $getCode for $url")
             }
             accessible to totalSize
         } catch (e: Exception) {
+            lastAccessError = "Network error: ${e.message}"
             Log.w(TAG, "URL accessibility check failed for $url: ${e.message}")
             false to -1L
         }
@@ -108,8 +130,13 @@ class ModelDownloadManager(private val context: Context) {
 
     /** Adds HuggingFace Bearer token for gated model repos. */
     private fun addAuthHeader(conn: HttpURLConnection, url: String) {
-        if (huggingFaceToken.isNotBlank() && url.contains("huggingface.co")) {
-            conn.setRequestProperty("Authorization", "Bearer $huggingFaceToken")
+        if (url.contains("huggingface.co")) {
+            if (huggingFaceToken.isNotBlank()) {
+                conn.setRequestProperty("Authorization", "Bearer $huggingFaceToken")
+                Log.d(TAG, "Auth header set for: ${url.take(80)}… (token: ${huggingFaceToken.take(6)}…)")
+            } else {
+                Log.w(TAG, "No HuggingFace token set for: ${url.take(80)}…")
+            }
         }
     }
 
@@ -158,10 +185,19 @@ class ModelDownloadManager(private val context: Context) {
     }
 
     /**
-     * Validates a HuggingFace token by calling the whoami endpoint.
-     * Returns the username on success, or null if the token is invalid.
+     * Result of HuggingFace token validation.
      */
-    suspend fun validateHuggingFaceToken(token: String): String? = withContext(Dispatchers.IO) {
+    sealed class TokenValidationResult {
+        data class Valid(val username: String) : TokenValidationResult()
+        object Invalid : TokenValidationResult()
+        data class NetworkError(val message: String) : TokenValidationResult()
+    }
+
+    /**
+     * Validates a HuggingFace token by calling the whoami endpoint.
+     * Distinguishes between invalid tokens (HTTP 401) and network errors.
+     */
+    suspend fun validateHuggingFaceToken(token: String): TokenValidationResult = withContext(Dispatchers.IO) {
         try {
             val conn = (URL("https://huggingface.co/api/whoami-v2").openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
@@ -177,15 +213,16 @@ class ModelDownloadManager(private val context: Context) {
                 conn.disconnect()
                 // Extract "name" from JSON response (simple parse to avoid dependency)
                 val nameMatch = Regex("\"name\"\\s*:\\s*\"([^\"]+)\"").find(body)
-                nameMatch?.groupValues?.get(1) ?: "authenticated"
+                TokenValidationResult.Valid(nameMatch?.groupValues?.get(1) ?: "authenticated")
             } else {
                 conn.disconnect()
                 Log.w(TAG, "HuggingFace token validation failed: HTTP $responseCode")
-                null
+                if (responseCode == 401) TokenValidationResult.Invalid
+                else TokenValidationResult.NetworkError("HTTP $responseCode")
             }
         } catch (e: Exception) {
             Log.w(TAG, "HuggingFace token validation error: ${e.message}")
-            null
+            TokenValidationResult.NetworkError(e.message ?: "Unknown error")
         }
     }
 
@@ -233,16 +270,8 @@ class ModelDownloadManager(private val context: Context) {
         // Step 1: Check URL accessibility
         val (accessible, expectedSize) = checkUrlAccessibility(model.downloadUrl)
         if (!accessible) {
-            val errorMsg = if (model.isGated) {
-                "Cannot access gated model. Make sure you have:\n" +
-                "1. A valid HuggingFace token\n" +
-                "2. Accepted the model license on HuggingFace\n" +
-                "Update your token in Settings > AI ENGINE."
-            } else {
-                "Model URL is not accessible. Check your internet connection."
-            }
             _downloadState.value = DownloadState(
-                error = errorMsg,
+                error = lastAccessError.ifBlank { "Model URL is not accessible. Check your internet connection." },
                 modelId = model.modelId
             )
             return@withContext null
