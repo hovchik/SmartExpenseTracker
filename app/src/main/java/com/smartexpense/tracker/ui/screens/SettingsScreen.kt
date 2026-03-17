@@ -1811,15 +1811,13 @@ fun SettingsScreen(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
                 // Active provider status
-                if (aiModeStatus != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Info, null, modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(aiModeStatus, style = MaterialTheme.typography.bodySmall)
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Info, null, modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(aiModeStatus ?: "Initializing AI provider...", style = MaterialTheme.typography.bodySmall)
                 }
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Installed model info
                 if (installedModelName.isNotBlank()) {

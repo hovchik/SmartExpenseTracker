@@ -1692,7 +1692,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     BufferedReader(InputStreamReader(it, Charsets.UTF_8)).readText()
                 } ?: throw Exception("Could not read file")
                 repository.importData(json).onSuccess { data ->
-                    _importExportMessage.value = "Imported ${data.transactions.size} transactions"
+                    val parts = mutableListOf<String>()
+                    parts.add("${data.transactions.size} transactions")
+                    if (data.storeLocations.isNotEmpty()) {
+                        parts.add("${data.storeLocations.size} store locations")
+                    }
+                    if (data.ocrSections.isNotEmpty()) {
+                        parts.add("${data.ocrSections.size} receipts")
+                    }
+                    _importExportMessage.value = "Imported ${parts.joinToString(", ")}"
                 }.onFailure { e ->
                     _importExportMessage.value = "Import failed: ${e.message}"
                 }
