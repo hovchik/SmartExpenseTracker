@@ -773,6 +773,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Removes the stored HuggingFace token.
+     */
+    fun removeHuggingFaceToken() {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            repository.updateSettings(settings.copy(huggingFaceToken = ""))
+            localModelManager.setHuggingFaceToken("")
+            _hasHuggingFaceToken.value = false
+            _huggingFaceUsername.value = null
+        }
+    }
+
     private fun refreshModelInfo() {
         val activeModel = localModelManager.getActiveModel()
         _installedModelName.value = activeModel?.displayName ?: ""

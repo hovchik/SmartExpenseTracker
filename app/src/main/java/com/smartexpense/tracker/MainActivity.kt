@@ -366,7 +366,11 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         catalogModels = catalogModels,
                         activeModelId = activeModelId,
                         onSetActiveModel = { model -> viewModel.setActiveLocalModel(model) },
-                        onDeleteModel = { model -> viewModel.deleteLocalModel(model) }
+                        onDeleteModel = { model -> viewModel.deleteLocalModel(model) },
+                        hasHuggingFaceToken = hasHuggingFaceToken,
+                        huggingFaceUsername = huggingFaceUsername,
+                        onSaveHuggingFaceToken = { token -> viewModel.saveHuggingFaceToken(token) },
+                        onRemoveHuggingFaceToken = { viewModel.removeHuggingFaceToken() }
                     )
                     "local_ai_setup" -> com.smartexpense.tracker.ai.setupwizard.LocalAiSetupWizardScreen(
                         capability = deviceCapability,

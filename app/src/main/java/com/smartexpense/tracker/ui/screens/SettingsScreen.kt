@@ -108,7 +108,12 @@ fun SettingsScreen(
     catalogModels: List<com.smartexpense.tracker.ai.modelmanager.LocalAiModel> = emptyList(),
     activeModelId: String = "",
     onSetActiveModel: (com.smartexpense.tracker.ai.modelmanager.LocalAiModel) -> Unit = {},
-    onDeleteModel: (com.smartexpense.tracker.ai.modelmanager.LocalAiModel) -> Unit = {}
+    onDeleteModel: (com.smartexpense.tracker.ai.modelmanager.LocalAiModel) -> Unit = {},
+    // ── HuggingFace token management ──
+    hasHuggingFaceToken: Boolean = false,
+    huggingFaceUsername: String? = null,
+    onSaveHuggingFaceToken: (String) -> Unit = {},
+    onRemoveHuggingFaceToken: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var showClearDialog by remember { mutableStateOf(false) }
@@ -2001,6 +2006,121 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 16.sp
                 )
+
+                // ── HuggingFace Token Management ──
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                Text("HuggingFace Token", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Required for downloading gated models (official Gemma, etc.)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (hasHuggingFaceToken) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.CheckCircle, null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Token configured", style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium)
+                                if (huggingFaceUsername != null) {
+                                    Text("User: $huggingFaceUsername",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        var showChangeToken by remember { mutableStateOf(false) }
+                        OutlinedButton(
+                            onClick = { showChangeToken = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Filled.Edit, null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Change Token", fontSize = 12.sp)
+                        }
+                        OutlinedButton(
+                            onClick = onRemoveHuggingFaceToken,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Icon(Icons.Filled.Delete, null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Remove", fontSize = 12.sp)
+                        }
+
+                        if (showChangeToken) {
+                            val context = LocalContext.current
+                            com.smartexpense.tracker.ai.setupwizard.HuggingFaceTokenDialog(
+                                onDismiss = { showChangeToken = false },
+                                onTokenSubmit = { token ->
+                                    showChangeToken = false
+                                    onSaveHuggingFaceToken(token)
+                                },
+                                onOpenBrowser = {
+                                    val intent = android.content.Intent(
+                                        android.content.Intent.ACTION_VIEW,
+                                        Uri.parse("https://huggingface.co/settings/tokens")
+                                    )
+                                    context.startActivity(intent)
+                                }
+                            )
+                        }
+                    }
+                } else {
+                    var showAddToken by remember { mutableStateOf(false) }
+                    val context = LocalContext.current
+                    OutlinedButton(
+                        onClick = { showAddToken = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Filled.Key, null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Add HuggingFace Token", fontSize = 13.sp)
+                    }
+
+                    if (showAddToken) {
+                        com.smartexpense.tracker.ai.setupwizard.HuggingFaceTokenDialog(
+                            onDismiss = { showAddToken = false },
+                            onTokenSubmit = { token ->
+                                showAddToken = false
+                                onSaveHuggingFaceToken(token)
+                            },
+                            onOpenBrowser = {
+                                val intent = android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    Uri.parse("https://huggingface.co/settings/tokens")
+                                )
+                                context.startActivity(intent)
+                            }
+                        )
+                    }
+                }
 
                 // Setup wizard button
                 if (settings.aiModePreference == AiModePreference.LOCAL_MODEL ||

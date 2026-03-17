@@ -59,25 +59,44 @@ class ModelDownloadManager(private val context: Context) {
     var huggingFaceToken: String = ""
 
     /**
-     * Checks if a URL is accessible (returns HTTP 200/206) without downloading content.
+     * Checks if a URL is accessible without downloading the full content.
+     * Tries HEAD first; if that fails (some servers reject HEAD), falls back to
+     * a GET with "Range: bytes=0-0" which downloads only 1 byte.
      * Handles HuggingFace redirects manually so the auth header isn't stripped.
      * Returns the content length if available, or -1 if unknown.
      */
     suspend fun checkUrlAccessibility(url: String): Pair<Boolean, Long> = withContext(Dispatchers.IO) {
         try {
-            val conn = openConnectionWithRedirects(url, "HEAD")
-            val responseCode = conn.responseCode
-            val contentLength = conn.contentLengthLong
-            conn.disconnect()
+            // Try HEAD first (fast, no body)
+            val headConn = openConnectionWithRedirects(url, "HEAD")
+            val headCode = headConn.responseCode
+            val headLength = headConn.contentLengthLong
+            headConn.disconnect()
 
-            val accessible = responseCode in 200..299
-            if (!accessible) {
-                val hint = if (responseCode == 401 && url.contains("huggingface.co"))
-                    " (gated repo — add your HuggingFace token in Settings)"
-                else ""
-                Log.w(TAG, "URL not accessible: HTTP $responseCode for $url$hint")
+            if (headCode in 200..299) {
+                return@withContext true to headLength
             }
-            accessible to contentLength
+
+            // HEAD failed — some HuggingFace endpoints reject HEAD or return 403/405.
+            // Fall back to GET with Range header to fetch only 1 byte.
+            Log.d(TAG, "HEAD returned $headCode for $url, falling back to GET with Range")
+            val getConn = openConnectionWithRedirects(url, "GET", "bytes=0-0")
+            val getCode = getConn.responseCode
+            // Content-Range: bytes 0-0/TOTAL — extract total size
+            val contentRange = getConn.getHeaderField("Content-Range") // e.g. "bytes 0-0/1234567"
+            val totalSize = contentRange?.substringAfter("/", "")?.toLongOrNull() ?: -1L
+            getConn.disconnect()
+
+            val accessible = getCode in 200..299
+            if (!accessible) {
+                val hint = if (getCode == 401 && url.contains("huggingface.co"))
+                    " (gated repo — add your HuggingFace token in Settings)"
+                else if (getCode == 403 && url.contains("huggingface.co"))
+                    " (access denied — your token may not have access to this model. Accept the model license on HuggingFace first.)"
+                else ""
+                Log.w(TAG, "URL not accessible: HTTP $getCode for $url$hint")
+            }
+            accessible to totalSize
         } catch (e: Exception) {
             Log.w(TAG, "URL accessibility check failed for $url: ${e.message}")
             false to -1L
@@ -209,8 +228,16 @@ class ModelDownloadManager(private val context: Context) {
         // Step 1: Check URL accessibility
         val (accessible, expectedSize) = checkUrlAccessibility(model.downloadUrl)
         if (!accessible) {
+            val errorMsg = if (model.isGated) {
+                "Cannot access gated model. Make sure you have:\n" +
+                "1. A valid HuggingFace token\n" +
+                "2. Accepted the model license on HuggingFace\n" +
+                "Update your token in Settings > AI ENGINE."
+            } else {
+                "Model URL is not accessible. Check your internet connection."
+            }
             _downloadState.value = DownloadState(
-                error = "Model URL is not accessible. Check your internet connection or HuggingFace token.",
+                error = errorMsg,
                 modelId = model.modelId
             )
             return@withContext null
