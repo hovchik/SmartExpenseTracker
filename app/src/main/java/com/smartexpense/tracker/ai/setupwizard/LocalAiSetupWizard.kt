@@ -834,7 +834,8 @@ fun ModelDownloadScreen(
     var sentToBrowser by remember { mutableStateOf(false) }
 
     // Auto-retry when user returns from browser after accepting license
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    @Suppress("DEPRECATION")
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME && sentToBrowser) {
