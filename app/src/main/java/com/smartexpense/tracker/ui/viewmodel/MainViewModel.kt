@@ -691,7 +691,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         model.copy(localPath = path, installState = com.smartexpense.tracker.ai.modelmanager.InstallState.INSTALLED)
                     )
                 }
+                // Auto-switch to LOCAL_MODEL mode so the downloaded model is actually used
+                val settings = repository.appData.value.settings
+                if (settings.aiModePreference != AiModePreference.LOCAL_MODEL) {
+                    repository.updateSettings(settings.copy(
+                        aiModePreference = AiModePreference.LOCAL_MODEL,
+                        activeLocalModelId = model.modelId
+                    ))
+                    withContext(Dispatchers.IO) {
+                        aiProviderSelector.selectProvider(AiModePreference.LOCAL_MODEL)
+                    }
+                }
                 _aiModeStatus.value = aiProviderSelector.statusMessage()
+                _aiPrivacyMessage.value = aiProviderSelector.privacyMessage()
             }
         }
     }
@@ -708,7 +720,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             withContext(Dispatchers.IO) {
                 aiProviderSelector.customLocalProvider.loadModel(model)
             }
+            // Auto-switch to LOCAL_MODEL mode so the selected model is actually used
+            val settings = repository.appData.value.settings
+            if (settings.aiModePreference != AiModePreference.LOCAL_MODEL) {
+                repository.updateSettings(settings.copy(
+                    aiModePreference = AiModePreference.LOCAL_MODEL,
+                    activeLocalModelId = model.modelId
+                ))
+                withContext(Dispatchers.IO) {
+                    aiProviderSelector.selectProvider(AiModePreference.LOCAL_MODEL)
+                }
+            }
             _aiModeStatus.value = aiProviderSelector.statusMessage()
+            _aiPrivacyMessage.value = aiProviderSelector.privacyMessage()
             refreshModelInfo()
             refreshCatalogModels()
         }
@@ -778,8 +802,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
             }
+            // If the user has an active local model but preference is still AUTO,
+            // override to LOCAL_MODEL so the downloaded model is actually used.
+            val effectivePreference = if (
+                settings.aiModePreference == AiModePreference.AUTO &&
+                settings.activeLocalModelId.isNotBlank()
+            ) {
+                AiModePreference.LOCAL_MODEL
+            } else {
+                settings.aiModePreference
+            }
             withContext(Dispatchers.IO) {
-                aiProviderSelector.selectProvider(settings.aiModePreference)
+                aiProviderSelector.selectProvider(effectivePreference)
             }
             _aiModeStatus.value = aiProviderSelector.statusMessage()
             _aiPrivacyMessage.value = aiProviderSelector.privacyMessage()

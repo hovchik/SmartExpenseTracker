@@ -498,7 +498,9 @@ data class AppSettings(
     /** How often to auto-refresh exchange rates. */
     val rateUpdateFrequency: RateUpdateFrequency = RateUpdateFrequency.EVERY_HOUR,
     /** Timestamp of the last successful rate fetch (epoch millis). 0 = never. */
-    val lastRateUpdateTimestamp: Long = 0
+    val lastRateUpdateTimestamp: Long = 0,
+    /** Whether the splash/onboarding screen has been shown to the user. */
+    val splashShown: Boolean = false
 )
 
 fun defaultCategories(): List<Category> = listOf(

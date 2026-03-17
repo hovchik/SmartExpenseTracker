@@ -31,8 +31,16 @@ class MainActivity : ComponentActivity() {
         setContent {
             val viewModel: MainViewModel = viewModel()
             val themeMode by viewModel.themeMode.collectAsState()
+            val uiState by viewModel.uiState.collectAsState()
+            val splashShown = uiState.settings.splashShown
             SmartExpenseTheme(themeMode = themeMode) {
-                MainApp(viewModel = viewModel, activity = this@MainActivity)
+                if (!splashShown) {
+                    SplashScreen(onGetStarted = {
+                        viewModel.updateSettings(uiState.settings.copy(splashShown = true))
+                    })
+                } else {
+                    MainApp(viewModel = viewModel, activity = this@MainActivity)
+                }
             }
         }
     }

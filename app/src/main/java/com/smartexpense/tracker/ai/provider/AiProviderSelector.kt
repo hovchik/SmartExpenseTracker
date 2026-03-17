@@ -60,16 +60,19 @@ class AiProviderSelector(
 
     /**
      * Auto-selects the best available provider.
-     * Priority: user preference -> system AI -> custom local model -> cloud fallback
+     * Priority: active local model (user explicitly activated) -> system AI -> cloud fallback.
+     *
+     * When a user downloads and activates a local model, it takes priority because it
+     * represents an explicit user choice. System AI is tried next, then cloud as fallback.
      */
     private suspend fun autoSelect(): AiProvider {
-        // Try system AI first
-        systemProvider.initialize()
-        if (systemProvider.isAvailable()) return systemProvider
-
-        // Try custom local model
+        // Try user-activated local model first — the user explicitly downloaded and selected it
         customLocalProvider.loadActiveModel()
         if (customLocalProvider.isAvailable()) return customLocalProvider
+
+        // Try system AI next
+        systemProvider.initialize()
+        if (systemProvider.isAvailable()) return systemProvider
 
         // Fall back to cloud
         if (cloudProvider.isAvailable()) return cloudProvider
