@@ -59,7 +59,6 @@ class MediaPipeLlmRuntimeAdapter(private val context: Context) : LocalModelRunti
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(modelPath)
                 .setMaxTokens(512)
-                .setTopK(40)
                 .setTemperature(0.3f)
                 .build()
 
