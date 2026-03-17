@@ -553,7 +553,8 @@ fun ModelInstallOptionsScreen(
             onOpenBrowser = {
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://huggingface.co/settings/tokens"))
                 context.startActivity(intent)
-            }
+            },
+            licenseUrl = pendingGatedModel?.licenseUrl?.ifBlank { null }
         )
     }
 }
@@ -646,8 +647,11 @@ private fun ModelCatalogCard(
 fun HuggingFaceTokenDialog(
     onDismiss: () -> Unit,
     onTokenSubmit: (String) -> Unit,
-    onOpenBrowser: () -> Unit
+    onOpenBrowser: () -> Unit,
+    /** Optional URL to the model's license agreement page. */
+    licenseUrl: String? = null
 ) {
+    val context = LocalContext.current
     var token by remember { mutableStateOf("") }
     var currentStep by remember { mutableIntStateOf(1) }
 
@@ -657,7 +661,7 @@ fun HuggingFaceTokenDialog(
         title = { Text("HuggingFace Token") },
         text = {
             Column {
-                // Step 1: Create account & accept terms
+                // Step 1: Create account
                 TokenStep(
                     stepNumber = 1,
                     title = "Create a free HuggingFace account",
@@ -665,15 +669,53 @@ fun HuggingFaceTokenDialog(
                     isActive = currentStep == 1
                 )
 
+                // "Sign Up" button
+                OutlinedButton(
+                    onClick = {
+                        currentStep = 2
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://huggingface.co/join"))
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp, bottom = 4.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Icon(Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Sign Up / Log In")
+                }
+
                 Spacer(Modifier.height(8.dp))
 
-                // Step 2: Accept model terms
+                // Step 2: Accept model license
                 TokenStep(
                     stepNumber = 2,
                     title = "Accept the model license",
-                    description = "Visit the model page (e.g. google/gemma-3-1b-it) and accept the usage terms",
+                    description = if (licenseUrl != null)
+                        "Open the model page below and click \"Agree and access repository\""
+                    else
+                        "Visit the model page on HuggingFace and accept the usage terms",
                     isActive = currentStep == 2
                 )
+
+                // "Accept License" button
+                OutlinedButton(
+                    onClick = {
+                        currentStep = 3
+                        val url = licenseUrl ?: "https://huggingface.co/litert-community/Gemma3-1B-IT"
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp, bottom = 4.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Icon(Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Open Model Page & Accept License")
+                }
 
                 Spacer(Modifier.height(8.dp))
 
@@ -685,22 +727,23 @@ fun HuggingFaceTokenDialog(
                     isActive = currentStep == 3
                 )
 
-                Spacer(Modifier.height(16.dp))
-
-                // "Get Token" button — opens browser to HuggingFace tokens page
+                // "Get Token" button
                 OutlinedButton(
                     onClick = {
                         currentStep = 3
                         onOpenBrowser()
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp, bottom = 4.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Icon(Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Open HuggingFace Token Page")
+                    Text("Open Token Page")
                 }
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
 
                 // Token input field
                 OutlinedTextField(

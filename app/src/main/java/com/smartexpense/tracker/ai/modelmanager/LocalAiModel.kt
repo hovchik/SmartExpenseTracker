@@ -25,7 +25,9 @@ data class LocalAiModel(
     /** Brief description of model capabilities shown in the catalog UI. */
     val description: String = "",
     /** Whether this model requires a HuggingFace token (gated repo). */
-    val isGated: Boolean = false
+    val isGated: Boolean = false,
+    /** URL to the model's license/agreement page on HuggingFace (for gated models). */
+    val licenseUrl: String = ""
 )
 
 enum class RuntimeType(val label: String) {
@@ -317,7 +319,8 @@ object ModelCatalog {
             version = "3.0",
             downloadUrl = "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/Gemma3-1B-IT_multi-prefill-seq_q8_ekv1280.task",
             description = "Official Google Gemma 3 1B. Requires HuggingFace token.",
-            isGated = true
+            isGated = true,
+            licenseUrl = "https://huggingface.co/litert-community/Gemma3-1B-IT"
         ),
 
         LocalAiModel(
@@ -335,7 +338,8 @@ object ModelCatalog {
             version = "2.0",
             downloadUrl = "https://huggingface.co/litert-community/Gemma2-2B-IT/resolve/main/Gemma2-2B-IT_multi-prefill-seq_q8_ekv1280.task",
             description = "Official Google Gemma 2 2B (2.71 GB). Requires HuggingFace token.",
-            isGated = true
+            isGated = true,
+            licenseUrl = "https://huggingface.co/litert-community/Gemma2-2B-IT"
         ),
 
         LocalAiModel(
@@ -353,7 +357,8 @@ object ModelCatalog {
             version = "3.0",
             downloadUrl = "https://huggingface.co/google/gemma-3n-E4B-it-litert-preview/resolve/main/gemma-3n-E4B-it-int4.task",
             description = "Official Gemma 3n E4B (4.41 GB). Best quality. Requires HuggingFace token.",
-            isGated = true
+            isGated = true,
+            licenseUrl = "https://huggingface.co/google/gemma-3n-E4B-it-litert-preview"
         )
     )
 
