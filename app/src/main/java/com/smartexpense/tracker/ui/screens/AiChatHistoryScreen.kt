@@ -306,7 +306,7 @@ private fun ConversationCard(
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            conversation.aiModelName,
+                            conversation.aiModelName ?: "AI",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.primary
