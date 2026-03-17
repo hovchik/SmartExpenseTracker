@@ -17,6 +17,9 @@ class MediaPipeLlmRuntimeAdapter(private val context: Context) : LocalModelRunti
 
     companion object {
         private const val TAG = "MediaPipeLlmRuntime"
+        private const val MAX_TOKENS = 2048
+        // Reserve tokens for the model's response
+        private const val MAX_INPUT_CHARS = 3500
     }
 
     @Volatile
@@ -32,7 +35,15 @@ class MediaPipeLlmRuntimeAdapter(private val context: Context) : LocalModelRunti
     override suspend fun runPrompt(prompt: String): String = withContext(Dispatchers.IO) {
         val inference = llmInference ?: return@withContext ""
         try {
-            val result = inference.generateResponse(prompt)
+            // Truncate input to avoid exceeding the combined input+output token limit
+            // which causes a native crash (SIGSEGV) in MediaPipe
+            val safePrompt = if (prompt.length > MAX_INPUT_CHARS) {
+                Log.w(TAG, "Prompt truncated from ${prompt.length} to $MAX_INPUT_CHARS chars")
+                prompt.take(MAX_INPUT_CHARS)
+            } else {
+                prompt
+            }
+            val result = inference.generateResponse(safePrompt)
             result?.trim() ?: ""
         } catch (e: Exception) {
             Log.e(TAG, "MediaPipe inference failed: ${e.message}")
@@ -58,7 +69,7 @@ class MediaPipeLlmRuntimeAdapter(private val context: Context) : LocalModelRunti
 
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(modelPath)
-                .setMaxTokens(512)
+                .setMaxTokens(MAX_TOKENS)
                 .build()
 
             llmInference = LlmInference.createFromOptions(context, options)

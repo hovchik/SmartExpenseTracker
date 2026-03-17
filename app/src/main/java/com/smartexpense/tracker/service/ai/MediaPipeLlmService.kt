@@ -26,6 +26,7 @@ class MediaPipeLlmService(private val context: Context) {
 
     companion object {
         private const val TAG = "MediaPipeLlm"
+        private const val MAX_INPUT_CHARS = 3500
 
         /** File extensions recognized as MediaPipe model files. */
         private val MODEL_EXTENSIONS = listOf(".task", ".bin", ".tflite")
@@ -348,9 +349,17 @@ class MediaPipeLlmService(private val context: Context) {
             val builder = optionsBuilderClass.invoke(null)
             val builderClass = builder.javaClass
             builderClass.getMethod("setModelPath", String::class.java).invoke(builder, modelPath)
-            builderClass.getMethod("setMaxTokens", Int::class.javaPrimitiveType).invoke(builder, 512)
-            builderClass.getMethod("setTopK", Int::class.javaPrimitiveType).invoke(builder, 40)
-            builderClass.getMethod("setTemperature", Float::class.javaPrimitiveType).invoke(builder, 0.3f)
+            builderClass.getMethod("setMaxTokens", Int::class.javaPrimitiveType).invoke(builder, 2048)
+            try {
+                builderClass.getMethod("setTopK", Int::class.javaPrimitiveType).invoke(builder, 40)
+            } catch (_: NoSuchMethodException) {
+                Log.d(TAG, "setTopK not available in this MediaPipe version")
+            }
+            try {
+                builderClass.getMethod("setTemperature", Float::class.javaPrimitiveType).invoke(builder, 0.3f)
+            } catch (_: NoSuchMethodException) {
+                Log.d(TAG, "setTemperature not available in this MediaPipe version")
+            }
             val options = builderClass.getMethod("build").invoke(builder)
 
             val inferenceClass = Class.forName(
@@ -393,8 +402,15 @@ class MediaPipeLlmService(private val context: Context) {
     suspend fun generateResponse(prompt: String): String? = withContext(Dispatchers.IO) {
         val inference = llmInference ?: return@withContext null
         try {
+            // Truncate to avoid exceeding combined input+output token limit (native crash)
+            val safePrompt = if (prompt.length > MAX_INPUT_CHARS) {
+                Log.w(TAG, "Prompt truncated from ${prompt.length} to $MAX_INPUT_CHARS chars")
+                prompt.take(MAX_INPUT_CHARS)
+            } else {
+                prompt
+            }
             val method = inference.javaClass.getMethod("generateResponse", String::class.java)
-            val result = method.invoke(inference, prompt) as? String
+            val result = method.invoke(inference, safePrompt) as? String
             result?.trim()
         } catch (e: Exception) {
             Log.e(TAG, "Inference failed: ${e.message}")
