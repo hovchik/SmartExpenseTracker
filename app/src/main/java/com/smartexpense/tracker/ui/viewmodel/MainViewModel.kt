@@ -2,6 +2,7 @@ package com.smartexpense.tracker.ui.viewmodel
 
 import android.app.Application
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.smartexpense.tracker.SmartExpenseApp
@@ -1225,8 +1226,69 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Attempts AI-powered OCR parsing using the active AI provider.
+     * Returns a [AiExpenseEngine.ParsedReceipt] if the AI model is available
+     * and successfully parses the text, or null to fall back to rule-based parsing.
+     *
+     * Requirements for AI OCR:
+     *  - Device has >= 3 GB RAM (meets [DeviceAiCapabilityDetector.MIN_RAM_MB_LOCAL])
+     *  - An AI provider is available (local model loaded, system AI, or cloud API key set)
+     */
+    private suspend fun tryAiOcrParsing(
+        ocrText: String,
+        currencyCode: String
+    ): AiExpenseEngine.ParsedReceipt? {
+        try {
+            val provider = aiProviderSelector.getActiveProvider()
+            if (!provider.isAvailable()) return null
+
+            // Check device capability — skip AI OCR on low-RAM devices
+            val capability = com.smartexpense.tracker.ai.capability.DeviceAiCapabilityDetector(
+                getApplication()
+            ).detect()
+            if (capability.totalRamMb < com.smartexpense.tracker.ai.capability.DeviceAiCapabilityDetector.MIN_RAM_MB_LOCAL) {
+                Log.d("OCR", "Skipping AI OCR: insufficient RAM (${capability.totalRamMb} MB)")
+                return null
+            }
+
+            val prompt = promptAdapter.createOcrParsingPrompt(ocrText, currencyCode)
+            val result = withContext(Dispatchers.IO) {
+                provider.generateAnalysis(
+                    com.smartexpense.tracker.ai.provider.AnalysisInput(
+                        prompt = prompt,
+                        type = com.smartexpense.tracker.ai.provider.AnalysisType.INSIGHT
+                    )
+                )
+            }
+
+            if (!result.success || result.text.isBlank()) return null
+
+            val parsed = promptAdapter.parseOcrResponse(result.text, currencyCode) ?: return null
+            Log.d("OCR", "AI OCR parsed: merchant=${parsed.merchantName}, " +
+                    "total=${parsed.totalAmount}, items=${parsed.items.size}, " +
+                    "currency=${parsed.currencyCode}, provider=${result.providerName}")
+
+            return AiExpenseEngine.ParsedReceipt(
+                totalAmount = parsed.totalAmount,
+                items = parsed.items,
+                merchantName = parsed.merchantName,
+                date = null,
+                detectedCurrencyCode = parsed.currencyCode,
+                isTerminalReceipt = false
+            )
+        } catch (e: Exception) {
+            Log.w("OCR", "AI OCR parsing failed, falling back to rules: ${e.message}")
+            return null
+        }
+    }
+
+    /**
      * Parses OCR/QR receipt data and stores it in [ocrParsedData] for the user to review
      * and edit before saving. Does NOT save the transaction automatically.
+     *
+     * When an AI model is available and the device meets the requirements (>= 3 GB RAM,
+     * provider ready), uses the AI model for smarter receipt parsing. Falls back to
+     * the rule-based engine if the AI is unavailable or returns no result.
      */
     fun processOcrText(ocrText: String, qrData: String? = null) {
         viewModelScope.launch {
@@ -1234,7 +1296,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val settings = repository.appData.value.settings
                 val appCurrencyCode = settings.currencyCode
 
-                val ocrParsed = if (ocrText.isNotBlank()) aiEngine.parseReceiptText(ocrText, appCurrencyCode) else null
+                // Try AI-powered OCR parsing first, fall back to rule-based
+                val ocrParsed = if (ocrText.isNotBlank()) {
+                    tryAiOcrParsing(ocrText, appCurrencyCode)
+                        ?: aiEngine.parseReceiptText(ocrText, appCurrencyCode)
+                } else null
                 val ocrAmount = (ocrParsed?.totalAmount ?: ocrParsed?.items?.sumOf { it.second }) ?: 0.0
 
                 // Use detected currency from receipt text, fallback to app default

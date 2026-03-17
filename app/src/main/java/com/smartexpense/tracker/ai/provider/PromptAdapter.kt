@@ -338,6 +338,137 @@ class PromptAdapter {
             .take(1000) // Cap length
     }
 
+    // ── OCR Receipt Parsing with AI ─────────────────────────────────
+
+    /**
+     * Creates a prompt for AI-powered OCR receipt parsing.
+     * The AI extracts structured data (merchant, items, total, currency)
+     * from raw OCR text, which is often noisy and multilingual.
+     */
+    fun createOcrParsingPrompt(ocrText: String, currencyCode: String): String {
+        val sb = StringBuilder()
+        sb.appendLine("You are a receipt parser. Extract structured data from the following OCR text scanned from a receipt or invoice.")
+        sb.appendLine()
+        sb.appendLine("=== OCR Text ===")
+        sb.appendLine(ocrText.take(3000))
+        sb.appendLine()
+        sb.appendLine("=== Instructions ===")
+        sb.appendLine("Extract the following fields from the receipt text. The text may be noisy, multilingual (Armenian, Russian, English, etc.), or have OCR artifacts.")
+        sb.appendLine()
+        sb.appendLine("Respond in EXACTLY this format (one field per line):")
+        sb.appendLine("MERCHANT: <store/merchant name>")
+        sb.appendLine("CURRENCY: <3-letter ISO code, e.g. AMD, USD, EUR, RUB>")
+        sb.appendLine("TOTAL: <total amount as a number, e.g. 12500.00>")
+        sb.appendLine("ITEMS:")
+        sb.appendLine("<item name> | <price>")
+        sb.appendLine("<item name> | <price>")
+        sb.appendLine()
+        sb.appendLine("Rules:")
+        sb.appendLine("- For MERCHANT, extract the store/business name. Skip boilerplate like addresses, tax IDs, receipt numbers.")
+        sb.appendLine("- For CURRENCY, detect from symbols (֏=AMD, $=USD, €=EUR, ₽=RUB, £=GBP, ¥=JPY/CNY) or text. Default: $currencyCode")
+        sb.appendLine("- For TOTAL, find the final total/grand total amount. Not subtotals or tax lines.")
+        sb.appendLine("- For ITEMS, list each product/service with its price. Skip metadata lines (dates, card numbers, change, tax lines).")
+        sb.appendLine("- If a field cannot be determined, write UNKNOWN for merchant, 0 for total, or omit items.")
+        sb.appendLine("- Do not add explanations or extra text outside the format above.")
+        return sb.toString()
+    }
+
+    /**
+     * Parses the AI response from an OCR parsing prompt into structured receipt data.
+     * Returns null if the response is unparseable.
+     */
+    fun parseOcrResponse(response: String, fallbackCurrency: String): OcrParseResult? {
+        if (response.isBlank()) return null
+
+        val lines = response.trim().lines()
+        var merchant = "Unknown"
+        var currency = fallbackCurrency
+        var total: Double? = null
+        val items = mutableListOf<Pair<String, Double>>()
+        var inItems = false
+
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (trimmed.isBlank()) continue
+
+            when {
+                trimmed.startsWith("MERCHANT:", ignoreCase = true) -> {
+                    val value = trimmed.substringAfter(":").trim()
+                    if (value.isNotBlank() && !value.equals("UNKNOWN", ignoreCase = true)) {
+                        merchant = value.take(50)
+                    }
+                    inItems = false
+                }
+                trimmed.startsWith("CURRENCY:", ignoreCase = true) -> {
+                    val value = trimmed.substringAfter(":").trim().uppercase()
+                    if (value.length == 3 && value.all { it.isLetter() }) {
+                        currency = value
+                    }
+                    inItems = false
+                }
+                trimmed.startsWith("TOTAL:", ignoreCase = true) -> {
+                    val value = trimmed.substringAfter(":").trim()
+                        .replace(Regex("[^\\d.,]"), "")
+                    total = parseDecimalNumber(value)
+                    inItems = false
+                }
+                trimmed.equals("ITEMS:", ignoreCase = true) -> {
+                    inItems = true
+                }
+                inItems && trimmed.contains("|") -> {
+                    val parts = trimmed.split("|", limit = 2)
+                    val itemName = parts[0].trim()
+                        .removePrefix("-").removePrefix("•")
+                        .replace(Regex("^\\d+[.):]\\s*"), "")
+                        .trim()
+                    val priceStr = parts.getOrNull(1)?.trim()
+                        ?.replace(Regex("[^\\d.,]"), "") ?: ""
+                    val price = parseDecimalNumber(priceStr)
+                    if (itemName.isNotBlank() && price != null && price > 0) {
+                        items.add(itemName to price)
+                    }
+                }
+            }
+        }
+
+        // Only return a result if we got something useful
+        if (merchant == "Unknown" && total == null && items.isEmpty()) return null
+
+        return OcrParseResult(
+            merchantName = merchant,
+            currencyCode = currency,
+            totalAmount = total,
+            items = items
+        )
+    }
+
+    private fun parseDecimalNumber(value: String): Double? {
+        if (value.isBlank()) return null
+        // Handle both comma and dot as decimal separators
+        val normalized = if (value.contains(",") && value.contains(".")) {
+            // Has both — last one is decimal separator
+            if (value.lastIndexOf(",") > value.lastIndexOf(".")) {
+                value.replace(".", "").replace(",", ".")
+            } else {
+                value.replace(",", "")
+            }
+        } else if (value.contains(",")) {
+            // Comma only — check if it's thousands or decimal
+            val afterComma = value.substringAfterLast(",")
+            if (afterComma.length <= 2) value.replace(",", ".") else value.replace(",", "")
+        } else {
+            value
+        }
+        return normalized.toDoubleOrNull()
+    }
+
+    data class OcrParseResult(
+        val merchantName: String,
+        val currencyCode: String,
+        val totalAmount: Double?,
+        val items: List<Pair<String, Double>>
+    )
+
     data class CategoryResult(
         val category: String?,
         val isNewCategory: Boolean
