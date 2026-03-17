@@ -346,31 +346,28 @@ class PromptAdapter {
      * from raw OCR text, which is often noisy and multilingual.
      */
     fun createOcrParsingPrompt(ocrText: String, currencyCode: String): String {
-        val sb = StringBuilder()
-        sb.appendLine("You are a receipt parser. Extract structured data from the following OCR text scanned from a receipt or invoice.")
-        sb.appendLine()
-        sb.appendLine("=== OCR Text ===")
-        sb.appendLine(ocrText.take(3000))
-        sb.appendLine()
-        sb.appendLine("=== Instructions ===")
-        sb.appendLine("Extract the following fields from the receipt text. The text may be noisy, multilingual (Armenian, Russian, English, etc.), or have OCR artifacts.")
-        sb.appendLine()
-        sb.appendLine("Respond in EXACTLY this format (one field per line):")
-        sb.appendLine("MERCHANT: <store/merchant name>")
-        sb.appendLine("CURRENCY: <3-letter ISO code, e.g. AMD, USD, EUR, RUB>")
-        sb.appendLine("TOTAL: <total amount as a number, e.g. 12500.00>")
-        sb.appendLine("ITEMS:")
-        sb.appendLine("<item name> | <price>")
-        sb.appendLine("<item name> | <price>")
-        sb.appendLine()
-        sb.appendLine("Rules:")
-        sb.appendLine("- For MERCHANT, extract the store/business name. Skip boilerplate like addresses, tax IDs, receipt numbers.")
-        sb.appendLine("- For CURRENCY, detect from symbols (֏=AMD, $=USD, €=EUR, ₽=RUB, £=GBP, ¥=JPY/CNY) or text. Default: $currencyCode")
-        sb.appendLine("- For TOTAL, find the final total/grand total amount. Not subtotals or tax lines.")
-        sb.appendLine("- For ITEMS, list each product/service with its price. Skip metadata lines (dates, card numbers, change, tax lines).")
-        sb.appendLine("- If a field cannot be determined, write UNKNOWN for merchant, 0 for total, or omit items.")
-        sb.appendLine("- Do not add explanations or extra text outside the format above.")
-        return sb.toString()
+        // Keep the prompt compact — local models (MediaPipe) have a 1280 combined
+        // input+output token limit. Multilingual text (Armenian, CJK) tokenizes at
+        // ~1.5 chars/token, so total prompt must stay under ~1200 chars.
+        // Cloud providers handle longer prompts but benefit from conciseness too.
+        val maxOcrChars = 600
+        val truncatedOcr = if (ocrText.length > maxOcrChars) {
+            ocrText.take(maxOcrChars) + "\n[...]"
+        } else {
+            ocrText
+        }
+
+        return buildString {
+            appendLine("Parse this receipt OCR text. Reply EXACTLY in this format:")
+            appendLine("MERCHANT: <name>")
+            appendLine("CURRENCY: <3-letter code, default $currencyCode>")
+            appendLine("TOTAL: <number>")
+            appendLine("ITEMS:")
+            appendLine("<item> | <price>")
+            appendLine()
+            appendLine("OCR text:")
+            appendLine(truncatedOcr)
+        }
     }
 
     /**

@@ -27,9 +27,9 @@ class MediaPipeLlmService(private val context: Context) {
     companion object {
         private const val TAG = "MediaPipeLlm"
         // Most catalog models use ekv1280 (1280-token KV cache).
-        // Financial prompts with numbers tokenize at ~2-3 chars/token,
-        // so 2048 chars ≈ 700-1024 tokens, leaving room for output.
-        private const val MAX_INPUT_CHARS = 2048
+        // Multilingual text (Armenian, CJK, Cyrillic) tokenizes at ~1.5 chars/token,
+        // so 1200 chars ≈ 800 tokens, leaving ~480 for output.
+        private const val MAX_INPUT_CHARS = 1200
 
         /** File extensions recognized as MediaPipe model files. */
         private val MODEL_EXTENSIONS = listOf(".task", ".bin", ".tflite")
