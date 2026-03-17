@@ -823,9 +823,29 @@ private fun TokenStep(
 fun ModelDownloadScreen(
     downloadState: ModelDownloadManager.DownloadState,
     modelName: String,
+    /** License URL for the model being downloaded (for GatedRepo redirect). */
+    licenseUrl: String? = null,
     onCancel: () -> Unit,
+    onRetry: () -> Unit = {},
     onDone: () -> Unit
 ) {
+    val context = LocalContext.current
+    val isGatedRepoError = downloadState.hfErrorCode == "GatedRepo"
+    var sentToBrowser by remember { mutableStateOf(false) }
+
+    // Auto-retry when user returns from browser after accepting license
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME && sentToBrowser) {
+                sentToBrowser = false
+                onRetry()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -834,8 +854,10 @@ fun ModelDownloadScreen(
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            if (downloadState.error != null) "Download Failed"
-            else if (downloadState.progress >= 1f) "Download Complete"
+            if (downloadState.error != null) {
+                if (isGatedRepoError) "License Agreement Required"
+                else "Download Failed"
+            } else if (downloadState.progress >= 1f) "Download Complete"
             else "Downloading Model",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
@@ -847,7 +869,63 @@ fun ModelDownloadScreen(
 
         Spacer(Modifier.height(32.dp))
 
-        if (downloadState.error != null) {
+        if (isGatedRepoError) {
+            // ── GatedRepo: license acceptance flow ──
+            Icon(
+                Icons.Default.Lock,
+                contentDescription = null,
+                modifier = Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "This model requires you to accept its license on HuggingFace before downloading.",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Tap the button below to open the model page, click \"Agree and access repository\", then come back. The download will restart automatically.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(Modifier.height(24.dp))
+
+            Button(
+                onClick = {
+                    sentToBrowser = true
+                    val url = licenseUrl ?: "https://huggingface.co"
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                    context.startActivity(intent)
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Accept License on HuggingFace")
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedButton(
+                onClick = onRetry,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("I've Accepted — Retry Download")
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            TextButton(onClick = onDone) {
+                Text("Back to Model List")
+            }
+
+        } else if (downloadState.error != null) {
+            // ── Generic error ──
             Icon(
                 Icons.Default.Error,
                 contentDescription = null,
@@ -895,15 +973,17 @@ fun ModelDownloadScreen(
             }
         }
 
-        Spacer(Modifier.height(32.dp))
+        if (!isGatedRepoError) {
+            Spacer(Modifier.height(32.dp))
 
-        if (downloadState.progress >= 1f || downloadState.error != null) {
-            Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
-                Text(if (downloadState.error != null) "Try Again" else "Continue")
-            }
-        } else {
-            OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
-                Text("Cancel")
+            if (downloadState.progress >= 1f || downloadState.error != null) {
+                Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (downloadState.error != null) "Try Again" else "Continue")
+                }
+            } else {
+                OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
+                    Text("Cancel")
+                }
             }
         }
     }
@@ -1137,6 +1217,7 @@ fun LocalAiSetupWizardScreen(
     onBack: () -> Unit
 ) {
     var currentStep by remember { mutableStateOf(WizardStep.INTRO) }
+    var pendingDownloadModel by remember { mutableStateOf<LocalAiModel?>(null) }
 
     // Trigger device scan when entering compatibility step
     LaunchedEffect(currentStep) {
@@ -1186,6 +1267,7 @@ fun LocalAiSetupWizardScreen(
                     hasHuggingFaceToken = hasHuggingFaceToken,
                     huggingFaceUsername = huggingFaceUsername,
                     onDownloadModel = { model ->
+                        pendingDownloadModel = model
                         onDownloadModel(model)
                         currentStep = WizardStep.MODEL_DOWNLOAD
                     },
@@ -1196,9 +1278,13 @@ fun LocalAiSetupWizardScreen(
                 WizardStep.MODEL_DOWNLOAD -> ModelDownloadScreen(
                     downloadState = downloadState,
                     modelName = downloadState.modelId,
+                    licenseUrl = pendingDownloadModel?.licenseUrl?.ifBlank { null },
                     onCancel = {
                         onCancelDownload()
                         currentStep = WizardStep.MODEL_INSTALL_OPTIONS
+                    },
+                    onRetry = {
+                        pendingDownloadModel?.let { onDownloadModel(it) }
                     },
                     onDone = {
                         if (downloadState.error != null) {

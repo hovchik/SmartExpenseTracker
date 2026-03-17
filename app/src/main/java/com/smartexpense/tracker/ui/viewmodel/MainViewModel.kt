@@ -727,11 +727,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun runBenchmark() {
         viewModelScope.launch {
             _isRunningBenchmark.value = true
-            val result = withContext(Dispatchers.IO) {
-                benchmarkRunner.runBenchmark(aiProviderSelector.getActiveProvider())
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    benchmarkRunner.runBenchmark(aiProviderSelector.getActiveProvider())
+                }
+                _benchmarkResult.value = result
+            } catch (e: Exception) {
+                android.util.Log.e("MainViewModel", "Benchmark failed", e)
+                _benchmarkResult.value = null
+            } finally {
+                _isRunningBenchmark.value = false
             }
-            _benchmarkResult.value = result
-            _isRunningBenchmark.value = false
         }
     }
 

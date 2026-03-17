@@ -40,7 +40,9 @@ class ModelDownloadManager(private val context: Context) {
         val totalBytes: Long = 0,
         val speedBytesPerSec: Long = 0,
         val error: String? = null,
-        val modelId: String = ""
+        val modelId: String = "",
+        /** HuggingFace-specific error code (e.g. "GatedRepo") for UI branching. */
+        val hfErrorCode: String? = null
     )
 
     private val _downloadState = MutableStateFlow(DownloadState())
@@ -72,8 +74,13 @@ class ModelDownloadManager(private val context: Context) {
     var lastAccessError: String = ""
         private set
 
+    /** Stores the last HuggingFace error code (e.g. "GatedRepo") for UI branching. */
+    var lastHfErrorCode: String? = null
+        private set
+
     suspend fun checkUrlAccessibility(url: String): Pair<Boolean, Long> = withContext(Dispatchers.IO) {
         lastAccessError = ""
+        lastHfErrorCode = null
         try {
             // Try HEAD first (fast, no body)
             Log.d(TAG, "Checking accessibility: HEAD $url")
@@ -102,6 +109,7 @@ class ModelDownloadManager(private val context: Context) {
 
             val accessible = getCode in 200..299
             if (!accessible && url.contains("huggingface.co")) {
+                lastHfErrorCode = getHfError
                 lastAccessError = when (getHfError) {
                     "GatedRepo" -> "This model requires you to accept its license terms on HuggingFace before downloading. " +
                         "Visit the model page and click \"Agree and access repository\", then try again."
@@ -272,7 +280,8 @@ class ModelDownloadManager(private val context: Context) {
         if (!accessible) {
             _downloadState.value = DownloadState(
                 error = lastAccessError.ifBlank { "Model URL is not accessible. Check your internet connection." },
-                modelId = model.modelId
+                modelId = model.modelId,
+                hfErrorCode = lastHfErrorCode
             )
             return@withContext null
         }
