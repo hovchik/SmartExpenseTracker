@@ -1,5 +1,7 @@
 package com.smartexpense.tracker.ai.setupwizard
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -15,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -365,10 +368,20 @@ private fun AiModeOption(
 @Composable
 fun ModelInstallOptionsScreen(
     catalogModels: List<LocalAiModel>,
+    hasHuggingFaceToken: Boolean,
+    huggingFaceUsername: String?,
     onDownloadModel: (LocalAiModel) -> Unit,
+    onSaveToken: (String) -> Unit,
     onImportModel: () -> Unit,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    var showTokenDialog by remember { mutableStateOf(false) }
+    var pendingGatedModel by remember { mutableStateOf<LocalAiModel?>(null) }
+
+    val ungatedModels = catalogModels.filter { !it.isGated }
+    val gatedModels = catalogModels.filter { it.isGated }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -392,65 +405,117 @@ fun ModelInstallOptionsScreen(
 
         Spacer(Modifier.height(24.dp))
 
-        // Catalog models
-        catalogModels.forEach { model ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+        // ── Ungated models section ──
+        if (ungatedModels.isNotEmpty()) {
+            Text(
+                "Free Models (no account needed)",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            ungatedModels.forEach { model ->
+                ModelCatalogCard(
+                    model = model,
+                    onDownload = { onDownloadModel(model) }
                 )
+            }
+        }
+
+        // ── Gated models section ──
+        if (gatedModels.isNotEmpty()) {
+            Spacer(Modifier.height(20.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Icon(
+                    Icons.Default.Lock,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "Gated Models (HuggingFace token required)",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            // Token status banner
+            if (hasHuggingFaceToken && huggingFaceUsername != null) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                model.displayName,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                "${model.sizeMb} MB | ${model.quantization} | ${model.runtimeType.label}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                "RAM: ${model.requiredRamMb} MB min, ${model.recommendedRamMb} MB recommended",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-
-                    if (model.installState == InstallState.INSTALLED) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text("Installed", style = MaterialTheme.typography.labelMedium)
-                        }
-                    } else {
-                        Button(
-                            onClick = { onDownloadModel(model) },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Download (${model.sizeMb} MB)")
-                        }
+                        Icon(Icons.Default.CheckCircle, contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Signed in as $huggingFaceUsername",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                     }
                 }
+            } else {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Info, contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "These models require a free HuggingFace account and access token.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            gatedModels.forEach { model ->
+                ModelCatalogCard(
+                    model = model,
+                    onDownload = {
+                        if (hasHuggingFaceToken) {
+                            onDownloadModel(model)
+                        } else {
+                            pendingGatedModel = model
+                            showTokenDialog = true
+                        }
+                    }
+                )
             }
         }
 
@@ -469,6 +534,243 @@ fun ModelInstallOptionsScreen(
         Spacer(Modifier.weight(1f))
 
         OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back") }
+    }
+
+    // ── HuggingFace Token Dialog ──
+    if (showTokenDialog) {
+        HuggingFaceTokenDialog(
+            onDismiss = {
+                showTokenDialog = false
+                pendingGatedModel = null
+            },
+            onTokenSubmit = { token ->
+                showTokenDialog = false
+                onSaveToken(token)
+                // After saving token, proceed to download the pending model
+                pendingGatedModel?.let { onDownloadModel(it) }
+                pendingGatedModel = null
+            },
+            onOpenBrowser = {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://huggingface.co/settings/tokens"))
+                context.startActivity(intent)
+            }
+        )
+    }
+}
+
+/** Single model card used in both ungated and gated sections. */
+@Composable
+private fun ModelCatalogCard(
+    model: LocalAiModel,
+    onDownload: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            model.displayName,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (model.isGated) {
+                            Spacer(Modifier.width(6.dp))
+                            Icon(
+                                Icons.Default.Lock,
+                                contentDescription = "Requires token",
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Text(
+                        "${model.sizeMb} MB | ${model.quantization} | ${model.runtimeType.label}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "RAM: ${model.requiredRamMb} MB min, ${model.recommendedRamMb} MB recommended",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            if (model.installState == InstallState.INSTALLED) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text("Installed", style = MaterialTheme.typography.labelMedium)
+                }
+            } else {
+                Button(
+                    onClick = onDownload,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Download (${model.sizeMb} MB)")
+                }
+            }
+        }
+    }
+}
+
+// ─── HuggingFace Token Dialog ────────────────────────────────────────────────
+
+/**
+ * Dialog that guides the user through obtaining and entering a HuggingFace token.
+ * Provides a "Get Token" button that opens HuggingFace in the browser,
+ * and a text field for pasting the token back.
+ */
+@Composable
+fun HuggingFaceTokenDialog(
+    onDismiss: () -> Unit,
+    onTokenSubmit: (String) -> Unit,
+    onOpenBrowser: () -> Unit
+) {
+    var token by remember { mutableStateOf("") }
+    var currentStep by remember { mutableIntStateOf(1) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.Key, contentDescription = null) },
+        title = { Text("HuggingFace Token") },
+        text = {
+            Column {
+                // Step 1: Create account & accept terms
+                TokenStep(
+                    stepNumber = 1,
+                    title = "Create a free HuggingFace account",
+                    description = "If you don't have one already, sign up at huggingface.co",
+                    isActive = currentStep == 1
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                // Step 2: Accept model terms
+                TokenStep(
+                    stepNumber = 2,
+                    title = "Accept the model license",
+                    description = "Visit the model page (e.g. google/gemma-3-1b-it) and accept the usage terms",
+                    isActive = currentStep == 2
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                // Step 3: Create token
+                TokenStep(
+                    stepNumber = 3,
+                    title = "Create an access token",
+                    description = "Go to Settings > Access Tokens and create a token with 'Read' permission",
+                    isActive = currentStep == 3
+                )
+
+                Spacer(Modifier.height(16.dp))
+
+                // "Get Token" button — opens browser to HuggingFace tokens page
+                OutlinedButton(
+                    onClick = {
+                        currentStep = 3
+                        onOpenBrowser()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Open HuggingFace Token Page")
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                // Token input field
+                OutlinedTextField(
+                    value = token,
+                    onValueChange = { token = it.trim() },
+                    label = { Text("Paste token here") },
+                    placeholder = { Text("hf_...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = { Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                )
+
+                if (token.isNotBlank() && !token.startsWith("hf_")) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Token should start with \"hf_\"",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onTokenSubmit(token) },
+                enabled = token.startsWith("hf_") && token.length > 8
+            ) {
+                Text("Save & Download")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun TokenStep(
+    stepNumber: Int,
+    title: String,
+    description: String,
+    isActive: Boolean
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        Surface(
+            shape = RoundedCornerShape(50),
+            color = if (isActive) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.size(24.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                Text(
+                    "$stepNumber",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isActive) MaterialTheme.colorScheme.onPrimary
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Text(description, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
@@ -779,9 +1081,12 @@ fun LocalAiSetupWizardScreen(
     isRunningBenchmark: Boolean,
     importMessage: String?,
     activeProviderName: String,
+    hasHuggingFaceToken: Boolean,
+    huggingFaceUsername: String?,
     onScanDevice: () -> Unit,
     onSelectMode: (AiModePreference) -> Unit,
     onDownloadModel: (LocalAiModel) -> Unit,
+    onSaveHuggingFaceToken: (String) -> Unit,
     onCancelDownload: () -> Unit,
     onImportModel: () -> Unit,
     onRunBenchmark: () -> Unit,
@@ -835,10 +1140,13 @@ fun LocalAiSetupWizardScreen(
                 )
                 WizardStep.MODEL_INSTALL_OPTIONS -> ModelInstallOptionsScreen(
                     catalogModels = catalogModels,
+                    hasHuggingFaceToken = hasHuggingFaceToken,
+                    huggingFaceUsername = huggingFaceUsername,
                     onDownloadModel = { model ->
                         onDownloadModel(model)
                         currentStep = WizardStep.MODEL_DOWNLOAD
                     },
+                    onSaveToken = onSaveHuggingFaceToken,
                     onImportModel = { currentStep = WizardStep.IMPORT_MODEL },
                     onBack = { currentStep = WizardStep.RECOMMENDED_MODE }
                 )

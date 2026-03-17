@@ -91,6 +91,38 @@ class ModelDownloadManager(private val context: Context) {
     }
 
     /**
+     * Validates a HuggingFace token by calling the whoami endpoint.
+     * Returns the username on success, or null if the token is invalid.
+     */
+    suspend fun validateHuggingFaceToken(token: String): String? = withContext(Dispatchers.IO) {
+        try {
+            val conn = (URL("https://huggingface.co/api/whoami-v2").openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = CONNECT_TIMEOUT
+                readTimeout = CONNECT_TIMEOUT
+                setRequestProperty("Authorization", "Bearer $token")
+                setRequestProperty("User-Agent", USER_AGENT)
+            }
+
+            val responseCode = conn.responseCode
+            if (responseCode == 200) {
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                conn.disconnect()
+                // Extract "name" from JSON response (simple parse to avoid dependency)
+                val nameMatch = Regex("\"name\"\\s*:\\s*\"([^\"]+)\"").find(body)
+                nameMatch?.groupValues?.get(1) ?: "authenticated"
+            } else {
+                conn.disconnect()
+                Log.w(TAG, "HuggingFace token validation failed: HTTP $responseCode")
+                null
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "HuggingFace token validation error: ${e.message}")
+            null
+        }
+    }
+
+    /**
      * Downloads a model to local storage.
      * Checks URL accessibility first, supports resume, reports progress.
      *
@@ -109,6 +141,15 @@ class ModelDownloadManager(private val context: Context) {
 
         if (model.downloadUrl.isBlank()) {
             _downloadState.value = DownloadState(error = "No download URL for this model")
+            return@withContext null
+        }
+
+        // Require token for gated models
+        if (model.isGated && huggingFaceToken.isBlank()) {
+            _downloadState.value = DownloadState(
+                error = "This model requires a HuggingFace token. Add your token first.",
+                modelId = model.modelId
+            )
             return@withContext null
         }
 

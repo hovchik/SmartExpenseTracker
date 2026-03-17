@@ -68,6 +68,8 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     val installedModelName by viewModel.installedModelName.collectAsState()
     val modelStorageUsageMb by viewModel.modelStorageUsageMb.collectAsState()
     val wizardImportMessage by viewModel.wizardImportMessage.collectAsState()
+    val hasHuggingFaceToken by viewModel.hasHuggingFaceToken.collectAsState()
+    val huggingFaceUsername by viewModel.huggingFaceUsername.collectAsState()
     val dashboardSectionOrder by viewModel.dashboardSectionOrder.collectAsState()
     val storeLocations by viewModel.storeLocations.collectAsState()
     val isSubscribed by viewModel.isSubscribed.collectAsState()
@@ -370,9 +372,12 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         isRunningBenchmark = isRunningBenchmark,
                         importMessage = wizardImportMessage,
                         activeProviderName = aiModeStatus ?: "Initializing...",
+                        hasHuggingFaceToken = hasHuggingFaceToken,
+                        huggingFaceUsername = huggingFaceUsername,
                         onScanDevice = { viewModel.scanDeviceCapabilities() },
                         onSelectMode = { mode -> viewModel.setAiMode(mode) },
                         onDownloadModel = { model -> viewModel.downloadCatalogModelNew(model) },
+                        onSaveHuggingFaceToken = { token -> viewModel.saveHuggingFaceToken(token) },
                         onCancelDownload = { viewModel.cancelModelDownload() },
                         onImportModel = { /* SAF file picker would go here */ },
                         onRunBenchmark = { viewModel.runBenchmark() },

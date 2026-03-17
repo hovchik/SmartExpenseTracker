@@ -140,6 +140,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _wizardImportMessage = MutableStateFlow<String?>(null)
     val wizardImportMessage: StateFlow<String?> = _wizardImportMessage.asStateFlow()
 
+    /** Whether a HuggingFace token is configured. */
+    private val _hasHuggingFaceToken = MutableStateFlow(false)
+    val hasHuggingFaceToken: StateFlow<Boolean> = _hasHuggingFaceToken.asStateFlow()
+
+    /** HuggingFace username if token is valid. */
+    private val _huggingFaceUsername = MutableStateFlow<String?>(null)
+    val huggingFaceUsername: StateFlow<String?> = _huggingFaceUsername.asStateFlow()
+
     init {
         viewModelScope.launch {
             repository.initialize()
@@ -702,6 +710,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // Pass HuggingFace token for gated model downloads
             if (settings.huggingFaceToken.isNotBlank()) {
                 localModelManager.setHuggingFaceToken(settings.huggingFaceToken)
+                _hasHuggingFaceToken.value = true
+                // Validate token in background to get username
+                launch(Dispatchers.IO) {
+                    val username = localModelManager.validateHuggingFaceToken(settings.huggingFaceToken)
+                    _huggingFaceUsername.value = username
+                }
             }
             withContext(Dispatchers.IO) {
                 aiProviderSelector.selectProvider(settings.aiModePreference)
@@ -709,6 +723,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _aiModeStatus.value = aiProviderSelector.statusMessage()
             _aiPrivacyMessage.value = aiProviderSelector.privacyMessage()
             refreshModelInfo()
+        }
+    }
+
+    /**
+     * Saves and validates a HuggingFace token.
+     * Persists to AppSettings, sets on download manager, and validates against HuggingFace API.
+     */
+    fun saveHuggingFaceToken(token: String) {
+        viewModelScope.launch {
+            // Persist token
+            val settings = repository.appData.value.settings
+            repository.updateSettings(settings.copy(huggingFaceToken = token))
+            localModelManager.setHuggingFaceToken(token)
+            _hasHuggingFaceToken.value = true
+
+            // Validate and get username
+            val username = withContext(Dispatchers.IO) {
+                localModelManager.validateHuggingFaceToken(token)
+            }
+            _huggingFaceUsername.value = username
         }
     }
 

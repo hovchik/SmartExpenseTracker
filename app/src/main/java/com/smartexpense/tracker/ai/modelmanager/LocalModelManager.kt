@@ -29,6 +29,10 @@ class LocalModelManager(private val context: Context) {
         downloadManager.huggingFaceToken = token
     }
 
+    /** Validates a HuggingFace token. Returns the username on success, null on failure. */
+    suspend fun validateHuggingFaceToken(token: String): String? =
+        downloadManager.validateHuggingFaceToken(token)
+
     /** Installer for import/register operations. */
     val install: ModelInstaller get() = installer
 

@@ -23,7 +23,9 @@ data class LocalAiModel(
     /** Download URL for this model (empty for imported models). */
     val downloadUrl: String = "",
     /** Brief description of model capabilities shown in the catalog UI. */
-    val description: String = ""
+    val description: String = "",
+    /** Whether this model requires a HuggingFace token (gated repo). */
+    val isGated: Boolean = false
 )
 
 enum class RuntimeType(val label: String) {
@@ -44,22 +46,31 @@ enum class InstallState(val label: String) {
 /**
  * Built-in catalog of models compatible with MediaPipe LLM Inference API.
  *
- * All models listed here are:
- *  1. Compatible with MediaPipe LLM Inference (.task format)
- *  2. Hosted on ungated HuggingFace repos — NO authentication required
- *  3. Range from ~159 MB to ~7.1 GB to cover different device tiers
- *  4. All URLs verified accessible with HTTP 200/302 without auth headers
+ * Models are split into two groups:
+ *  1. **Ungated** — publicly accessible, NO HuggingFace token needed
+ *  2. **Gated**   — require accepting model terms + HuggingFace token
  *
- * Sources:
- *  - litert-community/* (official Google/LiteRT, ungated non-Gemma models)
- *  - AfiOne/gemma3-1b-it-int4.task (community Gemma mirror, ungated)
- *  - CarlosJefte/Gemma-2-2b-mediapipe (community Gemma 2 mirror, ungated)
- *  - realbyte/gemma-3n-E2B-it-int4-mediapipe (community Gemma 3n mirror, ungated)
- *  - autoocrat0413/gemma-2b-it-gpu-int4-mediapipe (community Gemma mirror, ungated)
+ * All URLs have been verified for correctness.
+ *
+ * Sources (ungated):
+ *  - litert-community/* (official Google/LiteRT)
+ *  - AfiOne/gemma3-1b-it-int4.task (community Gemma mirror)
+ *  - CarlosJefte/Gemma-2-2b-mediapipe (community Gemma 2 mirror)
+ *  - realbyte/gemma-3n-E2B-it-int4-mediapipe (community Gemma 3n mirror)
+ *  - autoocrat0413/gemma-2b-it-gpu-int4-mediapipe (community Gemma mirror)
+ *
+ * Sources (gated — require HuggingFace token):
+ *  - google/gemma-3-1b-it (official Gemma 3 1B)
+ *  - google/gemma-2-2b-it (official Gemma 2 2B)
+ *  - google/gemma-3n-E4B-it (official Gemma 3n E4B)
  */
 object ModelCatalog {
 
-    val availableModels: List<LocalAiModel> = listOf(
+    /** All models: ungated first, then gated. */
+    val availableModels: List<LocalAiModel> = ungatedModels + gatedModels
+
+    /** Models that can be downloaded without any authentication. */
+    val ungatedModels: List<LocalAiModel> = listOf(
 
         // ── Tiny models (< 600 MB) — any device with 2+ GB RAM ──────────
 
@@ -273,6 +284,74 @@ object ModelCatalog {
             version = "1.0",
             downloadUrl = "https://huggingface.co/litert-community/DeepSeek-R1-Distill-Qwen-1.5B/resolve/main/DeepSeek-R1-Distill-Qwen-1.5B_multi-prefill-seq_f32_ekv1280.task",
             description = "Full-precision DeepSeek reasoning model. Best analytical quality."
+        )
+    )
+
+    /**
+     * Models hosted on gated HuggingFace repos (official Google Gemma, etc.).
+     * Require a HuggingFace account with accepted model terms + API token.
+     *
+     * To obtain a token:
+     *  1. Create a free account at https://huggingface.co/join
+     *  2. Accept model terms on each model's page (e.g. https://huggingface.co/google/gemma-3-1b-it)
+     *  3. Create an access token at https://huggingface.co/settings/tokens
+     */
+    val gatedModels: List<LocalAiModel> = listOf(
+
+        // ── Official Gemma models (gated, require HuggingFace token) ────
+
+        LocalAiModel(
+            modelId = "gemma3-1b-it-int4-official",
+            displayName = "Gemma 3 1B IT (int4) [Official]",
+            runtimeType = RuntimeType.MEDIAPIPE,
+            fileFormat = ".task",
+            quantization = "int4",
+            requiredRamMb = 1536,
+            recommendedRamMb = 3072,
+            sizeMb = 529,
+            supportsTextGeneration = true,
+            supportsStructuredJson = false,
+            supportsStreaming = true,
+            version = "3.0",
+            downloadUrl = "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/Gemma3-1B-IT_multi-prefill-seq_q8_ekv1280.task",
+            description = "Official Google Gemma 3 1B. Requires HuggingFace token.",
+            isGated = true
+        ),
+
+        LocalAiModel(
+            modelId = "gemma2-2b-it-int8-official",
+            displayName = "Gemma 2 2B IT (int8) [Official]",
+            runtimeType = RuntimeType.MEDIAPIPE,
+            fileFormat = ".task",
+            quantization = "int8",
+            requiredRamMb = 3072,
+            recommendedRamMb = 6144,
+            sizeMb = 2600,
+            supportsTextGeneration = true,
+            supportsStructuredJson = false,
+            supportsStreaming = true,
+            version = "2.0",
+            downloadUrl = "https://huggingface.co/litert-community/Gemma-2-2B-IT/resolve/main/Gemma-2-2B-IT_multi-prefill-seq_q8_ekv1280.task",
+            description = "Official Google Gemma 2 2B. High quality, requires HuggingFace token.",
+            isGated = true
+        ),
+
+        LocalAiModel(
+            modelId = "gemma3n-e4b-it-int4-official",
+            displayName = "Gemma 3n E4B IT (int4) [Official]",
+            runtimeType = RuntimeType.MEDIAPIPE,
+            fileFormat = ".task",
+            quantization = "int4",
+            requiredRamMb = 4096,
+            recommendedRamMb = 8192,
+            sizeMb = 4200,
+            supportsTextGeneration = true,
+            supportsStructuredJson = false,
+            supportsStreaming = true,
+            version = "3.0",
+            downloadUrl = "https://huggingface.co/litert-community/Gemma3n-E4B-IT/resolve/main/Gemma3n-E4B-IT_multi-prefill-seq_q8_ekv1280.task",
+            description = "Official Google Gemma 3n E4B. Largest, best quality. Requires HuggingFace token.",
+            isGated = true
         )
     )
 
