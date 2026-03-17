@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartexpense.tracker.data.model.AiConversation
+import com.smartexpense.tracker.ui.components.RichAiResponseContent
 import com.smartexpense.tracker.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -313,23 +314,44 @@ private fun ConversationCard(
             Spacer(modifier = Modifier.height(6.dp))
 
             // ── Response section (expandable) ──
-            Text(
-                conversation.response,
-                fontSize = 13.sp,
-                lineHeight = 19.sp,
-                fontFamily = FontFamily.Default,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = if (responseExpanded) Int.MAX_VALUE else 4,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(6.dp))
-                    .clickable { responseExpanded = !responseExpanded }
-                    .padding(start = 34.dp)
-            )
+            if (responseExpanded) {
+                // Rich formatted view — full response
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { responseExpanded = false }
+                        .padding(start = 34.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    RichAiResponseContent(text = conversation.response)
+                }
 
-            // Show more / less toggle
-            if (!responseExpanded) {
+                Text(
+                    "Tap to collapse",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                    modifier = Modifier
+                        .padding(start = 34.dp, top = 4.dp)
+                        .clickable { responseExpanded = false }
+                )
+            } else {
+                // Collapsed preview — plain text, limited lines
+                Text(
+                    conversation.response,
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp,
+                    fontFamily = FontFamily.Default,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { responseExpanded = true }
+                        .padding(start = 34.dp)
+                )
+
                 Text(
                     "Tap to expand",
                     fontSize = 11.sp,
