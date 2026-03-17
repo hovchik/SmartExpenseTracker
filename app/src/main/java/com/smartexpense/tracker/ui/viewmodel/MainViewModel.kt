@@ -148,6 +148,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _huggingFaceUsername = MutableStateFlow<String?>(null)
     val huggingFaceUsername: StateFlow<String?> = _huggingFaceUsername.asStateFlow()
 
+    /** The ID of the currently active local model. */
+    private val _activeModelId = MutableStateFlow("")
+    val activeModelId: StateFlow<String> = _activeModelId.asStateFlow()
+
     init {
         viewModelScope.launch {
             repository.initialize()
@@ -768,10 +772,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _huggingFaceUsername.value = username
         }
     }
-
-    /** The ID of the currently active local model. */
-    private val _activeModelId = MutableStateFlow("")
-    val activeModelId: StateFlow<String> = _activeModelId.asStateFlow()
 
     private fun refreshModelInfo() {
         val activeModel = localModelManager.getActiveModel()
