@@ -53,7 +53,7 @@ enum class InstallState(val label: String) {
  * All URLs have been verified for correctness.
  *
  * Sources (ungated):
- *  - litert-community/* (official Google/LiteRT)
+ *  - litert-community (official Google/LiteRT)
  *  - AfiOne/gemma3-1b-it-int4.task (community Gemma mirror)
  *  - CarlosJefte/Gemma-2-2b-mediapipe (community Gemma 2 mirror)
  *  - realbyte/gemma-3n-E2B-it-int4-mediapipe (community Gemma 3n mirror)
@@ -65,9 +65,6 @@ enum class InstallState(val label: String) {
  *  - google/gemma-3n-E4B-it (official Gemma 3n E4B)
  */
 object ModelCatalog {
-
-    /** All models: ungated first, then gated. */
-    val availableModels: List<LocalAiModel> = ungatedModels + gatedModels
 
     /** Models that can be downloaded without any authentication. */
     val ungatedModels: List<LocalAiModel> = listOf(
@@ -354,6 +351,9 @@ object ModelCatalog {
             isGated = true
         )
     )
+
+    /** All models: ungated first, then gated. */
+    val availableModels: List<LocalAiModel> = ungatedModels + gatedModels
 
     /** Returns models that fit in the given available RAM. */
     fun modelsForDevice(availableRamMb: Int): List<LocalAiModel> =
