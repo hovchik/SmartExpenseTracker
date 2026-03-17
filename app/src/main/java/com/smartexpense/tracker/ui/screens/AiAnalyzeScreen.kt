@@ -34,7 +34,8 @@ fun AiAnalyzeScreen(
     categories: List<Category>,
     currencyCode: String,
     onAnalyze: (startMillis: Long, endMillis: Long, category: String?) -> String,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToHistory: () -> Unit = {}
 ) {
     val cal = remember { Calendar.getInstance() }
     var startMillis by remember {
@@ -74,6 +75,11 @@ fun AiAnalyzeScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onNavigateToHistory) {
+                        Icon(Icons.Filled.Forum, contentDescription = "Chat History")
                     }
                 }
             )

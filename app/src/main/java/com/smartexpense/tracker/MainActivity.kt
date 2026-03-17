@@ -72,6 +72,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     val hasHuggingFaceToken by viewModel.hasHuggingFaceToken.collectAsState()
     val huggingFaceUsername by viewModel.huggingFaceUsername.collectAsState()
     val tokenValidationError by viewModel.tokenValidationError.collectAsState()
+    val aiConversations by viewModel.aiConversations.collectAsState()
     val dashboardSectionOrder by viewModel.dashboardSectionOrder.collectAsState()
     val storeLocations by viewModel.storeLocations.collectAsState()
     val isSubscribed by viewModel.isSubscribed.collectAsState()
@@ -105,12 +106,13 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
             "store_map"        -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
             "ocr_sections"     -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
             "local_ai_setup"   -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
+            "ai_chat_history"  -> { currentScreen = "ai_analyze" }
             else               -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
         }
     }
 
     // Hide the top bar on full-screen sub-screens (they have their own top bar)
-    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ocr_sections", "local_ai_setup")
+    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup")
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -163,7 +165,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
             }
         },
         bottomBar = {
-            if (currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ocr_sections", "local_ai_setup")) {
+            if (currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup")) {
                 NavigationBar(tonalElevation = 2.dp) {
                     // Home
                     NavigationBarItem(
@@ -315,7 +317,14 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         categories = uiState.categories,
                         currencyCode = currencyCode,
                         onAnalyze = { start, end, cat -> viewModel.analyzeTransactions(start, end, cat) },
-                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) },
+                        onNavigateToHistory = { currentScreen = "ai_chat_history" }
+                    )
+                    "ai_chat_history" -> AiChatHistoryScreen(
+                        conversations = aiConversations,
+                        onDeleteConversation = { viewModel.deleteAiConversation(it) },
+                        onClearAll = { viewModel.clearAllAiConversations() },
+                        onNavigateBack = { currentScreen = "ai_analyze" }
                     )
                     "settings" -> SettingsScreen(
                         settings = uiState.settings,

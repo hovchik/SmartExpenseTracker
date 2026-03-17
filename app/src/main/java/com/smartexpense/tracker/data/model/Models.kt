@@ -220,6 +220,8 @@ data class AppData(
     val ocrSections: List<OcrSection> = emptyList(),
     /** Exchange rates: current (index 0) and previous (index 1). Max 2 entries. */
     val rateHistory: List<RateHistoryEntry> = emptyList(),
+    /** AI prompt/response conversation history. */
+    val aiConversations: List<AiConversation> = emptyList(),
     val settings: AppSettings = AppSettings(),
     val lastUpdated: Long = System.currentTimeMillis()
 )
@@ -388,6 +390,18 @@ data class ScheduledExpense(
     /** Day-of-month (1–31) when the payment is due. */
     val dayOfMonth: Int = 1,
     val enabled: Boolean = true
+)
+
+/**
+ * A single AI conversation entry: the user's prompt and the AI's response.
+ */
+data class AiConversation(
+    val id: String = UUID.randomUUID().toString(),
+    val prompt: String,
+    val response: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    /** Date string for grouping, e.g. "2026-03-17". */
+    val dateKey: String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(System.currentTimeMillis()))
 )
 
 data class AppSettings(

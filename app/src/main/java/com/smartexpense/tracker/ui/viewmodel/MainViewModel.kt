@@ -116,6 +116,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _ocrSections = MutableStateFlow<List<OcrSection>>(emptyList())
     val ocrSections: StateFlow<List<OcrSection>> = _ocrSections.asStateFlow()
 
+    /** AI conversation history (prompt + response, grouped by date in UI). */
+    private val _aiConversations = MutableStateFlow<List<AiConversation>>(emptyList())
+    val aiConversations: StateFlow<List<AiConversation>> = _aiConversations.asStateFlow()
+
     // ── Tri-mode AI state (must be declared before init) ──────────────
     private val _aiModeStatus = MutableStateFlow<String?>(null)
     val aiModeStatus: StateFlow<String?> = _aiModeStatus.asStateFlow()
@@ -207,6 +211,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _themeMode.value = data.settings.themeMode
                 _inAppNotifications.value = data.inAppNotifications
                 _ocrSections.value = data.ocrSections
+                _aiConversations.value = data.aiConversations
                 updateUiState(data)
             }
         }
@@ -1555,11 +1560,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun analyzeTransactions(startMillis: Long, endMillis: Long, category: String?): String {
         val currencyCode = repository.appData.value.settings.currencyCode
+        val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.US)
+        val prompt = buildString {
+            append("Analyze transactions from ${dateFormat.format(Date(startMillis))} to ${dateFormat.format(Date(endMillis))}")
+            if (category != null) append(" in category \"$category\"")
+        }
         val baseAnalysis = aiEngine.generateAnalysis(
             transactionsInDisplayCurrency(currencyCode),
             startMillis, endMillis, currencyCode, category
         )
+        // Save to conversation history
+        viewModelScope.launch {
+            repository.addAiConversation(AiConversation(prompt = prompt, response = baseAnalysis))
+        }
         return baseAnalysis
+    }
+
+    // ── AI Conversation History ─────────────────────────────────────
+
+    fun deleteAiConversation(id: String) {
+        viewModelScope.launch { repository.deleteAiConversation(id) }
+    }
+
+    fun clearAllAiConversations() {
+        viewModelScope.launch { repository.clearAllAiConversations() }
     }
 
     fun getWeeklyChartData(): List<Pair<String, Double>> {
