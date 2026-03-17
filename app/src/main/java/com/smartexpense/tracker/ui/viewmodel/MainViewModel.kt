@@ -39,6 +39,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** On-device Gemini Nano service – null responses mean "not available / not enabled". */
     private val localAiService = LocalAiService(application.applicationContext)
 
+    // ── Tri-mode AI (must be initialized before init block) ───────────
+    private val localModelManager = com.smartexpense.tracker.ai.modelmanager.LocalModelManager(
+        application.applicationContext
+    )
+    private val aiProviderSelector = com.smartexpense.tracker.ai.provider.AiProviderSelector(
+        application.applicationContext,
+        localModelManager
+    )
+    private val benchmarkRunner = com.smartexpense.tracker.ai.benchmark.LocalAiBenchmarkRunner()
+
     /** Human-readable AI backend status shown in Settings (null = not yet checked). */
     private val _localAiStatus = MutableStateFlow<String?>(null)
     val localAiStatus: StateFlow<String?> = _localAiStatus.asStateFlow()
@@ -106,6 +116,54 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _ocrSections = MutableStateFlow<List<OcrSection>>(emptyList())
     val ocrSections: StateFlow<List<OcrSection>> = _ocrSections.asStateFlow()
 
+    /** AI conversation history (prompt + response, grouped by date in UI). */
+    private val _aiConversations = MutableStateFlow<List<AiConversation>>(emptyList())
+    val aiConversations: StateFlow<List<AiConversation>> = _aiConversations.asStateFlow()
+
+    // ── Tri-mode AI state (must be declared before init) ──────────────
+    private val _aiModeStatus = MutableStateFlow<String?>(null)
+    val aiModeStatus: StateFlow<String?> = _aiModeStatus.asStateFlow()
+    private val _aiPrivacyMessage = MutableStateFlow<String?>(null)
+    val aiPrivacyMessage: StateFlow<String?> = _aiPrivacyMessage.asStateFlow()
+    private val _deviceCapability = MutableStateFlow<com.smartexpense.tracker.ai.capability.DeviceAiCapabilityDetector.DeviceCapability?>(null)
+    val deviceCapability: StateFlow<com.smartexpense.tracker.ai.capability.DeviceAiCapabilityDetector.DeviceCapability?> = _deviceCapability.asStateFlow()
+    private val _isScanning = MutableStateFlow(false)
+    val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
+    private val _catalogModels = MutableStateFlow<List<com.smartexpense.tracker.ai.modelmanager.LocalAiModel>>(emptyList())
+    val catalogModels: StateFlow<List<com.smartexpense.tracker.ai.modelmanager.LocalAiModel>> = _catalogModels.asStateFlow()
+    val modelDownloadState: StateFlow<com.smartexpense.tracker.ai.modelmanager.ModelDownloadManager.DownloadState> =
+        localModelManager.downloads.downloadState
+    private val _benchmarkResult = MutableStateFlow<com.smartexpense.tracker.ai.benchmark.LocalAiBenchmarkRunner.BenchmarkResult?>(null)
+    val benchmarkResult: StateFlow<com.smartexpense.tracker.ai.benchmark.LocalAiBenchmarkRunner.BenchmarkResult?> = _benchmarkResult.asStateFlow()
+    private val _isRunningBenchmark = MutableStateFlow(false)
+    val isRunningBenchmark: StateFlow<Boolean> = _isRunningBenchmark.asStateFlow()
+    private val _installedModelName = MutableStateFlow("")
+    val installedModelName: StateFlow<String> = _installedModelName.asStateFlow()
+    private val _modelStorageUsageMb = MutableStateFlow(0L)
+    val modelStorageUsageMb: StateFlow<Long> = _modelStorageUsageMb.asStateFlow()
+    private val _wizardImportMessage = MutableStateFlow<String?>(null)
+    val wizardImportMessage: StateFlow<String?> = _wizardImportMessage.asStateFlow()
+
+    /** Whether a HuggingFace token is configured. */
+    private val _hasHuggingFaceToken = MutableStateFlow(false)
+    val hasHuggingFaceToken: StateFlow<Boolean> = _hasHuggingFaceToken.asStateFlow()
+
+    /** HuggingFace username if token is valid. */
+    private val _huggingFaceUsername = MutableStateFlow<String?>(null)
+    val huggingFaceUsername: StateFlow<String?> = _huggingFaceUsername.asStateFlow()
+
+    /** Token validation error message shown to user, null when no error. */
+    private val _tokenValidationError = MutableStateFlow<String?>(null)
+    val tokenValidationError: StateFlow<String?> = _tokenValidationError.asStateFlow()
+
+    /** The ID of the currently active local model. */
+    private val _activeModelId = MutableStateFlow("")
+    val activeModelId: StateFlow<String> = _activeModelId.asStateFlow()
+
+    /** Descriptions for each engine option, updated after availability check. */
+    private val _engineDescriptions = MutableStateFlow<Map<AiEnginePreference, String>>(emptyMap())
+    val engineDescriptions: StateFlow<Map<AiEnginePreference, String>> = _engineDescriptions.asStateFlow()
+
     init {
         viewModelScope.launch {
             repository.initialize()
@@ -140,6 +198,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _engineDescriptions.value = localAiService.engineDescriptions()
             }
 
+            // Initialize tri-mode AI provider selector
+            initAiProviderSelector()
+            refreshCatalogModels()
+
             refreshSuggestions()
             scheduleRateRefresh()
             // Warm up the location cache so background receivers (SMS, notifications)
@@ -149,6 +211,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _themeMode.value = data.settings.themeMode
                 _inAppNotifications.value = data.inAppNotifications
                 _ocrSections.value = data.ocrSections
+                _aiConversations.value = data.aiConversations
                 updateUiState(data)
             }
         }
@@ -328,10 +391,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ─── Local AI Engine ────────────────────────────────────────────
-
-    /** Descriptions for each engine option, updated after availability check. */
-    private val _engineDescriptions = MutableStateFlow<Map<AiEnginePreference, String>>(emptyMap())
-    val engineDescriptions: StateFlow<Map<AiEnginePreference, String>> = _engineDescriptions.asStateFlow()
 
     /** Discovered model files for MediaPipe LLM. */
     private val _discoveredModels = MutableStateFlow<List<Pair<String, String>>>(emptyList())
@@ -585,25 +644,480 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Whether the Google AI Edge Gallery app is installed on device. */
     fun isGalleryInstalled(): Boolean = localAiService.mediaPipeLlm.isGalleryInstalled()
 
+    // ─── Tri-Mode AI Architecture ─────────────────────────────────────
+
+    /** Sets the AI execution mode and persists it. */
+    fun setAiMode(mode: com.smartexpense.tracker.data.model.AiModePreference) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            repository.updateSettings(settings.copy(aiModePreference = mode))
+            _aiModeStatus.value = "Switching AI mode..."
+            withContext(Dispatchers.IO) { aiProviderSelector.selectProvider(mode) }
+            _aiModeStatus.value = aiProviderSelector.statusMessage()
+            _aiPrivacyMessage.value = aiProviderSelector.privacyMessage()
+            refreshModelInfo()
+        }
+    }
+
+    /** Scans device capabilities for AI support. */
+    fun scanDeviceCapabilities() {
+        viewModelScope.launch {
+            _isScanning.value = true
+            val capability = withContext(Dispatchers.IO) {
+                localModelManager.capabilities.detect()
+            }
+            _deviceCapability.value = capability
+            _isScanning.value = false
+        }
+    }
+
+    /** Refreshes catalog models with current install state. */
+    fun refreshCatalogModels() {
+        _catalogModels.value = localModelManager.getCatalogModels()
+        refreshModelInfo()
+    }
+
+    /** Downloads a catalog model. */
+    fun downloadCatalogModelNew(model: com.smartexpense.tracker.ai.modelmanager.LocalAiModel) {
+        viewModelScope.launch {
+            val path = withContext(Dispatchers.IO) {
+                localModelManager.downloadModel(model)
+            }
+            if (path != null) {
+                refreshCatalogModels()
+                // Auto-load the downloaded model
+                withContext(Dispatchers.IO) {
+                    aiProviderSelector.customLocalProvider.loadModel(
+                        model.copy(localPath = path, installState = com.smartexpense.tracker.ai.modelmanager.InstallState.INSTALLED)
+                    )
+                }
+                // Auto-switch to LOCAL_MODEL mode so the downloaded model is actually used
+                val settings = repository.appData.value.settings
+                if (settings.aiModePreference != AiModePreference.LOCAL_MODEL) {
+                    repository.updateSettings(settings.copy(
+                        aiModePreference = AiModePreference.LOCAL_MODEL,
+                        activeLocalModelId = model.modelId
+                    ))
+                    withContext(Dispatchers.IO) {
+                        aiProviderSelector.selectProvider(AiModePreference.LOCAL_MODEL)
+                    }
+                }
+                _aiModeStatus.value = aiProviderSelector.statusMessage()
+                _aiPrivacyMessage.value = aiProviderSelector.privacyMessage()
+            }
+        }
+    }
+
+    /** Cancels in-progress download. */
+    fun cancelModelDownload() {
+        localModelManager.downloads.cancelDownload()
+    }
+
+    /** Sets the active local model and loads it into the provider. */
+    fun setActiveLocalModel(model: com.smartexpense.tracker.ai.modelmanager.LocalAiModel) {
+        viewModelScope.launch {
+            localModelManager.setActiveModel(model.modelId)
+            withContext(Dispatchers.IO) {
+                aiProviderSelector.customLocalProvider.loadModel(model)
+            }
+            // Auto-switch to LOCAL_MODEL mode so the selected model is actually used
+            val settings = repository.appData.value.settings
+            if (settings.aiModePreference != AiModePreference.LOCAL_MODEL) {
+                repository.updateSettings(settings.copy(
+                    aiModePreference = AiModePreference.LOCAL_MODEL,
+                    activeLocalModelId = model.modelId
+                ))
+                withContext(Dispatchers.IO) {
+                    aiProviderSelector.selectProvider(AiModePreference.LOCAL_MODEL)
+                }
+            }
+            _aiModeStatus.value = aiProviderSelector.statusMessage()
+            _aiPrivacyMessage.value = aiProviderSelector.privacyMessage()
+            refreshModelInfo()
+            refreshCatalogModels()
+        }
+    }
+
+    /** Deletes a downloaded local model and refreshes the catalog. */
+    fun deleteLocalModel(model: com.smartexpense.tracker.ai.modelmanager.LocalAiModel) {
+        viewModelScope.launch {
+            // If deleting the active model, release it from the provider first
+            if (model.modelId == _activeModelId.value) {
+                aiProviderSelector.customLocalProvider.release()
+            }
+            localModelManager.deleteModel(model)
+            refreshCatalogModels()
+            refreshModelInfo()
+            _aiModeStatus.value = aiProviderSelector.statusMessage()
+        }
+    }
+
+    /** Runs benchmark against the active provider. */
+    fun runBenchmark() {
+        viewModelScope.launch {
+            _isRunningBenchmark.value = true
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    benchmarkRunner.runBenchmark(aiProviderSelector.getActiveProvider())
+                }
+                _benchmarkResult.value = result
+            } catch (e: Exception) {
+                android.util.Log.e("MainViewModel", "Benchmark failed", e)
+                _benchmarkResult.value = null
+            } finally {
+                _isRunningBenchmark.value = false
+            }
+        }
+    }
+
+    /** Initializes the AI provider selector based on saved settings. */
+    fun initAiProviderSelector() {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            if (settings.claudeApiKey.isNotBlank()) {
+                aiProviderSelector.cloudProvider.updateApiKey(settings.claudeApiKey)
+            }
+            // Pass HuggingFace token for gated model downloads
+            if (settings.huggingFaceToken.isNotBlank()) {
+                localModelManager.setHuggingFaceToken(settings.huggingFaceToken)
+                _hasHuggingFaceToken.value = true
+                // Validate token in background to get username
+                launch(Dispatchers.IO) {
+                    when (val result = localModelManager.validateHuggingFaceToken(settings.huggingFaceToken)) {
+                        is com.smartexpense.tracker.ai.modelmanager.ModelDownloadManager.TokenValidationResult.Valid -> {
+                            _huggingFaceUsername.value = result.username
+                        }
+                        is com.smartexpense.tracker.ai.modelmanager.ModelDownloadManager.TokenValidationResult.Invalid -> {
+                            // Token definitely invalid — clear it
+                            _huggingFaceUsername.value = null
+                            _hasHuggingFaceToken.value = false
+                            localModelManager.setHuggingFaceToken("")
+                            repository.updateSettings(settings.copy(huggingFaceToken = ""))
+                            _tokenValidationError.value = "Saved HuggingFace token is no longer valid."
+                        }
+                        is com.smartexpense.tracker.ai.modelmanager.ModelDownloadManager.TokenValidationResult.NetworkError -> {
+                            // Network issue — keep token, just don't show username
+                            _huggingFaceUsername.value = null
+                        }
+                    }
+                }
+            }
+            // If the user has an active local model but preference is still AUTO,
+            // override to LOCAL_MODEL so the downloaded model is actually used.
+            val effectivePreference = if (
+                settings.aiModePreference == AiModePreference.AUTO &&
+                settings.activeLocalModelId.isNotBlank()
+            ) {
+                AiModePreference.LOCAL_MODEL
+            } else {
+                settings.aiModePreference
+            }
+            withContext(Dispatchers.IO) {
+                aiProviderSelector.selectProvider(effectivePreference)
+            }
+            _aiModeStatus.value = aiProviderSelector.statusMessage()
+            _aiPrivacyMessage.value = aiProviderSelector.privacyMessage()
+            refreshModelInfo()
+        }
+    }
+
     /**
-     * Returns a category using on-device AI when enabled, otherwise falls back to rules.
-     * When AI suggests a category that doesn't exist yet, it is auto-created.
+     * Saves and validates a HuggingFace token.
+     * Persists to AppSettings, sets on download manager, and validates against HuggingFace API.
      */
-    private suspend fun smartCategorize(description: String, isExpense: Boolean = true): String {
+    fun saveHuggingFaceToken(token: String) {
+        // Set token eagerly so subsequent download calls can use it immediately
+        localModelManager.setHuggingFaceToken(token)
+        _hasHuggingFaceToken.value = true
+        _tokenValidationError.value = null
+
+        viewModelScope.launch {
+            // Persist token immediately so it survives restarts
+            val settings = repository.appData.value.settings
+            repository.updateSettings(settings.copy(huggingFaceToken = token))
+
+            // Validate token against HuggingFace API
+            val result = withContext(Dispatchers.IO) {
+                localModelManager.validateHuggingFaceToken(token)
+            }
+
+            when (result) {
+                is com.smartexpense.tracker.ai.modelmanager.ModelDownloadManager.TokenValidationResult.Valid -> {
+                    _huggingFaceUsername.value = result.username
+                    _tokenValidationError.value = null
+                }
+                is com.smartexpense.tracker.ai.modelmanager.ModelDownloadManager.TokenValidationResult.Invalid -> {
+                    // Definitively invalid (HTTP 401) — revert only if no download is running
+                    if (!localModelManager.downloads.downloadState.value.isDownloading) {
+                        localModelManager.setHuggingFaceToken("")
+                        repository.updateSettings(
+                            repository.appData.value.settings.copy(huggingFaceToken = "")
+                        )
+                        _hasHuggingFaceToken.value = false
+                    }
+                    _huggingFaceUsername.value = null
+                    _tokenValidationError.value = "Invalid HuggingFace token. Please check and try again."
+                }
+                is com.smartexpense.tracker.ai.modelmanager.ModelDownloadManager.TokenValidationResult.NetworkError -> {
+                    // Network issue — keep token (it might be valid), show warning
+                    _huggingFaceUsername.value = null
+                    _tokenValidationError.value = "Could not verify token (network error). Token saved — try downloading."
+                }
+            }
+        }
+    }
+
+    /**
+     * Removes the stored HuggingFace token.
+     */
+    fun removeHuggingFaceToken() {
+        // Clear token eagerly for immediate UI update
+        localModelManager.setHuggingFaceToken("")
+        _hasHuggingFaceToken.value = false
+        _huggingFaceUsername.value = null
+
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            repository.updateSettings(settings.copy(huggingFaceToken = ""))
+        }
+    }
+
+    private fun refreshModelInfo() {
+        val activeModel = localModelManager.getActiveModel()
+        _installedModelName.value = activeModel?.displayName ?: ""
+        _activeModelId.value = activeModel?.modelId ?: ""
+        _modelStorageUsageMb.value = localModelManager.getStorageUsageMb()
+    }
+
+    /**
+     * Uses the AI provider selector for categorization when the new mode is active,
+     * falls back to existing local AI service otherwise.
+     */
+    private val promptAdapter = com.smartexpense.tracker.ai.provider.PromptAdapter()
+
+    /**
+     * Result of AI-driven categorization, carrying both the category name
+     * and a flag indicating whether it was resolved by an AI model.
+     */
+    private data class CategorizationResult(val category: String, val byAi: Boolean)
+
+    /**
+     * Uses the AI provider for categorization with rich context.
+     * Supports AI-driven new category creation when the AI suggests one.
+     */
+    private suspend fun smartCategorizeWithProvider(
+        description: String,
+        isExpense: Boolean = true,
+        merchantName: String = "",
+        amount: Double = 0.0,
+        tags: List<String> = emptyList(),
+        notes: String = "",
+        isRecurring: Boolean = false,
+        dateTime: String = "",
+        source: String = "",
+        hasLocation: Boolean = false
+    ): String? {
+        val provider = aiProviderSelector.getActiveProvider()
+
+        val data = repository.appData.value
+        val categories = data.categories.map { it.name }
+        val currencyCode = data.settings.currencyCode
+        val prompt = promptAdapter.createCategorizationPrompt(
+            description, categories, isExpense, merchantName, amount, currencyCode,
+            tags = tags, notes = notes, isRecurring = isRecurring,
+            dateTime = dateTime, source = source, hasLocation = hasLocation
+        )
+
+        val result = withContext(Dispatchers.IO) {
+            provider.generateAnalysis(
+                com.smartexpense.tracker.ai.provider.AnalysisInput(
+                    prompt = prompt,
+                    availableCategories = categories,
+                    isExpense = isExpense,
+                    type = com.smartexpense.tracker.ai.provider.AnalysisType.CATEGORIZE
+                )
+            )
+        }
+
+        if (result.success && result.text.isNotBlank()) {
+            val parsed = promptAdapter.parseCategorization(result.text, categories)
+            if (parsed.category != null) {
+                if (parsed.isNewCategory) {
+                    // AI suggested a brand-new category — auto-create it
+                    repository.ensureCategoryExists(parsed.category)
+                }
+                return parsed.category
+            }
+        }
+        return null
+    }
+
+    /**
+     * Uses the AI provider for insight generation with comprehensive financial data.
+     */
+    suspend fun generateInsightWithProvider(
+        totalExpenses: Double,
+        totalIncome: Double,
+        topCategory: String?,
+        topCategoryAmount: Double,
+        transactionCount: Int,
+        currencyCode: String
+    ): String? {
+        val provider = aiProviderSelector.getActiveProvider()
+
+        val data = repository.appData.value
+        val now = System.currentTimeMillis()
+        val monthStart = DateUtils.getStartOfMonth(now)
+        val transactions = data.transactions.filter { it.timestamp >= monthStart }
+
+        // Build category breakdown
+        val categoryBreakdown = transactions
+            .filter { it.type == TransactionType.EXPENSE }
+            .groupBy { it.category }
+            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+
+        // Build budget limits map
+        val budgetLimits = data.budgets.associate { budget ->
+            val catName = data.categories.find { it.id == budget.categoryId }?.name ?: budget.categoryId
+            catName to budget.monthlyLimit
+        }
+
+        // Get recent large transactions
+        val recentLarge = transactions
+            .filter { it.type == TransactionType.EXPENSE }
+            .sortedByDescending { it.amount }
+            .take(5)
+            .map { com.smartexpense.tracker.ai.provider.PromptAdapter.TransactionSummary(it.description, it.amount, it.category) }
+
+        // Previous period expenses for comparison
+        val prevMonthStart = DateUtils.getStartOfMonth(monthStart - 1)
+        val prevMonthEnd = monthStart - 1
+        val previousPeriodExpenses = data.transactions
+            .filter { it.type == TransactionType.EXPENSE && it.timestamp in prevMonthStart..prevMonthEnd }
+            .sumOf { it.amount }
+
+        val avgDaily = if (transactionCount > 0) {
+            val days = ((now - monthStart) / (24 * 60 * 60 * 1000.0)).coerceAtLeast(1.0)
+            totalExpenses / days
+        } else 0.0
+
+        val prompt = promptAdapter.createInsightPrompt(
+            totalExpenses, totalIncome, topCategory, topCategoryAmount,
+            transactionCount, currencyCode,
+            categoryBreakdown = categoryBreakdown,
+            recentTransactions = recentLarge,
+            previousPeriodExpenses = previousPeriodExpenses,
+            averageDailySpend = avgDaily,
+            budgetLimits = budgetLimits
+        )
+
+        val result = withContext(Dispatchers.IO) {
+            provider.generateAnalysis(
+                com.smartexpense.tracker.ai.provider.AnalysisInput(
+                    prompt = prompt,
+                    totalExpenses = totalExpenses,
+                    totalIncome = totalIncome,
+                    topCategory = topCategory,
+                    topCategoryAmount = topCategoryAmount,
+                    transactionCount = transactionCount,
+                    currencyCode = currencyCode,
+                    type = com.smartexpense.tracker.ai.provider.AnalysisType.INSIGHT
+                )
+            )
+        }
+
+        return if (result.success) promptAdapter.parseInsight(result.text) else null
+    }
+
+    /**
+     * Generates an AI insight for a completed report, enriching it with provider analysis.
+     */
+    private suspend fun enrichReportWithAiInsight(report: ExpenseReport, currencyCode: String): ExpenseReport {
+        val provider = aiProviderSelector.getActiveProvider()
+
+        val periodLabel = when (report.periodType) {
+            ReportPeriod.DAILY -> "daily"
+            ReportPeriod.WEEKLY -> "weekly"
+            ReportPeriod.MONTHLY -> "monthly"
+            ReportPeriod.CUSTOM -> "custom period"
+        }
+
+        val prompt = promptAdapter.createReportInsightPrompt(
+            periodLabel = periodLabel,
+            totalExpenses = report.totalExpenses,
+            totalIncome = report.totalIncome,
+            categoryBreakdown = report.categoryBreakdown,
+            topMerchants = report.topMerchants,
+            transactionCount = report.transactionCount,
+            currencyCode = currencyCode,
+            comparisonWithPrevious = report.comparisonWithPrevious,
+            dayOfWeekSpending = report.dayOfWeekSpending
+        )
+
+        val result = withContext(Dispatchers.IO) {
+            provider.generateAnalysis(
+                com.smartexpense.tracker.ai.provider.AnalysisInput(
+                    prompt = prompt,
+                    totalExpenses = report.totalExpenses,
+                    totalIncome = report.totalIncome,
+                    transactionCount = report.transactionCount,
+                    currencyCode = currencyCode,
+                    type = com.smartexpense.tracker.ai.provider.AnalysisType.REPORT
+                )
+            )
+        }
+
+        return if (result.success && result.text.isNotBlank()) {
+            report.copy(aiInsight = promptAdapter.parseInsight(result.text))
+        } else report
+    }
+
+    /**
+     * Returns a category using the AI provider, with fallback to legacy local AI service
+     * and then to the rule-based engine. AI can suggest new categories that are auto-created.
+     * The returned [CategorizationResult.byAi] flag is true when an AI model (not rule-based)
+     * performed the categorization.
+     */
+    private suspend fun smartCategorize(
+        description: String,
+        isExpense: Boolean = true,
+        merchantName: String = "",
+        amount: Double = 0.0,
+        tags: List<String> = emptyList(),
+        notes: String = "",
+        isRecurring: Boolean = false,
+        dateTime: String = "",
+        source: String = "",
+        hasLocation: Boolean = false
+    ): CategorizationResult {
         val settings = repository.appData.value.settings
         val userCatNames = repository.appData.value.categories
             .filter { !it.isDefault }.map { it.name }
+
+        // Try the tri-mode AI provider first (with richer context)
+        val providerCategory = smartCategorizeWithProvider(
+            description, isExpense, merchantName, amount,
+            tags = tags, notes = notes, isRecurring = isRecurring,
+            dateTime = dateTime, source = source, hasLocation = hasLocation
+        )
+        if (providerCategory != null) {
+            repository.ensureCategoryExists(providerCategory)
+            return CategorizationResult(providerCategory, byAi = true)
+        }
+
+        // Fall back to existing local AI service
         if (settings.localAiEnabled) {
             val categoryNames = repository.appData.value.categories.map { it.name }
             val aiCategory = localAiService.categorize(description, categoryNames, isExpense, userCatNames)
             if (aiCategory != null) {
                 repository.ensureCategoryExists(aiCategory)
-                return aiCategory
+                return CategorizationResult(aiCategory, byAi = true)
             }
         }
+        // Rule-based fallback — not AI
         val category = aiEngine.categorize(description, isExpense, userCatNames)
         repository.ensureCategoryExists(category)
-        return category
+        return CategorizationResult(category, byAi = false)
     }
 
     fun addTransaction(
@@ -614,15 +1128,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         timestamp: Long = System.currentTimeMillis()
     ) {
         viewModelScope.launch {
-            val finalCategory = category ?: smartCategorize(description)
             val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+            val dateTime = dtFormatter.format(Date(timestamp))
             val loc = currentLocation()
             val geoLoc = loc?.let { GeoLocation(it.latitude, it.longitude) }
+
+            val catResult = if (category != null) {
+                CategorizationResult(category, byAi = false)
+            } else {
+                smartCategorize(
+                    description, type == TransactionType.EXPENSE, merchantName, amount,
+                    notes = notes, dateTime = dateTime, source = source.name,
+                    hasLocation = geoLoc != null
+                )
+            }
+
             val added = repository.addTransaction(Transaction(
-                amount = amount, description = description, category = finalCategory,
+                amount = amount, description = description, category = catResult.category,
                 type = type, source = source, merchantName = merchantName, notes = notes,
-                timestamp = timestamp, dateTime = dtFormatter.format(Date(timestamp)),
-                location = geoLoc
+                timestamp = timestamp, dateTime = dateTime,
+                location = geoLoc,
+                categorizedByAi = catResult.byAi
             ))
             if (added) {
                 autoCreateStoreIfNeeded(merchantName, geoLoc)
@@ -728,13 +1254,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val amount = parsed.totalAmount ?: parsed.items.sumOf { it.second }
 
                 if (amount > 0) {
-                    val category = smartCategorize(
-                        "${parsed.merchantName} ${parsed.items.joinToString(" ") { it.first }}"
+                    val catResult = smartCategorize(
+                        "${parsed.merchantName} ${parsed.items.joinToString(" ") { it.first }}",
+                        isExpense = true,
+                        merchantName = parsed.merchantName,
+                        amount = amount
                     )
                     _ocrParsedData.value = OcrParsedData(
                         amount = amount,
                         merchantName = parsed.merchantName,
-                        category = category,
+                        category = catResult.category,
                         items = parsed.items,
                         fromQr = fromQr,
                         rawOcrText = ocrText,
@@ -777,16 +1306,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 else ""
                 val sourceNote = if (fromQr) "Parsed from QR code" else ""
 
-                val aiNote: String = if (settings.localAiEnabled) {
-                    val insight = withContext(Dispatchers.IO) {
-                        localAiService.generateInsight(
-                            totalExpenses = amount, totalIncome = 0.0,
-                            topCategory = category, topCategoryAmount = amount,
-                            transactionCount = 1, currencyCode = currencyCode
-                        )
+                val aiNote: String = run {
+                    // Try new AI provider first
+                    val providerInsight = withContext(Dispatchers.IO) {
+                        generateInsightWithProvider(amount, 0.0, category, amount, 1, currencyCode)
                     }
-                    if (insight != null) "\nAI: $insight" else ""
-                } else ""
+                    if (providerInsight != null) return@run "\nAI: $providerInsight"
+
+                    // Fall back to existing local AI
+                    if (settings.localAiEnabled) {
+                        val insight = withContext(Dispatchers.IO) {
+                            localAiService.generateInsight(
+                                totalExpenses = amount, totalIncome = 0.0,
+                                topCategory = category, topCategoryAmount = amount,
+                                transactionCount = 1, currencyCode = currencyCode
+                            )
+                        }
+                        if (insight != null) "\nAI: $insight" else ""
+                    } else ""
+                }
 
                 repository.ensureCategoryExists(category)
 
@@ -845,8 +1383,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val settings = repository.appData.value.settings
             val ocrItems = items.map { (name, price) ->
-                val cat = smartCategorize(name)
-                OcrItem(name = name, price = price, category = cat)
+                val catResult = smartCategorize(name)
+                OcrItem(name = name, price = price, category = catResult.category)
             }
             val section = OcrSection(
                 label = label.ifBlank { merchantName },
@@ -1018,10 +1556,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ReportPeriod.DAILY -> DateUtils.getStartOfDay(now) to DateUtils.getEndOfDay(now)
             ReportPeriod.WEEKLY -> DateUtils.getStartOfWeek(now) to DateUtils.getEndOfWeek(now)
             ReportPeriod.MONTHLY -> DateUtils.getStartOfMonth(now) to DateUtils.getEndOfMonth(now)
-            ReportPeriod.CUSTOM -> DateUtils.getStartOfMonth(now) to DateUtils.getEndOfMonth(now) // fallback; use generateReportForRange for custom
+            ReportPeriod.CUSTOM -> DateUtils.getStartOfMonth(now) to DateUtils.getEndOfMonth(now)
         }
         val currencyCode = repository.appData.value.settings.currencyCode
-        return aiEngine.generateReport(transactionsInDisplayCurrency(currencyCode), period, start, end, currencyCode)
+        val report = aiEngine.generateReport(transactionsInDisplayCurrency(currencyCode), period, start, end, currencyCode)
+        // Enrich with AI insight asynchronously; return base report immediately
+        viewModelScope.launch { enrichReportWithAiInsightAndNotify(report, currencyCode) }
+        return report
+    }
+
+    /** Enriches a report with AI insight and triggers a UI refresh. */
+    private suspend fun enrichReportWithAiInsightAndNotify(report: ExpenseReport, currencyCode: String) {
+        try {
+            val enriched = enrichReportWithAiInsight(report, currencyCode)
+            if (enriched.aiInsight != report.aiInsight) {
+                _uiState.update { it.copy(latestAiInsight = enriched.aiInsight) }
+            }
+        } catch (_: Exception) { /* AI enrichment is best-effort */ }
     }
 
     /**
@@ -1048,13 +1599,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             set(Calendar.MILLISECOND, 999)
         }
         val currencyCode = repository.appData.value.settings.currencyCode
-        return aiEngine.generateReport(
+        val report = aiEngine.generateReport(
             transactionsInDisplayCurrency(currencyCode),
             ReportPeriod.MONTHLY,
             startCal.timeInMillis,
             endCal.timeInMillis,
             currencyCode
         )
+        viewModelScope.launch { enrichReportWithAiInsightAndNotify(report, currencyCode) }
+        return report
     }
 
     /**
@@ -1062,13 +1615,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun generateReportForRange(startMillis: Long, endMillis: Long): ExpenseReport {
         val currencyCode = repository.appData.value.settings.currencyCode
-        return aiEngine.generateReport(
+        val report = aiEngine.generateReport(
             transactionsInDisplayCurrency(currencyCode),
             ReportPeriod.CUSTOM,
             startMillis,
             endMillis,
             currencyCode
         )
+        viewModelScope.launch { enrichReportWithAiInsightAndNotify(report, currencyCode) }
+        return report
     }
 
     fun analyzeTransactions(startMillis: Long, endMillis: Long, category: String?): String {
@@ -1077,6 +1632,180 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             transactionsInDisplayCurrency(currencyCode),
             startMillis, endMillis, currencyCode, category
         )
+    }
+
+    /**
+     * Async version of analyzeTransactions that sends data to the active AI provider
+     * for richer, natural-language analysis. Falls back to the rule-based engine if
+     * the AI provider is unavailable or fails.
+     */
+    suspend fun analyzeTransactionsAsync(startMillis: Long, endMillis: Long, category: String?): String {
+        val currencyCode = repository.appData.value.settings.currencyCode
+        val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.US)
+        val transactions = transactionsInDisplayCurrency(currencyCode)
+        val userPrompt = buildString {
+            append("Analyze transactions from ${dateFormat.format(Date(startMillis))} to ${dateFormat.format(Date(endMillis))}")
+            if (category != null) append(" in category \"$category\"")
+        }
+
+        // Always try the active AI provider — no isAvailable() pre-check.
+        // The provider handles lazy loading and retries internally.
+        val provider = aiProviderSelector.getActiveProvider()
+
+        val filtered = transactions.filter { t ->
+            t.timestamp in startMillis..endMillis &&
+                (category == null || t.category == category)
+        }
+
+        if (filtered.isNotEmpty()) {
+            val expenses = filtered.filter { it.type == TransactionType.EXPENSE }
+            val income = filtered.filter { it.type == TransactionType.INCOME }
+            val totalExpenses = expenses.sumOf { it.amount }
+            val totalIncome = income.sumOf { it.amount }
+            val days = ((endMillis - startMillis) / (24 * 60 * 60 * 1000.0)).coerceAtLeast(1.0)
+
+            val categoryBreakdown = expenses.groupBy { it.category }
+                .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+            val topMerchants = expenses.filter { it.merchantName.isNotEmpty() }
+                .groupBy { it.merchantName }
+                .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+                .entries.sortedByDescending { it.value }
+                .take(5)
+                .associate { it.key to it.value }
+            val recentLarge = expenses.sortedByDescending { it.amount }.take(5)
+                .map { com.smartexpense.tracker.ai.provider.PromptAdapter.TransactionSummary(it.description, it.amount, it.category) }
+            val budgetLimits = repository.appData.value.budgets.associate { budget ->
+                val catName = repository.appData.value.categories.find { it.id == budget.categoryId }?.name ?: budget.categoryId
+                catName to budget.monthlyLimit
+            }
+
+            // Build day-of-week breakdown
+            val cal = java.util.Calendar.getInstance()
+            val dayNames = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+            val dayOfWeekSpending = mutableMapOf<String, Double>()
+            for (e in expenses) {
+                cal.timeInMillis = e.timestamp
+                val name = dayNames[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]
+                dayOfWeekSpending[name] = (dayOfWeekSpending[name] ?: 0.0) + e.amount
+            }
+
+            val rangeLabel = "${dateFormat.format(Date(startMillis))} – ${dateFormat.format(Date(endMillis))}"
+            val prompt = buildString {
+                appendLine("You are a personal finance analyst. Provide a comprehensive, detailed analysis of the following spending data.")
+                appendLine()
+                appendLine("=== Period: $rangeLabel ===")
+                if (category != null) appendLine("Filtered to category: $category")
+                appendLine("Total transactions: ${filtered.size}")
+                appendLine("Total expenses: $currencyCode ${String.format("%.2f", totalExpenses)}")
+                appendLine("Total income: $currencyCode ${String.format("%.2f", totalIncome)}")
+                appendLine("Net balance: $currencyCode ${String.format("%.2f", totalIncome - totalExpenses)}")
+                appendLine("Average daily spend: $currencyCode ${String.format("%.2f", totalExpenses / days)}")
+                if (totalIncome > 0) {
+                    val savingsRate = ((totalIncome - totalExpenses) / totalIncome * 100)
+                    appendLine("Savings rate: ${String.format("%.1f", savingsRate)}%")
+                }
+
+                if (categoryBreakdown.isNotEmpty() && category == null) {
+                    appendLine()
+                    appendLine("=== Spending by Category ===")
+                    categoryBreakdown.entries.sortedByDescending { it.value }.forEach { (cat, amt) ->
+                        val pct = if (totalExpenses > 0) (amt / totalExpenses * 100) else 0.0
+                        appendLine("- $cat: $currencyCode ${String.format("%.2f", amt)} (${String.format("%.1f", pct)}%)")
+                    }
+                }
+
+                if (recentLarge.isNotEmpty()) {
+                    appendLine()
+                    appendLine("=== Largest Expenses ===")
+                    recentLarge.forEach { tx ->
+                        appendLine("- ${tx.description}: $currencyCode ${String.format("%.2f", tx.amount)} (${tx.category})")
+                    }
+                }
+
+                if (topMerchants.isNotEmpty()) {
+                    appendLine()
+                    appendLine("=== Top Merchants ===")
+                    topMerchants.forEach { (m, amt) ->
+                        appendLine("- $m: $currencyCode ${String.format("%.2f", amt)}")
+                    }
+                }
+
+                if (dayOfWeekSpending.isNotEmpty()) {
+                    appendLine()
+                    appendLine("=== Day-of-Week Spending ===")
+                    dayOfWeekSpending.forEach { (day, amt) ->
+                        appendLine("- $day: $currencyCode ${String.format("%.2f", amt)}")
+                    }
+                }
+
+                if (budgetLimits.isNotEmpty()) {
+                    appendLine()
+                    appendLine("=== Budget Status ===")
+                    budgetLimits.forEach { (cat, limit) ->
+                        val spent = categoryBreakdown[cat] ?: 0.0
+                        val pct = if (limit > 0) (spent / limit * 100) else 0.0
+                        appendLine("- $cat: $currencyCode ${String.format("%.2f", spent)} / $currencyCode ${String.format("%.2f", limit)} (${String.format("%.0f", pct)}% used)")
+                    }
+                }
+
+                appendLine()
+                appendLine("Instructions:")
+                appendLine("1. Start with a brief overview of the financial health for this period.")
+                appendLine("2. Analyze spending patterns across categories and identify concerning trends.")
+                appendLine("3. Highlight unusual or large transactions that deserve attention.")
+                appendLine("4. Provide 3-5 specific, actionable recommendations to improve finances.")
+                appendLine("5. If applicable, comment on day-of-week patterns or merchant concentration.")
+                appendLine("Be specific, reference actual numbers, and keep the tone helpful and concise.")
+            }
+
+            val result = withContext(Dispatchers.IO) {
+                provider.generateAnalysis(
+                    com.smartexpense.tracker.ai.provider.AnalysisInput(
+                        prompt = prompt,
+                        totalExpenses = totalExpenses,
+                        totalIncome = totalIncome,
+                        transactionCount = filtered.size,
+                        currencyCode = currencyCode,
+                        type = com.smartexpense.tracker.ai.provider.AnalysisType.INSIGHT
+                    )
+                )
+            }
+
+            if (result.success && result.text.isNotBlank()) {
+                val analysisText = promptAdapter.parseInsight(result.text)
+                viewModelScope.launch {
+                    repository.addAiConversation(AiConversation(
+                        prompt = userPrompt,
+                        response = analysisText,
+                        aiModelName = provider.displayName()
+                    ))
+                }
+                return analysisText
+            }
+        }
+
+        // Fallback to rule-based engine only if the AI provider returned no result
+        val baseAnalysis = aiEngine.generateAnalysis(
+            transactions, startMillis, endMillis, currencyCode, category
+        )
+        viewModelScope.launch {
+            repository.addAiConversation(AiConversation(
+                prompt = userPrompt,
+                response = baseAnalysis,
+                aiModelName = "Rule-Based Engine"
+            ))
+        }
+        return baseAnalysis
+    }
+
+    // ── AI Conversation History ─────────────────────────────────────
+
+    fun deleteAiConversation(id: String) {
+        viewModelScope.launch { repository.deleteAiConversation(id) }
+    }
+
+    fun clearAllAiConversations() {
+        viewModelScope.launch { repository.clearAllAiConversations() }
     }
 
     fun getWeeklyChartData(): List<Pair<String, Double>> {
@@ -1307,7 +2036,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     BufferedReader(InputStreamReader(it, Charsets.UTF_8)).readText()
                 } ?: throw Exception("Could not read file")
                 repository.importData(json).onSuccess { data ->
-                    _importExportMessage.value = "Imported ${data.transactions.size} transactions"
+                    val parts = mutableListOf<String>()
+                    parts.add("${data.transactions.size} transactions")
+                    if (data.storeLocations.isNotEmpty()) {
+                        parts.add("${data.storeLocations.size} store locations")
+                    }
+                    if (data.ocrSections.isNotEmpty()) {
+                        parts.add("${data.ocrSections.size} receipts")
+                    }
+                    _importExportMessage.value = "Imported ${parts.joinToString(", ")}"
                 }.onFailure { e ->
                     _importExportMessage.value = "Import failed: ${e.message}"
                 }
@@ -1684,5 +2421,7 @@ data class UiState(
     val suggestions: List<AiSuggestion> = emptyList(),
     val transactionCount: Int = 0,
     val lastOcrResult: String? = null,
-    val settings: AppSettings = AppSettings()
+    val settings: AppSettings = AppSettings(),
+    /** Latest AI-generated insight from report enrichment. */
+    val latestAiInsight: String = ""
 )

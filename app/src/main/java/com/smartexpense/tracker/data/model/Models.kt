@@ -50,7 +50,9 @@ data class Transaction(
     /** ISO-4217 code of the original foreign currency (e.g. "USD", "RUB"). Empty = same as app currency. */
     val originalCurrencyCode: String = "",
     /** Exchange rate used at conversion time: 1 [originalCurrencyCode] = [exchangeRate] [currencyCode]. */
-    val exchangeRate: Double = 0.0
+    val exchangeRate: Double = 0.0,
+    /** True when this transaction's category was assigned by an AI model rather than the user or rule-based engine. */
+    val categorizedByAi: Boolean = false
 ) {
     /** Resolved latitude: prefers [location], falls back to legacy [latitude] field. */
     val resolvedLat: Double? get() = location?.lat ?: @Suppress("DEPRECATION") latitude
@@ -220,6 +222,8 @@ data class AppData(
     val ocrSections: List<OcrSection> = emptyList(),
     /** Exchange rates: current (index 0) and previous (index 1). Max 2 entries. */
     val rateHistory: List<RateHistoryEntry> = emptyList(),
+    /** AI prompt/response conversation history. */
+    val aiConversations: List<AiConversation> = emptyList(),
     val settings: AppSettings = AppSettings(),
     val lastUpdated: Long = System.currentTimeMillis()
 )
@@ -247,6 +251,20 @@ enum class AiEnginePreference {
     MEDIAPIPE_LLM,
     /** Ollama – on-device or local-network LLM server. */
     OLLAMA
+}
+
+/**
+ * High-level AI execution mode selection (new tri-mode architecture).
+ */
+enum class AiModePreference(val label: String, val description: String) {
+    /** Automatically select the best available AI engine. */
+    AUTO("Auto (recommended)", "Automatically select the best available engine"),
+    /** Use Android system AI runtimes (AICore, ML Kit GenAI). */
+    SYSTEM_AI("System AI", "Use built-in on-device AI when available"),
+    /** Use a user-installed or downloaded local model. */
+    LOCAL_MODEL("Local model", "Run a downloaded AI model on-device"),
+    /** Use Claude API in the cloud. */
+    CLOUD_AI("Cloud AI", "Use Claude AI via internet connection")
 }
 
 /**
@@ -376,6 +394,20 @@ data class ScheduledExpense(
     val enabled: Boolean = true
 )
 
+/**
+ * A single AI conversation entry: the user's prompt and the AI's response.
+ */
+data class AiConversation(
+    val id: String = UUID.randomUUID().toString(),
+    val prompt: String,
+    val response: String,
+    /** Display name of the AI provider that generated this response. Nullable for GSON backward compat. */
+    val aiModelName: String? = "AI",
+    val timestamp: Long = System.currentTimeMillis(),
+    /** Date string for grouping, e.g. "2026-03-17". */
+    val dateKey: String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(System.currentTimeMillis()))
+)
+
 data class AppSettings(
     /** Legacy single-char symbol kept for backward-compat. Use currencyCode instead. */
     val currency: String = "֏",
@@ -392,6 +424,14 @@ data class AppSettings(
     val localAiEnabled: Boolean = false,
     /** Which on-device AI engine to use. Defaults to AUTO (best available). */
     val aiEnginePreference: AiEnginePreference = AiEnginePreference.AUTO,
+    /** High-level AI execution mode (Cloud / System / Local / Auto). */
+    val aiModePreference: AiModePreference = AiModePreference.AUTO,
+    /** Claude API key for Cloud AI mode. */
+    val claudeApiKey: String = "",
+    /** Active local model ID (from catalog or imported). */
+    val activeLocalModelId: String = "",
+    /** Whether the local AI setup wizard has been completed. */
+    val localAiSetupComplete: Boolean = false,
     /** Path to a MediaPipe-compatible model file (e.g. Gemma .task file). */
     val mediapipeModelPath: String = "",
     /** HuggingFace API token for downloading gated models (e.g. Gemma). */
@@ -458,7 +498,9 @@ data class AppSettings(
     /** How often to auto-refresh exchange rates. */
     val rateUpdateFrequency: RateUpdateFrequency = RateUpdateFrequency.EVERY_HOUR,
     /** Timestamp of the last successful rate fetch (epoch millis). 0 = never. */
-    val lastRateUpdateTimestamp: Long = 0
+    val lastRateUpdateTimestamp: Long = 0,
+    /** Whether the splash/onboarding screen has been shown to the user. */
+    val splashShown: Boolean = false
 )
 
 fun defaultCategories(): List<Category> = listOf(

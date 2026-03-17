@@ -1,8 +1,7 @@
 package com.smartexpense.tracker.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -15,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontFamily
@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.sp
 import com.smartexpense.tracker.data.model.Category
 import com.smartexpense.tracker.ui.theme.*
 import com.smartexpense.tracker.util.CurrencyUtils
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -34,7 +36,9 @@ fun AiAnalyzeScreen(
     categories: List<Category>,
     currencyCode: String,
     onAnalyze: (startMillis: Long, endMillis: Long, category: String?) -> String,
-    onNavigateBack: () -> Unit
+    onAnalyzeAsync: suspend (startMillis: Long, endMillis: Long, category: String?) -> String = { s, e, c -> onAnalyze(s, e, c) },
+    onNavigateBack: () -> Unit,
+    onNavigateToHistory: () -> Unit = {}
 ) {
     val cal = remember { Calendar.getInstance() }
     var startMillis by remember {
@@ -55,6 +59,7 @@ fun AiAnalyzeScreen(
     var showCategoryMenu by remember { mutableStateOf(false) }
 
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.US) }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -74,6 +79,11 @@ fun AiAnalyzeScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onNavigateToHistory) {
+                        Icon(Icons.Filled.Forum, contentDescription = "Chat History")
                     }
                 }
             )
@@ -220,24 +230,53 @@ fun AiAnalyzeScreen(
             // ── Analyze Button ───────────────────────────────────
             Button(
                 onClick = {
-                    isAnalyzing = true
-                    analysisResult = onAnalyze(startMillis, endMillis, selectedCategory)
-                    isAnalyzing = false
+                    if (!isAnalyzing) {
+                        isAnalyzing = true
+                        analysisResult = null
+                        scope.launch {
+                            try {
+                                analysisResult = onAnalyzeAsync(startMillis, endMillis, selectedCategory)
+                            } finally {
+                                isAnalyzing = false
+                            }
+                        }
+                    }
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary)
+                colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                enabled = !isAnalyzing
             ) {
-                Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                if (isAnalyzing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                }
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Analyze Transactions", fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (isAnalyzing) "Analyzing..." else "Analyze Transactions",
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            // ── Loading Progress Card ────────────────────────────
+            AnimatedVisibility(
+                visible = isAnalyzing,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                AnalysisProgressCard()
             }
 
             // ── Analysis Result ──────────────────────────────────
             AnimatedVisibility(
-                visible = analysisResult != null,
-                enter = fadeIn(),
-                exit = fadeOut()
+                visible = analysisResult != null && !isAnalyzing,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
             ) {
                 analysisResult?.let { result ->
                     AnalysisResultCard(result)
@@ -289,6 +328,125 @@ private fun QuickRangeChip(label: String, onClick: () -> Unit) {
         shape = RoundedCornerShape(8.dp),
         border = null
     )
+}
+
+@Composable
+private fun AnalysisProgressCard() {
+    val steps = listOf(
+        "Gathering transactions..." to Icons.Filled.Receipt,
+        "Analyzing spending patterns..." to Icons.Filled.TrendingUp,
+        "Generating insights..." to Icons.Filled.AutoAwesome
+    )
+
+    var currentStep by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(Unit) {
+        currentStep = 0
+        delay(1500)
+        currentStep = 1
+        delay(2000)
+        currentStep = 2
+    }
+
+    val pulseAlpha by rememberInfiniteTransition(label = "pulse").animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = EaseInOut),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseAlpha"
+    )
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Header with animated spinner
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(22.dp),
+                    strokeWidth = 2.5.dp,
+                    color = GreenPrimary
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    "AI is analyzing your data",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+            }
+
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp)),
+                color = GreenPrimary,
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            )
+
+            // Progress steps
+            steps.forEachIndexed { index, (label, icon) ->
+                val isActive = index == currentStep
+                val isDone = index < currentStep
+                val alpha = when {
+                    isDone -> 1f
+                    isActive -> pulseAlpha
+                    else -> 0.35f
+                }
+
+                Row(
+                    modifier = Modifier.alpha(alpha),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                if (isDone) GreenPrimary
+                                else if (isActive) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceContainerHigh
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isDone) {
+                            Icon(
+                                Icons.Filled.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = androidx.compose.ui.graphics.Color.White
+                            )
+                        } else {
+                            Icon(
+                                icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (isActive) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        label,
+                        fontSize = 13.sp,
+                        fontWeight = if (isActive) FontWeight.Medium else FontWeight.Normal,
+                        color = if (isDone || isActive) MaterialTheme.colorScheme.onSurface
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable

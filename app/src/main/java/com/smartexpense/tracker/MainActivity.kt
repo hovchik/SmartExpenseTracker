@@ -31,8 +31,16 @@ class MainActivity : ComponentActivity() {
         setContent {
             val viewModel: MainViewModel = viewModel()
             val themeMode by viewModel.themeMode.collectAsState()
+            val uiState by viewModel.uiState.collectAsState()
+            val splashShown = uiState.settings.splashShown
             SmartExpenseTheme(themeMode = themeMode) {
-                MainApp(viewModel = viewModel, activity = this@MainActivity)
+                if (!splashShown) {
+                    SplashScreen(onGetStarted = {
+                        viewModel.updateSettings(uiState.settings.copy(splashShown = true))
+                    })
+                } else {
+                    MainApp(viewModel = viewModel, activity = this@MainActivity)
+                }
             }
         }
     }
@@ -50,22 +58,29 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     val exchangeRates by viewModel.exchangeRates.collectAsState()
     val inAppNotifications by viewModel.inAppNotifications.collectAsState()
     val unreadCount by viewModel.unreadNotificationCount.collectAsState()
-    val localAiStatus by viewModel.localAiStatus.collectAsState()
-    val localAiSuggestion by viewModel.localAiSuggestion.collectAsState()
     val discoveredBankingApps by viewModel.discoveredBankingApps.collectAsState()
     val isScanningBankingApps by viewModel.isScanningBankingApps.collectAsState()
     val allInstalledApps by viewModel.allInstalledApps.collectAsState()
     val ocrParsedData by viewModel.ocrParsedData.collectAsState()
     val ocrSections by viewModel.ocrSections.collectAsState()
-    val engineDescriptions by viewModel.engineDescriptions.collectAsState()
-    val discoveredModels by viewModel.discoveredModels.collectAsState()
-    val isLoadingModel by viewModel.isLoadingModel.collectAsState()
-    val isDownloadingModel by viewModel.isDownloadingModel.collectAsState()
-    val downloadProgress by viewModel.downloadProgress.collectAsState()
-    val downloadError by viewModel.downloadError.collectAsState()
-    val modelImportMessage by viewModel.modelImportMessage.collectAsState()
-    val ollamaModels by viewModel.ollamaModels.collectAsState()
-    val ollamaConnecting by viewModel.ollamaConnecting.collectAsState()
+    // Legacy AI engine state removed — using tri-mode AI below
+    // Tri-mode AI state
+    val aiModeStatus by viewModel.aiModeStatus.collectAsState()
+    val aiPrivacyMessage by viewModel.aiPrivacyMessage.collectAsState()
+    val deviceCapability by viewModel.deviceCapability.collectAsState()
+    val isScanningDevice by viewModel.isScanning.collectAsState()
+    val catalogModels by viewModel.catalogModels.collectAsState()
+    val modelDownloadState by viewModel.modelDownloadState.collectAsState()
+    val benchmarkResult by viewModel.benchmarkResult.collectAsState()
+    val isRunningBenchmark by viewModel.isRunningBenchmark.collectAsState()
+    val installedModelName by viewModel.installedModelName.collectAsState()
+    val modelStorageUsageMb by viewModel.modelStorageUsageMb.collectAsState()
+    val activeModelId by viewModel.activeModelId.collectAsState()
+    val wizardImportMessage by viewModel.wizardImportMessage.collectAsState()
+    val hasHuggingFaceToken by viewModel.hasHuggingFaceToken.collectAsState()
+    val huggingFaceUsername by viewModel.huggingFaceUsername.collectAsState()
+    val tokenValidationError by viewModel.tokenValidationError.collectAsState()
+    val aiConversations by viewModel.aiConversations.collectAsState()
     val dashboardSectionOrder by viewModel.dashboardSectionOrder.collectAsState()
     val storeLocations by viewModel.storeLocations.collectAsState()
     val isSubscribed by viewModel.isSubscribed.collectAsState()
@@ -95,15 +110,17 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     // are handled explicitly in the when-branch below.
     BackHandler(enabled = currentScreen != "dashboard") {
         when (currentScreen) {
-            "sms_scan"      -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
-            "store_map"     -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
-            "ocr_sections"  -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
-            else            -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+            "sms_scan"         -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
+            "store_map"        -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+            "ocr_sections"     -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+            "local_ai_setup"   -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
+            "ai_chat_history"  -> { currentScreen = "ai_analyze" }
+            else               -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
         }
     }
 
     // Hide the top bar on full-screen sub-screens (they have their own top bar)
-    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ocr_sections")
+    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup")
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -156,7 +173,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
             }
         },
         bottomBar = {
-            if (currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ocr_sections")) {
+            if (currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup")) {
                 NavigationBar(tonalElevation = 2.dp) {
                     // Home
                     NavigationBarItem(
@@ -308,7 +325,15 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         categories = uiState.categories,
                         currencyCode = currencyCode,
                         onAnalyze = { start, end, cat -> viewModel.analyzeTransactions(start, end, cat) },
-                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
+                        onAnalyzeAsync = { start, end, cat -> viewModel.analyzeTransactionsAsync(start, end, cat) },
+                        onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) },
+                        onNavigateToHistory = { currentScreen = "ai_chat_history" }
+                    )
+                    "ai_chat_history" -> AiChatHistoryScreen(
+                        conversations = aiConversations,
+                        onDeleteConversation = { viewModel.deleteAiConversation(it) },
+                        onClearAll = { viewModel.clearAllAiConversations() },
+                        onNavigateBack = { currentScreen = "ai_analyze" }
                     )
                     "settings" -> SettingsScreen(
                         settings = uiState.settings,
@@ -330,9 +355,6 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         onScanSms = { currentScreen = "sms_scan" },
                         exchangeRates = exchangeRates,
                         onFetchRates = { viewModel.fetchExchangeRates() },
-                        localAiStatus = localAiStatus,
-                        localAiSuggestion = localAiSuggestion,
-                        onCheckLocalAi = { viewModel.checkLocalAiAvailability() },
                         categories = uiState.categories,
                         onAddCategory = { name -> viewModel.addCategory(name) },
                         onDeleteCategory = { id -> viewModel.deleteCategory(id) },
@@ -353,26 +375,52 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         onUpdateScanKeywords = { keywords -> viewModel.updateScanKeywords(keywords) },
                         onUpdateIncomeKeywords = { keywords -> viewModel.updateIncomeKeywords(keywords) },
                         onUpdateExpenseKeywords = { keywords -> viewModel.updateExpenseKeywords(keywords) },
-                        engineDescriptions = engineDescriptions,
-                        onSetAiEngine = { pref -> viewModel.setAiEnginePreference(pref) },
-                        discoveredModels = discoveredModels,
-                        onDiscoverModels = { viewModel.discoverModels() },
-                        onLoadModel = { path -> viewModel.loadMediaPipeModel(path) },
-                        isLoadingModel = isLoadingModel,
-                        modelCatalog = viewModel.modelCatalog,
-                        onDownloadCatalogModel = { model -> viewModel.downloadCatalogModel(model) },
-                        onDeleteCatalogModel = { model -> viewModel.deleteCatalogModel(model) },
-                        isModelDownloaded = { model -> viewModel.isModelDownloaded(model) },
-                        isDownloadingModel = isDownloadingModel,
-                        downloadProgress = downloadProgress,
-                        downloadError = downloadError,
-                        onImportModelFile = { uri -> viewModel.importModelFile(uri) },
-                        modelImportMessage = modelImportMessage,
-                        isGalleryInstalled = viewModel.isGalleryInstalled(),
-                        ollamaModels = ollamaModels,
-                        ollamaConnecting = ollamaConnecting,
-                        onConnectOllama = { host -> viewModel.connectOllama(host) },
-                        onSelectOllamaModel = { name -> viewModel.selectOllamaModel(name) }
+                        // Tri-mode AI
+                        onSetAiMode = { mode -> viewModel.setAiMode(mode) },
+                        onOpenLocalAiSetup = { currentScreen = "local_ai_setup" },
+                        aiModeStatus = aiModeStatus,
+                        aiPrivacyMessage = aiPrivacyMessage,
+                        installedModelName = installedModelName,
+                        modelStorageUsageMb = modelStorageUsageMb,
+                        catalogModels = catalogModels,
+                        activeModelId = activeModelId,
+                        onSetActiveModel = { model -> viewModel.setActiveLocalModel(model) },
+                        onDeleteModel = { model -> viewModel.deleteLocalModel(model) },
+                        hasHuggingFaceToken = hasHuggingFaceToken,
+                        huggingFaceUsername = huggingFaceUsername,
+                        onSaveHuggingFaceToken = { token -> viewModel.saveHuggingFaceToken(token) },
+                        onRemoveHuggingFaceToken = { viewModel.removeHuggingFaceToken() },
+                        tokenValidationError = tokenValidationError
+                    )
+                    "local_ai_setup" -> com.smartexpense.tracker.ai.setupwizard.LocalAiSetupWizardScreen(
+                        capability = deviceCapability,
+                        isScanning = isScanningDevice,
+                        catalogModels = catalogModels,
+                        downloadState = modelDownloadState,
+                        benchmarkResult = benchmarkResult,
+                        isRunningBenchmark = isRunningBenchmark,
+                        importMessage = wizardImportMessage,
+                        activeProviderName = aiModeStatus ?: "Initializing...",
+                        hasHuggingFaceToken = hasHuggingFaceToken,
+                        huggingFaceUsername = huggingFaceUsername,
+                        onScanDevice = { viewModel.scanDeviceCapabilities() },
+                        onSelectMode = { mode -> viewModel.setAiMode(mode) },
+                        onDownloadModel = { model -> viewModel.downloadCatalogModelNew(model) },
+                        onSaveHuggingFaceToken = { token -> viewModel.saveHuggingFaceToken(token) },
+                        onCancelDownload = { viewModel.cancelModelDownload() },
+                        onImportModel = { /* SAF file picker would go here */ },
+                        onRunBenchmark = { viewModel.runBenchmark() },
+                        onFinish = {
+                            viewModel.updateSettings(
+                                uiState.settings.copy(localAiSetupComplete = true)
+                            )
+                            currentScreen = "settings"
+                            viewModel.setSelectedTab(3)
+                        },
+                        onBack = {
+                            currentScreen = "settings"
+                            viewModel.setSelectedTab(3)
+                        }
                     )
                 }
             }

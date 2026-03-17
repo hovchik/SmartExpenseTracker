@@ -407,6 +407,34 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         storage.saveData(updated)
     }
 
+    // ─── AI Conversations ──────────────────────────────────────────
+
+    suspend fun addAiConversation(conversation: AiConversation) {
+        val current = _appData.value
+        // Keep at most 200 conversations to avoid unbounded growth
+        val updated = current.copy(
+            aiConversations = (listOf(conversation) + current.aiConversations).take(200)
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    suspend fun deleteAiConversation(id: String) {
+        val current = _appData.value
+        val updated = current.copy(
+            aiConversations = current.aiConversations.filter { it.id != id }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    suspend fun clearAllAiConversations() {
+        val current = _appData.value
+        val updated = current.copy(aiConversations = emptyList())
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
     // ─── Export/Import ─────────────────────────────────────────────
 
     suspend fun exportData(): String = storage.exportData()
