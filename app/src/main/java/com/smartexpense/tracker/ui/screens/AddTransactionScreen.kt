@@ -505,8 +505,8 @@ fun AddTransactionScreen(
                     // Save OCR items to goods sections when items are present and it's not a terminal receipt
                     if (showItemsSection && editableItems.isNotEmpty() && ocrParsedData?.isTerminalReceipt != true) {
                         val finalItems = editableItems
-                            .filter { it.second.isNotBlank() }
-                            .map { it.second to (it.third.toDoubleOrNull() ?: 0.0) }
+                            .filter { it.second.isNotBlank() && it.third.toDoubleOrNull() != null }
+                            .map { it.second to it.third.toDouble() }
                         if (finalItems.isNotEmpty()) {
                             onSaveItems?.invoke(finalItems, merchantName.ifBlank { description }, amountVal)
                         }

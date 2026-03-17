@@ -582,11 +582,13 @@ fun ScanReceiptScreen(
                             onClick = {
                                 val amt = editAmount.toDoubleOrNull()
                                 if (amt != null && amt > 0) {
+                                    // Drop items with blank names or unparseable prices
                                     val finalItems = editableItems
-                                        .filter { it.second.isNotBlank() }
-                                        .map { it.second to (it.third.toDoubleOrNull() ?: 0.0) }
+                                        .filter { it.second.isNotBlank() && it.third.toDoubleOrNull() != null }
+                                        .map { it.second to it.third.toDouble() }
                                     onConfirmOcr(amt, editMerchant, editCategory, finalItems)
-                                    Toast.makeText(context, "Expense saved", Toast.LENGTH_SHORT).show()
+                                    // Toast is intentionally not shown here; the ViewModel
+                                    // saves asynchronously and the result card reports success.
                                 }
                             },
                             modifier = Modifier.weight(1f).height(46.dp),
@@ -607,15 +609,15 @@ fun ScanReceiptScreen(
                             onClick = {
                                 val amt = editAmount.toDoubleOrNull() ?: 0.0
                                 val finalItems = editableItems
-                                    .filter { it.second.isNotBlank() }
-                                    .map { it.second to (it.third.toDoubleOrNull() ?: 0.0) }
+                                    .filter { it.second.isNotBlank() && it.third.toDoubleOrNull() != null }
+                                    .map { it.second to it.third.toDouble() }
                                 onSaveToSection(
                                     editMerchant,
                                     editMerchant,
                                     finalItems,
                                     amt,
                                     ocrParsedData.rawOcrText,
-                                    "" // detectedLanguages filled by caller
+                                    ocrParsedData.detectedCurrencyCode
                                 )
                                 onClearOcr()
                                 Toast.makeText(context, "Saved to Sections", Toast.LENGTH_SHORT).show()

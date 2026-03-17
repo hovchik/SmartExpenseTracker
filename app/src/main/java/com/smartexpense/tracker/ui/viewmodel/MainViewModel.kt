@@ -1318,9 +1318,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     ?: if (ocrText.isNotBlank()) aiEngine.parseReceiptText(ocrText, appCurrencyCode) else null
                 val ocrAmount = (ocrParsed?.totalAmount ?: ocrParsed?.items?.sumOf { it.second }) ?: 0.0
 
-                // Use detected currency from receipt text, fallback to app default
-                val detectedCurrency = ocrParsed?.detectedCurrencyCode ?: appCurrencyCode
-                val currencySymbol = currencyInfoFor(detectedCurrency).symbol
+                // Use detected currency from receipt text, fallback to app default.
+                // Track whether OCR actually detected a currency vs. using the app default.
+                val ocrDetectedCurrency = ocrParsed?.detectedCurrencyCode?.takeIf { it.isNotBlank() }
+                val effectiveCurrency = ocrDetectedCurrency ?: appCurrencyCode
+                val currencySymbol = currencyInfoFor(effectiveCurrency).symbol
 
                 val qrParsed = if (!qrData.isNullOrBlank()) aiEngine.parseQrCodeString(qrData) else null
                 val qrAmount = qrParsed?.totalAmount ?: 0.0
@@ -1365,7 +1367,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         fromQr = fromQr,
                         rawOcrText = ocrText,
                         currencySymbol = currencySymbol,
-                        detectedCurrencyCode = detectedCurrency,
+                        // Only set detectedCurrencyCode when OCR actually found a currency
+                        // in the receipt text; empty means "app default was used".
+                        detectedCurrencyCode = ocrDetectedCurrency ?: "",
                         isTerminalReceipt = parsed.isTerminalReceipt,
                         aiSuggestion = aiResult?.aiSuggestion
                     )
