@@ -1360,6 +1360,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Saves the user-reviewed OCR transaction after edits.
+     * Also automatically saves items to OCR sections when the receipt contains goods,
+     * so both the expense and the itemized goods list are persisted in one step.
      */
     fun confirmOcrTransaction(amount: Double, merchantName: String, category: String) {
         viewModelScope.launch {
@@ -1419,10 +1421,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 ))
                 autoCreateStoreIfNeeded(merchantName, geoLoc)
 
+                // Auto-save items to OCR sections when goods are present
+                // (not terminal receipts — those are payment slips with no goods)
+                if (items.isNotEmpty() && data?.isTerminalReceipt != true) {
+                    val ocrItems = items.map { (name, price) ->
+                        val catResult = smartCategorize(name)
+                        OcrItem(name = name, price = price, category = catResult.category)
+                    }
+                    val section = OcrSection(
+                        label = merchantName,
+                        merchantName = merchantName,
+                        currencyCode = currencyCode,
+                        items = ocrItems,
+                        totalAmount = amount,
+                        detectedLanguages = "",
+                        rawOcrText = data?.rawOcrText ?: "",
+                        notes = ""
+                    )
+                    repository.addOcrSection(section)
+                    Log.d("OCR", "Auto-saved ${items.size} items to sections for $merchantName")
+                }
+
                 val resultMsg = buildString {
                     append("Found: $merchantName — $currencySymbol${String.format("%.2f", amount)}")
                     if (category.isNotEmpty()) append(" · $category")
                     if (fromQr) append(" (from QR)")
+                    if (items.isNotEmpty() && data?.isTerminalReceipt != true) {
+                        append(" · ${items.size} items saved to sections")
+                    }
                 }
                 _uiState.value = _uiState.value.copy(lastOcrResult = resultMsg)
                 _ocrParsedData.value = null
