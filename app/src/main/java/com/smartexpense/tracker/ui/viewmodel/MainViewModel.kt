@@ -1631,21 +1631,171 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun analyzeTransactions(startMillis: Long, endMillis: Long, category: String?): String {
         val currencyCode = repository.appData.value.settings.currencyCode
-        val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.US)
-        val prompt = buildString {
-            append("Analyze transactions from ${dateFormat.format(Date(startMillis))} to ${dateFormat.format(Date(endMillis))}")
-            if (category != null) append(" in category \"$category\"")
-        }
-        val baseAnalysis = aiEngine.generateAnalysis(
+        return aiEngine.generateAnalysis(
             transactionsInDisplayCurrency(currencyCode),
             startMillis, endMillis, currencyCode, category
         )
-        // Save to conversation history
+    }
+
+    /**
+     * Async version of analyzeTransactions that sends data to the active AI provider
+     * for richer, natural-language analysis. Falls back to the rule-based engine if
+     * the AI provider is unavailable or fails.
+     */
+    suspend fun analyzeTransactionsAsync(startMillis: Long, endMillis: Long, category: String?): String {
+        val currencyCode = repository.appData.value.settings.currencyCode
+        val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.US)
+        val transactions = transactionsInDisplayCurrency(currencyCode)
+        val userPrompt = buildString {
+            append("Analyze transactions from ${dateFormat.format(Date(startMillis))} to ${dateFormat.format(Date(endMillis))}")
+            if (category != null) append(" in category \"$category\"")
+        }
+
+        // Try AI provider first
+        val provider = aiProviderSelector.getActiveProvider()
+        if (provider.isAvailable()) {
+            val filtered = transactions.filter { t ->
+                t.timestamp in startMillis..endMillis &&
+                    (category == null || t.category == category)
+            }
+
+            if (filtered.isNotEmpty()) {
+                val expenses = filtered.filter { it.type == TransactionType.EXPENSE }
+                val income = filtered.filter { it.type == TransactionType.INCOME }
+                val totalExpenses = expenses.sumOf { it.amount }
+                val totalIncome = income.sumOf { it.amount }
+                val days = ((endMillis - startMillis) / (24 * 60 * 60 * 1000.0)).coerceAtLeast(1.0)
+
+                val categoryBreakdown = expenses.groupBy { it.category }
+                    .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+                val topMerchants = expenses.filter { it.merchantName.isNotEmpty() }
+                    .groupBy { it.merchantName }
+                    .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+                    .entries.sortedByDescending { it.value }
+                    .take(5)
+                    .associate { it.key to it.value }
+                val recentLarge = expenses.sortedByDescending { it.amount }.take(5)
+                    .map { com.smartexpense.tracker.ai.provider.PromptAdapter.TransactionSummary(it.description, it.amount, it.category) }
+                val budgetLimits = repository.appData.value.budgets.associate { budget ->
+                    val catName = repository.appData.value.categories.find { it.id == budget.categoryId }?.name ?: budget.categoryId
+                    catName to budget.monthlyLimit
+                }
+
+                // Build day-of-week breakdown
+                val cal = java.util.Calendar.getInstance()
+                val dayNames = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+                val dayOfWeekSpending = mutableMapOf<String, Double>()
+                for (e in expenses) {
+                    cal.timeInMillis = e.timestamp
+                    val name = dayNames[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]
+                    dayOfWeekSpending[name] = (dayOfWeekSpending[name] ?: 0.0) + e.amount
+                }
+
+                val rangeLabel = "${dateFormat.format(Date(startMillis))} – ${dateFormat.format(Date(endMillis))}"
+                val prompt = buildString {
+                    appendLine("You are a personal finance analyst. Provide a comprehensive, detailed analysis of the following spending data.")
+                    appendLine()
+                    appendLine("=== Period: $rangeLabel ===")
+                    if (category != null) appendLine("Filtered to category: $category")
+                    appendLine("Total transactions: ${filtered.size}")
+                    appendLine("Total expenses: $currencyCode ${String.format("%.2f", totalExpenses)}")
+                    appendLine("Total income: $currencyCode ${String.format("%.2f", totalIncome)}")
+                    appendLine("Net balance: $currencyCode ${String.format("%.2f", totalIncome - totalExpenses)}")
+                    appendLine("Average daily spend: $currencyCode ${String.format("%.2f", totalExpenses / days)}")
+                    if (totalIncome > 0) {
+                        val savingsRate = ((totalIncome - totalExpenses) / totalIncome * 100)
+                        appendLine("Savings rate: ${String.format("%.1f", savingsRate)}%")
+                    }
+
+                    if (categoryBreakdown.isNotEmpty() && category == null) {
+                        appendLine()
+                        appendLine("=== Spending by Category ===")
+                        categoryBreakdown.entries.sortedByDescending { it.value }.forEach { (cat, amt) ->
+                            val pct = if (totalExpenses > 0) (amt / totalExpenses * 100) else 0.0
+                            appendLine("- $cat: $currencyCode ${String.format("%.2f", amt)} (${String.format("%.1f", pct)}%)")
+                        }
+                    }
+
+                    if (recentLarge.isNotEmpty()) {
+                        appendLine()
+                        appendLine("=== Largest Expenses ===")
+                        recentLarge.forEach { tx ->
+                            appendLine("- ${tx.description}: $currencyCode ${String.format("%.2f", tx.amount)} (${tx.category})")
+                        }
+                    }
+
+                    if (topMerchants.isNotEmpty()) {
+                        appendLine()
+                        appendLine("=== Top Merchants ===")
+                        topMerchants.forEach { (m, amt) ->
+                            appendLine("- $m: $currencyCode ${String.format("%.2f", amt)}")
+                        }
+                    }
+
+                    if (dayOfWeekSpending.isNotEmpty()) {
+                        appendLine()
+                        appendLine("=== Day-of-Week Spending ===")
+                        dayOfWeekSpending.forEach { (day, amt) ->
+                            appendLine("- $day: $currencyCode ${String.format("%.2f", amt)}")
+                        }
+                    }
+
+                    if (budgetLimits.isNotEmpty()) {
+                        appendLine()
+                        appendLine("=== Budget Status ===")
+                        budgetLimits.forEach { (cat, limit) ->
+                            val spent = categoryBreakdown[cat] ?: 0.0
+                            val pct = if (limit > 0) (spent / limit * 100) else 0.0
+                            appendLine("- $cat: $currencyCode ${String.format("%.2f", spent)} / $currencyCode ${String.format("%.2f", limit)} (${String.format("%.0f", pct)}% used)")
+                        }
+                    }
+
+                    appendLine()
+                    appendLine("Instructions:")
+                    appendLine("1. Start with a brief overview of the financial health for this period.")
+                    appendLine("2. Analyze spending patterns across categories and identify concerning trends.")
+                    appendLine("3. Highlight unusual or large transactions that deserve attention.")
+                    appendLine("4. Provide 3-5 specific, actionable recommendations to improve finances.")
+                    appendLine("5. If applicable, comment on day-of-week patterns or merchant concentration.")
+                    appendLine("Be specific, reference actual numbers, and keep the tone helpful and concise.")
+                }
+
+                val result = withContext(Dispatchers.IO) {
+                    provider.generateAnalysis(
+                        com.smartexpense.tracker.ai.provider.AnalysisInput(
+                            prompt = prompt,
+                            totalExpenses = totalExpenses,
+                            totalIncome = totalIncome,
+                            transactionCount = filtered.size,
+                            currencyCode = currencyCode,
+                            type = com.smartexpense.tracker.ai.provider.AnalysisType.INSIGHT
+                        )
+                    )
+                }
+
+                if (result.success && result.text.isNotBlank()) {
+                    val analysisText = promptAdapter.parseInsight(result.text)
+                    viewModelScope.launch {
+                        repository.addAiConversation(AiConversation(
+                            prompt = userPrompt,
+                            response = analysisText,
+                            aiModelName = provider.displayName()
+                        ))
+                    }
+                    return analysisText
+                }
+            }
+        }
+
+        // Fallback to rule-based engine
+        val baseAnalysis = aiEngine.generateAnalysis(
+            transactions, startMillis, endMillis, currencyCode, category
+        )
         viewModelScope.launch {
             repository.addAiConversation(AiConversation(
-                prompt = prompt,
+                prompt = userPrompt,
                 response = baseAnalysis,
-                aiModelName = aiProviderSelector.getActiveProvider().displayName()
+                aiModelName = "Rule-Based Engine"
             ))
         }
         return baseAnalysis

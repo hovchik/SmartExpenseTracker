@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.smartexpense.tracker.data.model.Category
 import com.smartexpense.tracker.ui.theme.*
 import com.smartexpense.tracker.util.CurrencyUtils
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -34,6 +35,7 @@ fun AiAnalyzeScreen(
     categories: List<Category>,
     currencyCode: String,
     onAnalyze: (startMillis: Long, endMillis: Long, category: String?) -> String,
+    onAnalyzeAsync: suspend (startMillis: Long, endMillis: Long, category: String?) -> String = { s, e, c -> onAnalyze(s, e, c) },
     onNavigateBack: () -> Unit,
     onNavigateToHistory: () -> Unit = {}
 ) {
@@ -56,6 +58,7 @@ fun AiAnalyzeScreen(
     var showCategoryMenu by remember { mutableStateOf(false) }
 
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.US) }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -226,17 +229,37 @@ fun AiAnalyzeScreen(
             // ── Analyze Button ───────────────────────────────────
             Button(
                 onClick = {
-                    isAnalyzing = true
-                    analysisResult = onAnalyze(startMillis, endMillis, selectedCategory)
-                    isAnalyzing = false
+                    if (!isAnalyzing) {
+                        isAnalyzing = true
+                        analysisResult = null
+                        scope.launch {
+                            try {
+                                analysisResult = onAnalyzeAsync(startMillis, endMillis, selectedCategory)
+                            } finally {
+                                isAnalyzing = false
+                            }
+                        }
+                    }
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary)
+                colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                enabled = !isAnalyzing
             ) {
-                Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                if (isAnalyzing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                }
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Analyze Transactions", fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (isAnalyzing) "Analyzing..." else "Analyze Transactions",
+                    fontWeight = FontWeight.SemiBold
+                )
             }
 
             // ── Analysis Result ──────────────────────────────────

@@ -325,6 +325,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         categories = uiState.categories,
                         currencyCode = currencyCode,
                         onAnalyze = { start, end, cat -> viewModel.analyzeTransactions(start, end, cat) },
+                        onAnalyzeAsync = { start, end, cat -> viewModel.analyzeTransactionsAsync(start, end, cat) },
                         onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) },
                         onNavigateToHistory = { currentScreen = "ai_chat_history" }
                     )
