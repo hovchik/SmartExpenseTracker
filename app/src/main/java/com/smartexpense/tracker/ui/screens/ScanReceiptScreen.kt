@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicInteger
 @Composable
 fun ScanReceiptScreen(
     onOcrResult: (ocrText: String, qrData: String?) -> Unit,
-    onConfirmOcr: (amount: Double, merchantName: String, category: String) -> Unit,
+    onConfirmOcr: (amount: Double, merchantName: String, category: String, items: List<Pair<String, Double>>) -> Unit,
     onClearOcr: () -> Unit,
     onSaveToSection: (label: String, merchantName: String, items: List<Pair<String, Double>>, totalAmount: Double, rawOcrText: String, detectedLanguages: String) -> Unit,
     ocrParsedData: com.smartexpense.tracker.ui.viewmodel.OcrParsedData?,
@@ -580,7 +580,11 @@ fun ScanReceiptScreen(
                             onClick = {
                                 val amt = editAmount.toDoubleOrNull()
                                 if (amt != null && amt > 0) {
-                                    onConfirmOcr(amt, editMerchant, editCategory)
+                                    val finalItems = editableItems
+                                        .filter { it.second.isNotBlank() }
+                                        .map { it.second to (it.third.toDoubleOrNull() ?: 0.0) }
+                                    onConfirmOcr(amt, editMerchant, editCategory, finalItems)
+                                    Toast.makeText(context, "Expense saved", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             modifier = Modifier.weight(1f).height(46.dp),
@@ -589,7 +593,7 @@ fun ScanReceiptScreen(
                         ) {
                             Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Save", fontWeight = FontWeight.SemiBold)
+                            Text("Save Expense", fontWeight = FontWeight.SemiBold)
                         }
                     }
 

@@ -1389,7 +1389,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Also automatically saves items to OCR sections when the receipt contains goods,
      * so both the expense and the itemized goods list are persisted in one step.
      */
-    fun confirmOcrTransaction(amount: Double, merchantName: String, category: String) {
+    fun confirmOcrTransaction(
+        amount: Double,
+        merchantName: String,
+        category: String,
+        editedItems: List<Pair<String, Double>> = emptyList()
+    ) {
         viewModelScope.launch {
             try {
                 val settings = repository.appData.value.settings
@@ -1398,7 +1403,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val currencyCode = data?.detectedCurrencyCode?.takeIf { it.isNotBlank() } ?: settings.currencyCode
                 val currencySymbol = currencyInfoFor(currencyCode).symbol
 
-                val items = data?.items ?: emptyList()
+                // Use user-edited items if provided, fall back to original parsed items
+                val items = editedItems.ifEmpty { data?.items ?: emptyList() }
                 val fromQr = data?.fromQr ?: false
 
                 val itemsNote = if (items.isNotEmpty())
