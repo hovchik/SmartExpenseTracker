@@ -37,14 +37,9 @@ class LocalAiBenchmarkRunner {
 
     /**
      * Runs a benchmark against the given AI provider.
-     * Returns null if the provider is not available.
+     * Sends real prompts and measures actual inference latency.
      */
-    suspend fun runBenchmark(provider: AiProvider): BenchmarkResult? = withContext(Dispatchers.IO) {
-        if (!provider.isAvailable()) {
-            Log.w(TAG, "Provider not available: ${provider.displayName()}")
-            return@withContext null
-        }
-
+    suspend fun runBenchmark(provider: AiProvider): BenchmarkResult = withContext(Dispatchers.IO) {
         Log.i(TAG, "Starting benchmark for: ${provider.displayName()}")
 
         val runtime = Runtime.getRuntime()

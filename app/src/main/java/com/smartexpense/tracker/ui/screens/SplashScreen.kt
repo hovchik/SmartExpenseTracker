@@ -1,5 +1,7 @@
 package com.smartexpense.tracker.ui.screens
 
+import android.Manifest
+import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -27,6 +29,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -35,7 +40,7 @@ private const val PAGE_COUNT = 4
 /**
  * Multi-page onboarding screen shown on first launch.
  * Page 1: App info & key features
- * Page 2: Permissions explanation
+ * Page 2: Permissions (with grant buttons)
  * Page 3: AI model choice
  * Page 4: Ready to go
  */
@@ -254,9 +259,21 @@ private fun AppInfoPage(visible: Boolean) {
 
 // ── Page 2: Permissions ─────────────────────────────────────────────
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 private fun PermissionsPage(visible: Boolean) {
     val onPrimary = MaterialTheme.colorScheme.onPrimary
+
+    val cameraPermission = rememberPermissionState(Manifest.permission.CAMERA)
+    val smsPermission = rememberPermissionState(Manifest.permission.READ_SMS)
+    val locationPermission = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
+
+    // POST_NOTIFICATIONS only exists on API 33+
+    val notificationPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        rememberPermissionState(Manifest.permission.POST_NOTIFICATIONS)
+    } else {
+        null
+    }
 
     Column(
         modifier = Modifier
@@ -290,7 +307,7 @@ private fun PermissionsPage(visible: Boolean) {
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            "We request permissions only when needed.\nThe app works without them.",
+            "Grant permissions to unlock full functionality.\nThe app works without them.",
             style = MaterialTheme.typography.bodyMedium,
             color = onPrimary.copy(alpha = 0.75f),
             textAlign = TextAlign.Center
@@ -311,24 +328,41 @@ private fun PermissionsPage(visible: Boolean) {
                 elevation = CardDefaults.cardElevation(4.dp)
             ) {
                 Column(modifier = Modifier.padding(24.dp)) {
-                    PermissionRow(Icons.Filled.CameraAlt, "Camera",
-                        "Scan receipts and capture expense documents")
+                    PermissionGrantRow(
+                        icon = Icons.Filled.CameraAlt,
+                        name = "Camera",
+                        reason = "Scan receipts and capture expense documents",
+                        isGranted = cameraPermission.status.isGranted,
+                        onGrant = { cameraPermission.launchPermissionRequest() }
+                    )
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    PermissionRow(Icons.Filled.Sms, "SMS",
-                        "Read banking messages to auto-detect transactions")
+                    PermissionGrantRow(
+                        icon = Icons.Filled.Sms,
+                        name = "SMS",
+                        reason = "Read banking messages to auto-detect transactions",
+                        isGranted = smsPermission.status.isGranted,
+                        onGrant = { smsPermission.launchPermissionRequest() }
+                    )
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    PermissionRow(Icons.Filled.Notifications, "Notifications",
-                        "Budget alerts, threshold warnings, and transaction reminders")
+                    PermissionGrantRow(
+                        icon = Icons.Filled.Notifications,
+                        name = "Notifications",
+                        reason = "Budget alerts, threshold warnings, and reminders",
+                        isGranted = notificationPermission?.status?.isGranted ?: true,
+                        onGrant = { notificationPermission?.launchPermissionRequest() },
+                        available = notificationPermission != null
+                    )
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    PermissionRow(Icons.Filled.LocationOn, "Location",
-                        "Geo-tag transactions and show spending on a map")
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    PermissionRow(Icons.Filled.Storage, "Storage",
-                        "Import/export data backups and download AI models")
+                    PermissionGrantRow(
+                        icon = Icons.Filled.LocationOn,
+                        name = "Location",
+                        reason = "Geo-tag transactions and show spending on a map",
+                        isGranted = locationPermission.status.isGranted,
+                        onGrant = { locationPermission.launchPermissionRequest() }
+                    )
                 }
             }
         }
@@ -388,8 +422,10 @@ private fun AiModelPage(visible: Boolean) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 AiOptionCard(
                     icon = Icons.Filled.PhoneAndroid,
-                    title = "On-Device AI (Recommended)",
-                    description = "Download a small AI model (500 MB – 2 GB) that runs entirely on your device. " +
+                    title = "On-Device AI",
+                    subtitle = "Recommended",
+                    badge = "Private",
+                    description = "Download a small AI model (500 MB \u2013 2 GB) that runs entirely on your device. " +
                         "Your data never leaves your phone. Models include Qwen 2.5, Gemma, and more.",
                     highlight = true
                 )
@@ -536,7 +572,14 @@ private fun FeatureRow(icon: ImageVector, title: String, description: String) {
 }
 
 @Composable
-private fun PermissionRow(icon: ImageVector, name: String, reason: String) {
+private fun PermissionGrantRow(
+    icon: ImageVector,
+    name: String,
+    reason: String,
+    isGranted: Boolean,
+    onGrant: () -> Unit,
+    available: Boolean = true
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -563,6 +606,31 @@ private fun PermissionRow(icon: ImageVector, name: String, reason: String) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        Spacer(modifier = Modifier.width(8.dp))
+        if (!available) {
+            // Permission not applicable on this API level
+            Text(
+                "N/A",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else if (isGranted) {
+            Icon(
+                Icons.Filled.CheckCircle,
+                contentDescription = "Granted",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(28.dp)
+            )
+        } else {
+            FilledTonalButton(
+                onClick = onGrant,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                modifier = Modifier.height(32.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Grant", style = MaterialTheme.typography.labelSmall)
+            }
+        }
     }
 }
 
@@ -570,6 +638,8 @@ private fun PermissionRow(icon: ImageVector, name: String, reason: String) {
 private fun AiOptionCard(
     icon: ImageVector,
     title: String,
+    subtitle: String? = null,
+    badge: String? = null,
     description: String,
     highlight: Boolean = false
 ) {
@@ -605,18 +675,30 @@ private fun AiOptionCard(
             }
             Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
+                // Title row with badge
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(title,
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onSurface)
-                    if (highlight) {
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
+                        Text(
+                            title,
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        if (subtitle != null) {
+                            Text(
+                                subtitle,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    if (badge != null) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
                             shape = RoundedCornerShape(4.dp),
                             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
                         ) {
                             Text(
-                                "Private",
+                                badge,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
