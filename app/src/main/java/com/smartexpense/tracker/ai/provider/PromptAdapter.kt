@@ -30,23 +30,39 @@ class PromptAdapter {
         isExpense: Boolean,
         merchantName: String = "",
         amount: Double = 0.0,
-        currencyCode: String = ""
+        currencyCode: String = "",
+        tags: List<String> = emptyList(),
+        notes: String = "",
+        isRecurring: Boolean = false,
+        dateTime: String = "",
+        source: String = "",
+        hasLocation: Boolean = false
     ): String {
         val categoriesList = categories.joinToString(", ")
-        val amountStr = if (amount > 0) "\nAmount: $currencyCode ${String.format("%.2f", amount)}" else ""
-        val merchantStr = if (merchantName.isNotBlank()) "\nMerchant: $merchantName" else ""
-        return """You are a financial transaction categorizer. Categorize this transaction into the most appropriate category.
+        val sb = StringBuilder()
+        sb.appendLine("You are a financial transaction categorizer. Categorize this transaction into the most appropriate category.")
+        sb.appendLine()
+        sb.appendLine("=== Transaction Details ===")
+        sb.appendLine("Description: \"$description\"")
+        sb.appendLine("Type: ${if (isExpense) "expense" else "income"}")
+        if (amount > 0) sb.appendLine("Amount: $currencyCode ${String.format("%.2f", amount)}")
+        if (merchantName.isNotBlank()) sb.appendLine("Merchant: $merchantName")
+        if (dateTime.isNotBlank()) sb.appendLine("Date/Time: $dateTime")
+        if (source.isNotBlank()) sb.appendLine("Source: $source")
+        if (isRecurring) sb.appendLine("Recurring: yes")
+        if (tags.isNotEmpty()) sb.appendLine("Tags: ${tags.joinToString(", ")}")
+        if (notes.isNotBlank()) sb.appendLine("Notes: $notes")
+        if (hasLocation) sb.appendLine("Location: has GPS coordinates (in-store purchase)")
 
-Transaction: "$description"$merchantStr$amountStr
-Type: ${if (isExpense) "expense" else "income"}
-
-Existing categories: $categoriesList
-
-Instructions:
-- If the transaction clearly fits one of the existing categories, reply with that exact category name.
-- If none of the existing categories fit well, you may suggest a new descriptive category name (e.g. "Pet Care", "Subscriptions", "Personal Care").
-- Reply with ONLY the category name on the first line, nothing else.
-- Do not add explanations, punctuation, or extra text."""
+        sb.appendLine()
+        sb.appendLine("Existing categories: $categoriesList")
+        sb.appendLine()
+        sb.appendLine("Instructions:")
+        sb.appendLine("- If the transaction clearly fits one of the existing categories, reply with that exact category name.")
+        sb.appendLine("- If none of the existing categories fit well, you may suggest a new descriptive category name (e.g. \"Pet Care\", \"Subscriptions\", \"Personal Care\").")
+        sb.appendLine("- Reply with ONLY the category name on the first line, nothing else.")
+        sb.appendLine("- Do not add explanations, punctuation, or extra text.")
+        return sb.toString().trim()
     }
 
     /**

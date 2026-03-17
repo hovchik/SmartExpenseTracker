@@ -862,6 +862,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val promptAdapter = com.smartexpense.tracker.ai.provider.PromptAdapter()
 
     /**
+     * Result of AI-driven categorization, carrying both the category name
+     * and a flag indicating whether it was resolved by an AI model.
+     */
+    private data class CategorizationResult(val category: String, val byAi: Boolean)
+
+    /**
      * Uses the AI provider for categorization with rich context.
      * Supports AI-driven new category creation when the AI suggests one.
      */
@@ -869,7 +875,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         description: String,
         isExpense: Boolean = true,
         merchantName: String = "",
-        amount: Double = 0.0
+        amount: Double = 0.0,
+        tags: List<String> = emptyList(),
+        notes: String = "",
+        isRecurring: Boolean = false,
+        dateTime: String = "",
+        source: String = "",
+        hasLocation: Boolean = false
     ): String? {
         val provider = aiProviderSelector.getActiveProvider()
         if (!provider.isAvailable()) return null
@@ -878,7 +890,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val categories = data.categories.map { it.name }
         val currencyCode = data.settings.currencyCode
         val prompt = promptAdapter.createCategorizationPrompt(
-            description, categories, isExpense, merchantName, amount, currencyCode
+            description, categories, isExpense, merchantName, amount, currencyCode,
+            tags = tags, notes = notes, isRecurring = isRecurring,
+            dateTime = dateTime, source = source, hasLocation = hasLocation
         )
 
         val result = withContext(Dispatchers.IO) {
@@ -1030,22 +1044,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Returns a category using the AI provider, with fallback to legacy local AI service
      * and then to the rule-based engine. AI can suggest new categories that are auto-created.
+     * The returned [CategorizationResult.byAi] flag is true when an AI model (not rule-based)
+     * performed the categorization.
      */
     private suspend fun smartCategorize(
         description: String,
         isExpense: Boolean = true,
         merchantName: String = "",
-        amount: Double = 0.0
-    ): String {
+        amount: Double = 0.0,
+        tags: List<String> = emptyList(),
+        notes: String = "",
+        isRecurring: Boolean = false,
+        dateTime: String = "",
+        source: String = "",
+        hasLocation: Boolean = false
+    ): CategorizationResult {
         val settings = repository.appData.value.settings
         val userCatNames = repository.appData.value.categories
             .filter { !it.isDefault }.map { it.name }
 
         // Try the tri-mode AI provider first (with richer context)
-        val providerCategory = smartCategorizeWithProvider(description, isExpense, merchantName, amount)
+        val providerCategory = smartCategorizeWithProvider(
+            description, isExpense, merchantName, amount,
+            tags = tags, notes = notes, isRecurring = isRecurring,
+            dateTime = dateTime, source = source, hasLocation = hasLocation
+        )
         if (providerCategory != null) {
             repository.ensureCategoryExists(providerCategory)
-            return providerCategory
+            return CategorizationResult(providerCategory, byAi = true)
         }
 
         // Fall back to existing local AI service
@@ -1054,12 +1080,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val aiCategory = localAiService.categorize(description, categoryNames, isExpense, userCatNames)
             if (aiCategory != null) {
                 repository.ensureCategoryExists(aiCategory)
-                return aiCategory
+                return CategorizationResult(aiCategory, byAi = true)
             }
         }
+        // Rule-based fallback — not AI
         val category = aiEngine.categorize(description, isExpense, userCatNames)
         repository.ensureCategoryExists(category)
-        return category
+        return CategorizationResult(category, byAi = false)
     }
 
     fun addTransaction(
@@ -1070,17 +1097,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         timestamp: Long = System.currentTimeMillis()
     ) {
         viewModelScope.launch {
-            val finalCategory = category ?: smartCategorize(
-                description, type == TransactionType.EXPENSE, merchantName, amount
-            )
             val dtFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+            val dateTime = dtFormatter.format(Date(timestamp))
             val loc = currentLocation()
             val geoLoc = loc?.let { GeoLocation(it.latitude, it.longitude) }
+
+            val catResult = if (category != null) {
+                CategorizationResult(category, byAi = false)
+            } else {
+                smartCategorize(
+                    description, type == TransactionType.EXPENSE, merchantName, amount,
+                    notes = notes, dateTime = dateTime, source = source.name,
+                    hasLocation = geoLoc != null
+                )
+            }
+
             val added = repository.addTransaction(Transaction(
-                amount = amount, description = description, category = finalCategory,
+                amount = amount, description = description, category = catResult.category,
                 type = type, source = source, merchantName = merchantName, notes = notes,
-                timestamp = timestamp, dateTime = dtFormatter.format(Date(timestamp)),
-                location = geoLoc
+                timestamp = timestamp, dateTime = dateTime,
+                location = geoLoc,
+                categorizedByAi = catResult.byAi
             ))
             if (added) {
                 autoCreateStoreIfNeeded(merchantName, geoLoc)
@@ -1186,7 +1223,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val amount = parsed.totalAmount ?: parsed.items.sumOf { it.second }
 
                 if (amount > 0) {
-                    val category = smartCategorize(
+                    val catResult = smartCategorize(
                         "${parsed.merchantName} ${parsed.items.joinToString(" ") { it.first }}",
                         isExpense = true,
                         merchantName = parsed.merchantName,
@@ -1195,7 +1232,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _ocrParsedData.value = OcrParsedData(
                         amount = amount,
                         merchantName = parsed.merchantName,
-                        category = category,
+                        category = catResult.category,
                         items = parsed.items,
                         fromQr = fromQr,
                         rawOcrText = ocrText,
@@ -1315,8 +1352,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val settings = repository.appData.value.settings
             val ocrItems = items.map { (name, price) ->
-                val cat = smartCategorize(name)
-                OcrItem(name = name, price = price, category = cat)
+                val catResult = smartCategorize(name)
+                OcrItem(name = name, price = price, category = catResult.category)
             }
             val section = OcrSection(
                 label = label.ifBlank { merchantName },

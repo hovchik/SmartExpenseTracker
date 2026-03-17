@@ -50,7 +50,9 @@ data class Transaction(
     /** ISO-4217 code of the original foreign currency (e.g. "USD", "RUB"). Empty = same as app currency. */
     val originalCurrencyCode: String = "",
     /** Exchange rate used at conversion time: 1 [originalCurrencyCode] = [exchangeRate] [currencyCode]. */
-    val exchangeRate: Double = 0.0
+    val exchangeRate: Double = 0.0,
+    /** True when this transaction's category was assigned by an AI model rather than the user or rule-based engine. */
+    val categorizedByAi: Boolean = false
 ) {
     /** Resolved latitude: prefers [location], falls back to legacy [latitude] field. */
     val resolvedLat: Double? get() = location?.lat ?: @Suppress("DEPRECATION") latitude
