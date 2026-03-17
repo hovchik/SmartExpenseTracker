@@ -50,7 +50,9 @@ fun ScanReceiptScreen(
     categories: List<String>,
     onNavigateBack: () -> Unit,
     onNavigateToSections: () -> Unit,
-    lastResult: String?
+    lastResult: String?,
+    /** Navigate to AddTransactionScreen pre-populated with the current OCR result. */
+    onEditAsTransaction: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     var isProcessing by remember { mutableStateOf(false) }
@@ -624,6 +626,20 @@ fun ScanReceiptScreen(
                             Icon(Icons.Filled.Inventory2, null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Save to Sections", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+
+                    // Edit as Transaction — opens AddTransactionScreen pre-filled with OCR data
+                    if (onEditAsTransaction != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = onEditAsTransaction,
+                            modifier = Modifier.fillMaxWidth().height(46.dp),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Filled.Edit, null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Edit as Transaction", fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
