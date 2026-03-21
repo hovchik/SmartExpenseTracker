@@ -290,13 +290,12 @@ val CLOUD_AI_MODELS: Map<CloudAiProviderType, List<CloudAiModel>> = mapOf(
         CloudAiModel("Claude Opus 4", "claude-opus-4-20250514")
     ),
     CloudAiProviderType.GEMINI to listOf(
+        CloudAiModel("Gemini 3.1 Pro", "gemini-3.1-pro-preview"),
+        CloudAiModel("Gemini 3 Flash", "gemini-3-flash-preview"),
+        CloudAiModel("Gemini 3.1 Flash Lite", "gemini-3.1-flash-lite-preview"),
         CloudAiModel("Gemini 2.5 Pro", "gemini-2.5-pro"),
         CloudAiModel("Gemini 2.5 Flash", "gemini-2.5-flash"),
-        CloudAiModel("Gemini 2.5 Flash Lite", "gemini-2.5-flash-lite"),
-        CloudAiModel("Gemini 2.0 Flash", "gemini-2.0-flash"),
-        CloudAiModel("Gemini 2.0 Flash Lite", "gemini-2.0-flash-lite-001"),
-        CloudAiModel("Gemini 1.5 Pro", "gemini-1.5-pro"),
-        CloudAiModel("Gemini 1.5 Flash", "gemini-1.5-flash")
+        CloudAiModel("Gemini 2.5 Flash Lite", "gemini-2.5-flash-lite")
     ),
     CloudAiProviderType.CHATGPT to listOf(
         CloudAiModel("GPT-4o mini", "gpt-4o-mini"),
