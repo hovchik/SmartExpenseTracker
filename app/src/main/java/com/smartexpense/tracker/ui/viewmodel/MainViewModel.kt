@@ -787,7 +787,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 claudeKey = settings.claudeApiKey,
                 geminiKey = settings.geminiApiKey,
                 openaiKey = settings.openaiApiKey,
-                deepseekKey = settings.deepseekApiKey
+                deepseekKey = settings.deepseekApiKey,
+                modelId = settings.cloudAiModel
             )
             // Pass HuggingFace token for gated model downloads
             if (settings.huggingFaceToken.isNotBlank()) {
@@ -2107,7 +2108,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 claudeKey = settings.claudeApiKey,
                 geminiKey = settings.geminiApiKey,
                 openaiKey = settings.openaiApiKey,
-                deepseekKey = settings.deepseekApiKey
+                deepseekKey = settings.deepseekApiKey,
+                modelId = settings.cloudAiModel
             )
 
             // When currency changes, re-convert all transaction amounts and budget limits.

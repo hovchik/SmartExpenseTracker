@@ -134,7 +134,15 @@ class CloudAiProvider : AiProvider {
 
     override fun isAvailable(): Boolean = activeApiKey().isNotBlank()
 
-    override fun displayName(): String = "Cloud AI (${activeProviderType.label})"
+    override fun displayName(): String {
+        val model = when (activeProviderType) {
+            CloudAiProviderType.CLAUDE -> claudeModel
+            CloudAiProviderType.GEMINI -> geminiModel
+            CloudAiProviderType.CHATGPT -> openaiModel
+            CloudAiProviderType.DEEPSEEK -> deepseekModel
+        }
+        return "Cloud AI (${activeProviderType.label} · $model)"
+    }
 
     override fun description(): String = when {
         activeApiKey().isBlank() -> "${activeProviderType.label} — API key required"

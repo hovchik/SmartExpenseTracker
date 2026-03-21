@@ -2186,7 +2186,13 @@ fun SettingsScreen(
                         ) {
                             RadioButton(
                                 selected = settings.cloudAiProvider == providerType,
-                                onClick = { onUpdateSettings(settings.copy(cloudAiProvider = providerType)) }
+                                onClick = {
+                                    // Reset model to default when switching providers
+                                    onUpdateSettings(settings.copy(
+                                        cloudAiProvider = providerType,
+                                        cloudAiModel = com.smartexpense.tracker.data.model.defaultModelIdFor(providerType)
+                                    ))
+                                }
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(providerType.label, fontSize = 13.sp)
@@ -2194,6 +2200,41 @@ fun SettingsScreen(
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
+
+                    // Model selection for the selected provider
+                    val availableModels = com.smartexpense.tracker.data.model.CLOUD_AI_MODELS[settings.cloudAiProvider] ?: emptyList()
+                    if (availableModels.isNotEmpty()) {
+                        Text(
+                            "Model",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
+
+                        val effectiveModelId = settings.cloudAiModel.ifBlank {
+                            com.smartexpense.tracker.data.model.defaultModelIdFor(settings.cloudAiProvider)
+                        }
+
+                        availableModels.forEach { model ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = effectiveModelId == model.modelId,
+                                    onClick = {
+                                        onUpdateSettings(settings.copy(cloudAiModel = model.modelId))
+                                    }
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(model.label, fontSize = 13.sp)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
 
                     // API key input for the selected provider
                     val currentKey = when (settings.cloudAiProvider) {
