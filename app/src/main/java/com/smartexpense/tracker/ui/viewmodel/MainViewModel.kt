@@ -2098,6 +2098,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun updateSettings(settings: AppSettings) {
         viewModelScope.launch {
             val oldCurrency = repository.appData.value.settings.currencyCode
+            val oldAiMode = repository.appData.value.settings.aiModePreference
+            val oldCloudProvider = repository.appData.value.settings.cloudAiProvider
+            val oldCloudModel = repository.appData.value.settings.cloudAiModel
             val newCurrency = settings.currencyCode
             repository.updateSettings(settings)
             CurrencyConverterService.invalidateCache()
@@ -2111,6 +2114,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 deepseekKey = settings.deepseekApiKey,
                 modelId = settings.cloudAiModel
             )
+
+            // Re-select the active provider when AI settings change to ensure
+            // the activeProvider reference matches the user's current preference
+            if (settings.aiModePreference != oldAiMode ||
+                settings.cloudAiProvider != oldCloudProvider ||
+                settings.cloudAiModel != oldCloudModel) {
+                withContext(Dispatchers.IO) {
+                    aiProviderSelector.selectProvider(settings.aiModePreference)
+                }
+                _aiModeStatus.value = aiProviderSelector.statusMessage()
+                _aiPrivacyMessage.value = aiProviderSelector.privacyMessage()
+            }
 
             // When currency changes, re-convert all transaction amounts and budget limits.
             // Transactions with original foreign-currency metadata are converted directly
