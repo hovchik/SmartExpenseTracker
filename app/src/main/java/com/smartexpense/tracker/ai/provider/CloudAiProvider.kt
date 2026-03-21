@@ -29,7 +29,7 @@ class CloudAiProvider : AiProvider {
 
         // ── Gemini (Google) ─────────────────────────────────────
         private const val GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models"
-        private const val GEMINI_DEFAULT_MODEL = "gemini-2.0-flash"
+        private const val GEMINI_DEFAULT_MODEL = "gemini-2.5-flash-preview-05-20"
 
         // ── ChatGPT (OpenAI) ────────────────────────────────────
         private const val OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
