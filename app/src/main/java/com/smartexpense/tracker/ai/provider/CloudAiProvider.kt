@@ -268,7 +268,7 @@ class CloudAiProvider : AiProvider {
                 })
             })
             put("generationConfig", JSONObject().apply {
-                put("maxOutputTokens", 2048)
+                put("maxOutputTokens", 8192)
             })
         }
 
