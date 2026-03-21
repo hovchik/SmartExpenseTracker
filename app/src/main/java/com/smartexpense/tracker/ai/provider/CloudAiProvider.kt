@@ -117,8 +117,8 @@ class CloudAiProvider : AiProvider {
                 val result = when (activeProviderType) {
                     CloudAiProviderType.CLAUDE -> callClaude(input.prompt, key)
                     CloudAiProviderType.GEMINI -> callGemini(input.prompt, key)
-                    CloudAiProviderType.CHATGPT -> callOpenAi(input.prompt, key, OPENAI_API_URL, openaiModel)
-                    CloudAiProviderType.DEEPSEEK -> callOpenAi(input.prompt, key, DEEPSEEK_API_URL, deepseekModel)
+                    CloudAiProviderType.CHATGPT -> callOpenAi(input.prompt, key, OPENAI_API_URL, openaiModel, isOpenAi = true)
+                    CloudAiProviderType.DEEPSEEK -> callOpenAi(input.prompt, key, DEEPSEEK_API_URL, deepseekModel, isOpenAi = false)
                 }
                 val latency = System.currentTimeMillis() - startTime
                 if (result.isBlank()) {
@@ -129,6 +129,16 @@ class CloudAiProvider : AiProvider {
                 AnalysisResult(
                     text = result.trim(),
                     success = result.isNotBlank(),
+                    providerName = displayName(),
+                    latencyMs = latency,
+                    isLocal = false
+                )
+            } catch (e: ApiException) {
+                val latency = System.currentTimeMillis() - startTime
+                Log.e(TAG, "${activeProviderType.label} API error (model=$activeModel, HTTP ${e.httpCode}): ${e.message}", e)
+                AnalysisResult(
+                    text = e.userMessage,
+                    success = false,
                     providerName = displayName(),
                     latencyMs = latency,
                     isLocal = false
@@ -165,6 +175,30 @@ class CloudAiProvider : AiProvider {
 
     override fun isLocal(): Boolean = false
 
+    // ── Exception for API errors with user-visible messages ─────
+
+    private class ApiException(
+        val httpCode: Int,
+        val userMessage: String,
+        cause: Throwable? = null
+    ) : Exception(userMessage, cause)
+
+    /** Extracts a short, user-friendly message from an API error body. */
+    private fun extractErrorMessage(errorBody: String?, httpCode: Int, provider: String): String {
+        if (errorBody.isNullOrBlank()) return "$provider API returned HTTP $httpCode"
+        return try {
+            val json = JSONObject(errorBody)
+            // Anthropic: { "error": { "message": "..." } }
+            json.optJSONObject("error")?.optString("message")
+            // OpenAI / DeepSeek: { "error": { "message": "..." } }
+                ?: json.optString("message", "").ifBlank { null }
+                // Gemini: { "error": { "message": "..." } }
+                ?: "$provider API returned HTTP $httpCode"
+        } catch (_: Exception) {
+            "$provider: $errorBody".take(200)
+        }
+    }
+
     // ── Provider-specific API calls ─────────────────────────────
 
     /**
@@ -199,9 +233,10 @@ class CloudAiProvider : AiProvider {
     private fun parseClaude(conn: HttpURLConnection): String {
         if (conn.responseCode != HttpURLConnection.HTTP_OK) {
             val err = try { conn.errorStream?.bufferedReader()?.readText() } catch (_: Exception) { null }
+            val msg = extractErrorMessage(err, conn.responseCode, "Claude")
             Log.w(TAG, "Claude API error: HTTP ${conn.responseCode} — $err")
             conn.disconnect()
-            return ""
+            throw ApiException(conn.responseCode, msg)
         }
         val body = conn.inputStream.bufferedReader().readText()
         conn.disconnect()
@@ -244,9 +279,10 @@ class CloudAiProvider : AiProvider {
     private fun parseGemini(conn: HttpURLConnection): String {
         if (conn.responseCode != HttpURLConnection.HTTP_OK) {
             val err = try { conn.errorStream?.bufferedReader()?.readText() } catch (_: Exception) { null }
+            val msg = extractErrorMessage(err, conn.responseCode, "Gemini")
             Log.w(TAG, "Gemini API error: HTTP ${conn.responseCode} — $err")
             conn.disconnect()
-            return ""
+            throw ApiException(conn.responseCode, msg)
         }
         val body = conn.inputStream.bufferedReader().readText()
         conn.disconnect()
@@ -260,8 +296,11 @@ class CloudAiProvider : AiProvider {
     /**
      * Calls an OpenAI-compatible chat completions API.
      * Works for both OpenAI (ChatGPT) and DeepSeek (same API format).
+     *
+     * @param isOpenAi true for OpenAI (uses max_completion_tokens), false for
+     *                 DeepSeek and other OpenAI-compatible APIs (uses max_tokens).
      */
-    private fun callOpenAi(prompt: String, apiKey: String, apiUrl: String, model: String): String {
+    private fun callOpenAi(prompt: String, apiKey: String, apiUrl: String, model: String, isOpenAi: Boolean = false): String {
         val conn = (URL(apiUrl).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = CONNECT_TIMEOUT
@@ -273,7 +312,13 @@ class CloudAiProvider : AiProvider {
 
         val requestBody = JSONObject().apply {
             put("model", model)
-            put("max_tokens", 2048)
+            // OpenAI's newer models (gpt-4.1-*) require max_completion_tokens;
+            // DeepSeek and older OpenAI models use max_tokens.
+            if (isOpenAi) {
+                put("max_completion_tokens", 2048)
+            } else {
+                put("max_tokens", 2048)
+            }
             put("messages", JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "user")
@@ -289,9 +334,10 @@ class CloudAiProvider : AiProvider {
     private fun parseOpenAi(conn: HttpURLConnection): String {
         if (conn.responseCode != HttpURLConnection.HTTP_OK) {
             val err = try { conn.errorStream?.bufferedReader()?.readText() } catch (_: Exception) { null }
+            val msg = extractErrorMessage(err, conn.responseCode, "OpenAI")
             Log.w(TAG, "OpenAI-compat API error: HTTP ${conn.responseCode} — $err")
             conn.disconnect()
-            return ""
+            throw ApiException(conn.responseCode, msg)
         }
         val body = conn.inputStream.bufferedReader().readText()
         conn.disconnect()

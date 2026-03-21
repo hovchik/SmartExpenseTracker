@@ -42,7 +42,11 @@ object DateUtils {
     fun getStartOfWeek(timestamp: Long = System.currentTimeMillis()): Long {
         val cal = Calendar.getInstance()
         cal.timeInMillis = timestamp
-        cal.set(Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
+        // Walk backward to the first day of the week to avoid
+        // Calendar.set(DAY_OF_WEEK) quirks at week boundaries.
+        while (cal.get(Calendar.DAY_OF_WEEK) != cal.firstDayOfWeek) {
+            cal.add(Calendar.DATE, -1)
+        }
         cal.set(Calendar.HOUR_OF_DAY, 0)
         cal.set(Calendar.MINUTE, 0)
         cal.set(Calendar.SECOND, 0)

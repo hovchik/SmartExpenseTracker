@@ -2066,6 +2066,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     appendLine("Cloud AI analysis failed.")
                     if (!provider.isAvailable()) {
                         appendLine("Please check that your ${settings.cloudAiProvider.label} API key is configured in Settings > AI Engine.")
+                    } else if (result.text.isNotBlank()) {
+                        // Show the actual API error message returned by the provider
+                        appendLine("${settings.cloudAiProvider.label}: ${result.text}")
                     } else {
                         appendLine("The ${settings.cloudAiProvider.label} API returned no result. Please verify your API key and selected model, then try again.")
                     }
