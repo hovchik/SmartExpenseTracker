@@ -1817,24 +1817,37 @@ fun SettingsScreen(
                     AiModePreference.CLOUD_AI to Icons.Filled.Cloud
                 )
                 modes.forEach { (mode, icon) ->
+                    val isCloudPremium = mode == AiModePreference.CLOUD_AI && !isSubscribed
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .clickable { onSetAiMode(mode) }
+                            .clickable {
+                                if (isCloudPremium) onShowPaywall("Cloud AI")
+                                else onSetAiMode(mode)
+                            }
                             .padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
                             selected = settings.aiModePreference == mode,
-                            onClick = { onSetAiMode(mode) }
+                            onClick = {
+                                if (isCloudPremium) onShowPaywall("Cloud AI")
+                                else onSetAiMode(mode)
+                            }
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp),
                             tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.width(8.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(mode.label, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(mode.label, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                if (isCloudPremium) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    PremiumBadge()
+                                }
+                            }
                             Text(mode.description, fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -1846,7 +1859,7 @@ fun SettingsScreen(
         // ────────────────────────────────────────────────────────────
         // STEP 2 — Cloud: Choose Provider  /  Local: Setup & Models
         // ────────────────────────────────────────────────────────────
-        if (settings.aiModePreference == AiModePreference.CLOUD_AI) {
+        if (settings.aiModePreference == AiModePreference.CLOUD_AI && isSubscribed) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp)

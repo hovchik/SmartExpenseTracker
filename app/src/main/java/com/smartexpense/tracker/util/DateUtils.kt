@@ -53,7 +53,7 @@ object DateUtils {
     fun getEndOfWeek(timestamp: Long = System.currentTimeMillis()): Long {
         val cal = Calendar.getInstance()
         cal.timeInMillis = getStartOfWeek(timestamp)
-        cal.add(Calendar.DAY_OF_WEEK, 6)
+        cal.add(Calendar.DATE, 6)
         cal.set(Calendar.HOUR_OF_DAY, 23)
         cal.set(Calendar.MINUTE, 59)
         cal.set(Calendar.SECOND, 59)
