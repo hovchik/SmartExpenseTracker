@@ -1778,13 +1778,30 @@ fun SettingsScreen(
             enter = expandVertically(),
             exit = shrinkVertically()
         ) {
-        Column {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+        // ────────────────────────────────────────────────────────────
+        // STEP 1 — Choose AI Mode
+        // ────────────────────────────────────────────────────────────
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("AI Mode", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Text("1", color = MaterialTheme.colorScheme.onPrimary,
+                                fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("AI Mode", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     "Choose how the app performs AI analysis:",
@@ -1823,371 +1840,58 @@ fun SettingsScreen(
                         }
                     }
                 }
+            }
+        }
 
-                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-
-                // Active provider status
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Info, null, modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(aiModeStatus ?: "Initializing AI provider...", style = MaterialTheme.typography.bodySmall)
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Installed model info
-                if (installedModelName.isNotBlank()) {
+        // ────────────────────────────────────────────────────────────
+        // STEP 2 — Cloud: Choose Provider  /  Local: Setup & Models
+        // ────────────────────────────────────────────────────────────
+        if (settings.aiModePreference == AiModePreference.CLOUD_AI) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Memory, null, modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.secondary)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Model: $installedModelName", style = MaterialTheme.typography.bodySmall)
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                Text("2", color = MaterialTheme.colorScheme.onPrimary,
+                                    fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("Cloud Provider", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                }
-
-                // Storage usage
-                if (modelStorageUsageMb > 0) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.SdStorage, null, modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Storage: $modelStorageUsageMb MB", style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                }
-
-                // ── Downloaded Models Management ──
-                val downloadedModels = catalogModels.filter {
-                    it.installState == com.smartexpense.tracker.ai.modelmanager.InstallState.INSTALLED
-                }
-                if (downloadedModels.isNotEmpty()) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-
                     Text(
-                        "Downloaded Models",
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp
+                        "Select which cloud AI service to use:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    downloadedModels.forEach { model ->
-                        val isActive = model.modelId == activeModelId
-                        var showDeleteConfirm by remember { mutableStateOf(false) }
-
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 3.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (isActive)
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                model.displayName,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                            if (isActive) {
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Surface(
-                                                    color = MaterialTheme.colorScheme.primary,
-                                                    shape = RoundedCornerShape(4.dp)
-                                                ) {
-                                                    Text(
-                                                        "Active",
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onPrimary
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        Text(
-                                            "${model.sizeMb} MB | ${model.quantization}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(6.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    if (!isActive) {
-                                        OutlinedButton(
-                                            onClick = { onSetActiveModel(model) },
-                                            modifier = Modifier.weight(1f),
-                                            shape = RoundedCornerShape(8.dp),
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                        ) {
-                                            Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(14.dp))
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text("Set Active", fontSize = 12.sp)
-                                        }
-                                    }
-                                    OutlinedButton(
-                                        onClick = { showDeleteConfirm = true },
-                                        modifier = if (isActive) Modifier.fillMaxWidth() else Modifier.weight(1f),
-                                        shape = RoundedCornerShape(8.dp),
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            contentColor = MaterialTheme.colorScheme.error
-                                        ),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                    ) {
-                                        Icon(Icons.Filled.Delete, null, modifier = Modifier.size(14.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Delete", fontSize = 12.sp)
-                                    }
-                                }
-                        }
-
-                        if (showDeleteConfirm) {
-                            AlertDialog(
-                                onDismissRequest = { showDeleteConfirm = false },
-                                title = { Text("Delete Model?") },
-                                text = { Text("Delete ${model.displayName} (${model.sizeMb} MB)? This will free up storage space.") },
-                                confirmButton = {
-                                    TextButton(onClick = {
-                                        showDeleteConfirm = false
-                                        onDeleteModel(model)
-                                    }) {
-                                        Text("Delete", color = MaterialTheme.colorScheme.error)
-                                    }
-                                },
-                                dismissButton = {
-                                    TextButton(onClick = { showDeleteConfirm = false }) {
-                                        Text("Cancel")
-                                    }
-                                }
-                            )
-                        }
-                    }
-                    }
-                }
-
-                // Privacy message for local modes
-                if (aiPrivacyMessage != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
-                            Icon(Icons.Filled.Lock, null, modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(aiPrivacyMessage, style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-
-                // Performance note
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    when (settings.aiModePreference) {
-                        AiModePreference.AUTO -> "The app will automatically choose the best AI engine for your device."
-                        AiModePreference.SYSTEM_AI -> "Uses your device's built-in AI. No data leaves your device."
-                        AiModePreference.LOCAL_MODEL -> "Runs a downloaded model on your device. May use significant RAM."
-                        AiModePreference.CLOUD_AI -> "Best quality analysis. Requires internet connection."
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 16.sp
-                )
-
-                // ── HuggingFace Token Management ──
-                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-                Text("HuggingFace Token", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    "Required for downloading gated models (official Gemma, etc.)",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (hasHuggingFaceToken) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Filled.CheckCircle, null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Token configured", style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium)
-                                if (huggingFaceUsername != null) {
-                                    Text("User: $huggingFaceUsername",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    var showChangeToken by remember { mutableStateOf(false) }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = { showChangeToken = true },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Icon(Icons.Filled.Edit, null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Change Token", fontSize = 12.sp)
-                        }
-                        OutlinedButton(
-                            onClick = onRemoveHuggingFaceToken,
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.error
-                            )
-                        ) {
-                            Icon(Icons.Filled.Delete, null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Remove", fontSize = 12.sp)
-                        }
-                    }
-
-                    if (showChangeToken) {
-                        com.smartexpense.tracker.ai.setupwizard.HuggingFaceTokenDialog(
-                            onDismiss = { showChangeToken = false },
-                            onTokenSubmit = { token ->
-                                showChangeToken = false
-                                onSaveHuggingFaceToken(token)
-                            },
-                            onOpenBrowser = {
-                                val intent = android.content.Intent(
-                                    android.content.Intent.ACTION_VIEW,
-                                    Uri.parse("https://huggingface.co/settings/tokens")
-                                )
-                                context.startActivity(intent)
-                            }
-                        )
-                    }
-                } else {
-                    if (tokenValidationError != null) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Filled.Warning, null,
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.error)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(tokenValidationError,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onErrorContainer)
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-
-                    var showAddToken by remember { mutableStateOf(false) }
-                    OutlinedButton(
-                        onClick = { showAddToken = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(Icons.Filled.Key, null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Add HuggingFace Token", fontSize = 13.sp)
-                    }
-
-                    if (showAddToken) {
-                        com.smartexpense.tracker.ai.setupwizard.HuggingFaceTokenDialog(
-                            onDismiss = { showAddToken = false },
-                            onTokenSubmit = { token ->
-                                showAddToken = false
-                                onSaveHuggingFaceToken(token)
-                            },
-                            onOpenBrowser = {
-                                val intent = android.content.Intent(
-                                    android.content.Intent.ACTION_VIEW,
-                                    Uri.parse("https://huggingface.co/settings/tokens")
-                                )
-                                context.startActivity(intent)
-                            }
-                        )
-                    }
-                }
-
-                // Setup wizard button
-                if (settings.aiModePreference == AiModePreference.LOCAL_MODEL ||
-                    settings.aiModePreference == AiModePreference.SYSTEM_AI) {
                     Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedButton(
-                        onClick = onOpenLocalAiSetup,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(Icons.Filled.Tune, null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Local AI Setup Wizard", fontSize = 13.sp)
-                    }
-                }
 
-                // Cloud AI provider selection and API key input
-                if (settings.aiModePreference == AiModePreference.CLOUD_AI) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        "Cloud Provider",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
-
-                    // Provider selection chips
                     val providers = CloudAiProviderType.entries
                     providers.forEach { providerType ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 2.dp),
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    onUpdateSettings(settings.copy(
+                                        cloudAiProvider = providerType,
+                                        cloudAiModel = com.smartexpense.tracker.data.model.defaultModelIdFor(providerType)
+                                    ))
+                                }
+                                .padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(
                                 selected = settings.cloudAiProvider == providerType,
                                 onClick = {
-                                    // Reset model to default when switching providers
                                     onUpdateSettings(settings.copy(
                                         cloudAiProvider = providerType,
                                         cloudAiModel = com.smartexpense.tracker.data.model.defaultModelIdFor(providerType)
@@ -2198,18 +1902,40 @@ fun SettingsScreen(
                             Text(providerType.label, fontSize = 13.sp)
                         }
                     }
+                }
+            }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Model selection for the selected provider
-                    val availableModels = com.smartexpense.tracker.data.model.CLOUD_AI_MODELS[settings.cloudAiProvider] ?: emptyList()
-                    if (availableModels.isNotEmpty()) {
+            // ────────────────────────────────────────────────────────
+            // STEP 3 — Cloud: Choose Model
+            // ────────────────────────────────────────────────────────
+            val availableModels = com.smartexpense.tracker.data.model.CLOUD_AI_MODELS[settings.cloudAiProvider] ?: emptyList()
+            if (availableModels.isNotEmpty()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primary,
+                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                    Text("3", color = MaterialTheme.colorScheme.onPrimary,
+                                        fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Model", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            "Model",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(bottom = 6.dp)
+                            "Choose which ${settings.cloudAiProvider.label} model to use:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Spacer(modifier = Modifier.height(12.dp))
 
                         val effectiveModelId = settings.cloudAiModel.ifBlank {
                             com.smartexpense.tracker.data.model.defaultModelIdFor(settings.cloudAiProvider)
@@ -2219,7 +1945,11 @@ fun SettingsScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 2.dp),
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        onUpdateSettings(settings.copy(cloudAiModel = model.modelId))
+                                    }
+                                    .padding(vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 RadioButton(
@@ -2232,11 +1962,40 @@ fun SettingsScreen(
                                 Text(model.label, fontSize = 13.sp)
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(10.dp))
                     }
+                }
+            }
 
-                    // API key input for the selected provider
+            // ────────────────────────────────────────────────────────
+            // STEP 4 — Cloud: API Key
+            // ────────────────────────────────────────────────────────
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                Text("4", color = MaterialTheme.colorScheme.onPrimary,
+                                    fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("API Key", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Enter your ${settings.cloudAiProvider.label} API key:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
                     val currentKey = when (settings.cloudAiProvider) {
                         CloudAiProviderType.CLAUDE -> settings.claudeApiKey
                         CloudAiProviderType.GEMINI -> settings.geminiApiKey
@@ -2272,9 +2031,396 @@ fun SettingsScreen(
                             }
                         }
                     )
+
+                    if (currentKey.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.CheckCircle, null, modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("API key configured", style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
                 }
             }
         }
+
+        // ── Local Model / System AI: Setup & Models ──
+        if (settings.aiModePreference == AiModePreference.LOCAL_MODEL ||
+            settings.aiModePreference == AiModePreference.SYSTEM_AI) {
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                Text("2", color = MaterialTheme.colorScheme.onPrimary,
+                                    fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("Setup & Models", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Installed model info
+                    if (installedModelName.isNotBlank()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.Memory, null, modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.secondary)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Model: $installedModelName", style = MaterialTheme.typography.bodySmall)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+
+                    // Storage usage
+                    if (modelStorageUsageMb > 0) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.SdStorage, null, modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Storage: $modelStorageUsageMb MB", style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+
+                    // ── Downloaded Models Management ──
+                    val downloadedModels = catalogModels.filter {
+                        it.installState == com.smartexpense.tracker.ai.modelmanager.InstallState.INSTALLED
+                    }
+                    if (downloadedModels.isNotEmpty()) {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                        Text(
+                            "Downloaded Models",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        downloadedModels.forEach { model ->
+                            val isActive = model.modelId == activeModelId
+                            var showDeleteConfirm by remember { mutableStateOf(false) }
+
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 3.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isActive)
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                ),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    model.displayName,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                                if (isActive) {
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Surface(
+                                                        color = MaterialTheme.colorScheme.primary,
+                                                        shape = RoundedCornerShape(4.dp)
+                                                    ) {
+                                                        Text(
+                                                            "Active",
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.onPrimary
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            Text(
+                                                "${model.sizeMb} MB | ${model.quantization}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        if (!isActive) {
+                                            OutlinedButton(
+                                                onClick = { onSetActiveModel(model) },
+                                                modifier = Modifier.weight(1f),
+                                                shape = RoundedCornerShape(8.dp),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                            ) {
+                                                Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(14.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Set Active", fontSize = 12.sp)
+                                            }
+                                        }
+                                        OutlinedButton(
+                                            onClick = { showDeleteConfirm = true },
+                                            modifier = if (isActive) Modifier.fillMaxWidth() else Modifier.weight(1f),
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                contentColor = MaterialTheme.colorScheme.error
+                                            ),
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                        ) {
+                                            Icon(Icons.Filled.Delete, null, modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Delete", fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+
+                                if (showDeleteConfirm) {
+                                    AlertDialog(
+                                        onDismissRequest = { showDeleteConfirm = false },
+                                        title = { Text("Delete Model?") },
+                                        text = { Text("Delete ${model.displayName} (${model.sizeMb} MB)? This will free up storage space.") },
+                                        confirmButton = {
+                                            TextButton(onClick = {
+                                                showDeleteConfirm = false
+                                                onDeleteModel(model)
+                                            }) {
+                                                Text("Delete", color = MaterialTheme.colorScheme.error)
+                                            }
+                                        },
+                                        dismissButton = {
+                                            TextButton(onClick = { showDeleteConfirm = false }) {
+                                                Text("Cancel")
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = onOpenLocalAiSetup,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Filled.Tune, null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Local AI Setup Wizard", fontSize = 13.sp)
+                    }
+
+                    // ── HuggingFace Token Management ──
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                    Text("HuggingFace Token", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Required for downloading gated models (official Gemma, etc.)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (hasHuggingFaceToken) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Filled.CheckCircle, null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.primary)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Token configured", style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium)
+                                    if (huggingFaceUsername != null) {
+                                        Text("User: $huggingFaceUsername",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        var showChangeToken by remember { mutableStateOf(false) }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { showChangeToken = true },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(Icons.Filled.Edit, null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Change Token", fontSize = 12.sp)
+                            }
+                            OutlinedButton(
+                                onClick = onRemoveHuggingFaceToken,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                )
+                            ) {
+                                Icon(Icons.Filled.Delete, null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Remove", fontSize = 12.sp)
+                            }
+                        }
+
+                        if (showChangeToken) {
+                            com.smartexpense.tracker.ai.setupwizard.HuggingFaceTokenDialog(
+                                onDismiss = { showChangeToken = false },
+                                onTokenSubmit = { token ->
+                                    showChangeToken = false
+                                    onSaveHuggingFaceToken(token)
+                                },
+                                onOpenBrowser = {
+                                    val intent = android.content.Intent(
+                                        android.content.Intent.ACTION_VIEW,
+                                        Uri.parse("https://huggingface.co/settings/tokens")
+                                    )
+                                    context.startActivity(intent)
+                                }
+                            )
+                        }
+                    } else {
+                        if (tokenValidationError != null) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Filled.Warning, null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.error)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(tokenValidationError,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer)
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+
+                        var showAddToken by remember { mutableStateOf(false) }
+                        OutlinedButton(
+                            onClick = { showAddToken = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Filled.Key, null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Add HuggingFace Token", fontSize = 13.sp)
+                        }
+
+                        if (showAddToken) {
+                            com.smartexpense.tracker.ai.setupwizard.HuggingFaceTokenDialog(
+                                onDismiss = { showAddToken = false },
+                                onTokenSubmit = { token ->
+                                    showAddToken = false
+                                    onSaveHuggingFaceToken(token)
+                                },
+                                onOpenBrowser = {
+                                    val intent = android.content.Intent(
+                                        android.content.Intent.ACTION_VIEW,
+                                        Uri.parse("https://huggingface.co/settings/tokens")
+                                    )
+                                    context.startActivity(intent)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ────────────────────────────────────────────────────────────
+        // STATUS — Active provider info & privacy
+        // ────────────────────────────────────────────────────────────
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Info, null, modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Status", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(aiModeStatus ?: "Initializing AI provider...", style = MaterialTheme.typography.bodySmall)
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    when (settings.aiModePreference) {
+                        AiModePreference.AUTO -> "The app will automatically choose the best AI engine for your device."
+                        AiModePreference.SYSTEM_AI -> "Uses your device's built-in AI. No data leaves your device."
+                        AiModePreference.LOCAL_MODEL -> "Runs a downloaded model on your device. May use significant RAM."
+                        AiModePreference.CLOUD_AI -> "Best quality analysis. Requires internet connection."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 16.sp
+                )
+
+                // Privacy message for local modes
+                if (aiPrivacyMessage != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
+                            Icon(Icons.Filled.Lock, null, modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(aiPrivacyMessage, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+        }
+
         } // end Column
         } // end AnimatedVisibility for AI Engine
 
