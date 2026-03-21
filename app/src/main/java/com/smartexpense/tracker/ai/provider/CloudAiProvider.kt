@@ -93,6 +93,7 @@ class CloudAiProvider : AiProvider {
     override suspend fun generateAnalysis(input: AnalysisInput): AnalysisResult {
         val key = activeApiKey()
         if (key.isBlank()) {
+            Log.w(TAG, "No API key set for ${activeProviderType.label} — cannot call cloud AI")
             return AnalysisResult(
                 text = "",
                 success = false,
@@ -100,6 +101,14 @@ class CloudAiProvider : AiProvider {
                 isLocal = false
             )
         }
+
+        val activeModel = when (activeProviderType) {
+            CloudAiProviderType.CLAUDE -> claudeModel
+            CloudAiProviderType.GEMINI -> geminiModel
+            CloudAiProviderType.CHATGPT -> openaiModel
+            CloudAiProviderType.DEEPSEEK -> deepseekModel
+        }
+        Log.i(TAG, "Calling ${activeProviderType.label} API with model=$activeModel")
 
         val startTime = System.currentTimeMillis()
 
@@ -112,6 +121,11 @@ class CloudAiProvider : AiProvider {
                     CloudAiProviderType.DEEPSEEK -> callOpenAi(input.prompt, key, DEEPSEEK_API_URL, deepseekModel)
                 }
                 val latency = System.currentTimeMillis() - startTime
+                if (result.isBlank()) {
+                    Log.w(TAG, "${activeProviderType.label} returned empty response (model=$activeModel, latency=${latency}ms)")
+                } else {
+                    Log.i(TAG, "${activeProviderType.label} returned ${result.length} chars (model=$activeModel, latency=${latency}ms)")
+                }
                 AnalysisResult(
                     text = result.trim(),
                     success = result.isNotBlank(),
@@ -120,7 +134,7 @@ class CloudAiProvider : AiProvider {
                     isLocal = false
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "${activeProviderType.label} API call failed: ${e.message}")
+                Log.e(TAG, "${activeProviderType.label} API call failed (model=$activeModel): ${e.message}", e)
                 AnalysisResult(
                     text = "",
                     success = false,
