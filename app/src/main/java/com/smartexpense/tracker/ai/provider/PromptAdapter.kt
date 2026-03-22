@@ -344,8 +344,15 @@ class PromptAdapter {
      * Condenses a full analysis prompt to fit within the tight token budget
      * of small local models (e.g. 1280-token KV cache, ~1200 char input).
      * Keeps the essential financial data and extracts sections by priority.
+     *
+     * @param isReasoningModel true for reasoning models (e.g. DeepSeek R1) that
+     *        work best with direct tasks and no role-play/system instructions.
      */
-    fun condenseForLocalModel(prompt: String, maxChars: Int = 1100): String {
+    fun condenseForLocalModel(
+        prompt: String,
+        maxChars: Int = 1100,
+        isReasoningModel: Boolean = false
+    ): String {
         if (prompt.length <= maxChars) return prompt
 
         val lines = prompt.lines()
@@ -356,9 +363,18 @@ class PromptAdapter {
         val currencySymbol = Regex(""""([^"]{1,4})"\s*\([A-Z]{3}\)""").find(prompt)?.groupValues?.get(1) ?: ""
 
         val sb = StringBuilder()
-        sb.appendLine("Analyze this financial data. Provide a detailed analysis with insights and recommendations.")
-        if (currencyCode.isNotBlank()) {
-            sb.appendLine("IMPORTANT: Currency is $currencyCode. Use ONLY \"$currencyCode\" for all amounts. Do NOT use any other currency code or symbol.")
+        if (isReasoningModel) {
+            // Reasoning models: direct task, no persona, data-first approach
+            sb.appendLine("Given the financial data below, reason step by step and produce:")
+            sb.appendLine("1) A spending overview 2) Key problems 3) Saving recommendations")
+            if (currencyCode.isNotBlank()) {
+                sb.appendLine("All amounts are in $currencyCode. Reply using $currencyCode only.")
+            }
+        } else {
+            sb.appendLine("Analyze this financial data. Provide a detailed analysis with insights and recommendations.")
+            if (currencyCode.isNotBlank()) {
+                sb.appendLine("IMPORTANT: Currency is $currencyCode. Use ONLY \"$currencyCode\" for all amounts. Do NOT use any other currency code or symbol.")
+            }
         }
         sb.appendLine()
 
@@ -474,7 +490,11 @@ class PromptAdapter {
         }
 
         sb.appendLine()
-        sb.append("Give spending analysis, saving tips, and alerts. Use only $currencyCode.")
+        if (isReasoningModel) {
+            sb.append("Think carefully, then give your analysis in $currencyCode.")
+        } else {
+            sb.append("Give spending analysis, saving tips, and alerts. Use only $currencyCode.")
+        }
         return sb.toString()
     }
 

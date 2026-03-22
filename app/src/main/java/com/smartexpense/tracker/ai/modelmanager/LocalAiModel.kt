@@ -27,7 +27,10 @@ data class LocalAiModel(
     /** Whether this model requires a HuggingFace token (gated repo). */
     val isGated: Boolean = false,
     /** URL to the model's license/agreement page on HuggingFace (for gated models). */
-    val licenseUrl: String = ""
+    val licenseUrl: String = "",
+    /** True for reasoning models (e.g. DeepSeek R1) that use chain-of-thought
+     *  and work best without system/role-play instructions. */
+    val isReasoningModel: Boolean = false
 )
 
 enum class RuntimeType(val label: String) {
@@ -193,7 +196,8 @@ object ModelCatalog {
             supportsStreaming = true,
             version = "1.0",
             downloadUrl = "https://huggingface.co/litert-community/DeepSeek-R1-Distill-Qwen-1.5B/resolve/main/DeepSeek-R1-Distill-Qwen-1.5B_multi-prefill-seq_q8_ekv1280.task",
-            description = "DeepSeek reasoning model. Strong analytical capabilities for financial insights."
+            description = "DeepSeek reasoning model. Strong analytical capabilities for financial insights.",
+            isReasoningModel = true
         ),
 
         // ── Large models (2.5–4 GB) — phones/tablets with 8 GB RAM ──────
@@ -282,7 +286,8 @@ object ModelCatalog {
             supportsStreaming = true,
             version = "1.0",
             downloadUrl = "https://huggingface.co/litert-community/DeepSeek-R1-Distill-Qwen-1.5B/resolve/main/DeepSeek-R1-Distill-Qwen-1.5B_multi-prefill-seq_f32_ekv1280.task",
-            description = "Full-precision DeepSeek reasoning model. Best analytical quality."
+            description = "Full-precision DeepSeek reasoning model. Best analytical quality.",
+            isReasoningModel = true
         )
     )
 

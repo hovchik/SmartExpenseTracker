@@ -102,8 +102,13 @@ class CustomLocalModelProvider(
         }
 
         val startTime = System.currentTimeMillis()
-        // Local models have tight token budgets — condense the prompt first
-        val condensed = promptAdapter.condenseForLocalModel(input.prompt)
+        // Local models have tight token budgets — condense the prompt first.
+        // Reasoning models (e.g. DeepSeek R1) get a task-oriented format
+        // without role-play/system instructions, which improves output quality.
+        val condensed = promptAdapter.condenseForLocalModel(
+            input.prompt,
+            isReasoningModel = model.isReasoningModel
+        )
         val adaptedPrompt = promptAdapter.adaptPrompt(
             condensed,
             supportsStructuredJson = runtime.supportsStructuredJson()
