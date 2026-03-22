@@ -193,10 +193,15 @@ class SmsReceiver : BroadcastReceiver() {
                         // ── Capture current device location ──────────────────────
                         val location = LocationProvider.getLastKnownLocation(context)
 
+                        val categoryNames = repo.appData.value.categories.map { it.name }
+                        val category = app.aiCategorize(
+                            parsed.description.ifEmpty { fullMessage },
+                            categoryNames, parsed.isExpense, userCatNames
+                        )
                         val transaction = Transaction(
                             amount = finalAmount,
                             description = parsed.description.ifEmpty { fullMessage.take(80) },
-                            category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }, parsed.isExpense, userCatNames),
+                            category = category,
                             type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                             source = TransactionSource.SMS,
                             merchantName = parsed.merchantName,
@@ -272,10 +277,15 @@ class SmsReceiver : BroadcastReceiver() {
                             }
                         }
 
+                        val fbCategoryNames = fallbackRepo.appData.value.categories.map { it.name }
+                        val fbCategory = SmartExpenseApp.instance.aiCategorize(
+                            parsed.description.ifEmpty { fullMessage },
+                            fbCategoryNames, parsed.isExpense, fallbackCatNames
+                        )
                         fallbackRepo.addTransaction(Transaction(
                             amount = fbFinal,
                             description = parsed.description.ifEmpty { fullMessage.take(80) },
-                            category = aiEngine.categorize(parsed.description.ifEmpty { fullMessage }, parsed.isExpense, fallbackCatNames),
+                            category = fbCategory,
                             type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                             source = TransactionSource.SMS,
                             merchantName = parsed.merchantName,

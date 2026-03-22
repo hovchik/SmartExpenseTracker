@@ -4,6 +4,7 @@ import android.content.Context
 import android.database.Cursor
 import android.net.Uri
 import android.util.Log
+import com.smartexpense.tracker.SmartExpenseApp
 import com.smartexpense.tracker.data.model.Transaction
 import com.smartexpense.tracker.data.model.TransactionSource
 import com.smartexpense.tracker.data.model.TransactionType
@@ -69,7 +70,7 @@ class SmsInboxScanner(private val context: Context) {
         "barclays", "deutsche", "santander", "raiffeisen"
     )
 
-    fun scanInbox(
+    suspend fun scanInbox(
         maxMessages: Int = 500,
         existingTransactionNotes: Set<String> = emptySet(),
         userCategoryNames: List<String> = emptyList(),
@@ -122,7 +123,7 @@ class SmsInboxScanner(private val context: Context) {
         return false
     }
 
-    private fun doScan(
+    private suspend fun doScan(
         uri: Uri, aiEngine: AiExpenseEngine, maxMessages: Int,
         existingNotes: Set<String>, isInboxUri: Boolean,
         userCategoryNames: List<String> = emptyList(),
@@ -191,7 +192,12 @@ class SmsInboxScanner(private val context: Context) {
                     if (existingNotes.contains(noteKey)) continue
 
                     val desc = try { parsed.description.ifEmpty { body.take(80) } } catch (_: Throwable) { body.take(80) }
-                    val cat = try { aiEngine.categorize(desc, userCategoryNames = userCategoryNames) } catch (_: Throwable) { "Other" }
+                    val allCatNames = userCategoryNames.ifEmpty {
+                        listOf("Food", "Transport", "Shopping", "Bills", "Entertainment", "Health", "Education", "Other")
+                    }
+                    val cat = try {
+                        SmartExpenseApp.instance.aiCategorize(desc, allCatNames, userCategoryNames = userCategoryNames)
+                    } catch (_: Throwable) { "Other" }
 
                     // Store original parsed currency so the review screen can show it
                     // and confirmSmsScanResults() can convert if needed

@@ -35,6 +35,11 @@ class CustomLocalModelProvider(
     @Volatile
     private var activeModel: LocalAiModel? = null
 
+    /** Set to true when load fails with a permanent error (e.g. incompatible format).
+     *  Prevents endless retry loops during inference. Cleared on loadModel(). */
+    @Volatile
+    private var permanentLoadFailure: Boolean = false
+
     /**
      * Loads the currently active model (if any).
      * Always stores the model metadata so displayName() is correct.
@@ -55,9 +60,10 @@ class CustomLocalModelProvider(
 
         // Always store the model metadata — the user explicitly selected it
         activeModel = model
+        permanentLoadFailure = false
 
         val runtime = getRuntimeForModel(model)
-        val success = runtime.loadModel(model.localPath)
+        val success = runtime.loadModel(model.localPath, model.maxTokens)
 
         if (success) {
             activeRuntime = runtime
@@ -65,7 +71,14 @@ class CustomLocalModelProvider(
         } else {
             // Store the runtime reference for lazy retry during inference
             activeRuntime = runtime
-            android.util.Log.w(TAG, "Runtime load failed for ${model.displayName}, will retry on inference")
+            // Check if this is a permanent failure (incompatible format, etc.)
+            val error = (runtime as? com.smartexpense.tracker.ai.runtime.MediaPipeLlmRuntimeAdapter)?.lastLoadError
+            if (error != null && (error.contains("Incompatible") || error.contains("Unsupported"))) {
+                permanentLoadFailure = true
+                android.util.Log.e(TAG, "Permanent load failure for ${model.displayName}: $error")
+            } else {
+                android.util.Log.w(TAG, "Runtime load failed for ${model.displayName}, will retry on inference")
+            }
         }
 
         return success
@@ -85,16 +98,28 @@ class CustomLocalModelProvider(
             text = "", success = false, providerName = displayName(), isLocal = true
         )
 
+        // Don't retry if the model has a permanent incompatibility (e.g. unsupported signature)
+        if (permanentLoadFailure) {
+            return AnalysisResult(
+                text = "", success = false, providerName = displayName(), isLocal = true
+            )
+        }
+
         var runtime = activeRuntime
 
         // Lazy retry: if the runtime isn't ready, attempt to reload the model
         if (runtime == null || !runtime.isReady()) {
             android.util.Log.i(TAG, "Runtime not ready, retrying load for ${model.displayName}")
             runtime = getRuntimeForModel(model)
-            val reloaded = runtime.loadModel(model.localPath)
+            val reloaded = runtime.loadModel(model.localPath, model.maxTokens)
             if (reloaded) {
                 activeRuntime = runtime
             } else {
+                // Check if this is a permanent failure
+                val error = (runtime as? com.smartexpense.tracker.ai.runtime.MediaPipeLlmRuntimeAdapter)?.lastLoadError
+                if (error != null && (error.contains("Incompatible") || error.contains("Unsupported"))) {
+                    permanentLoadFailure = true
+                }
                 return AnalysisResult(
                     text = "", success = false, providerName = displayName(), isLocal = true
                 )
@@ -103,10 +128,14 @@ class CustomLocalModelProvider(
 
         val startTime = System.currentTimeMillis()
         // Local models have tight token budgets — condense the prompt first.
+        // Scale maxChars with the model's maxTokens (reserve ~20% for output,
+        // use ~1.2 chars/token for multilingual safety).
         // Reasoning models (e.g. DeepSeek R1) get a task-oriented format
         // without role-play/system instructions, which improves output quality.
+        val maxInputChars = ((model.maxTokens * 0.80) * 1.2).toInt().coerceAtLeast(400)
         val condensed = promptAdapter.condenseForLocalModel(
             input.prompt,
+            maxChars = maxInputChars,
             isReasoningModel = model.isReasoningModel
         )
         val adaptedPrompt = promptAdapter.adaptPrompt(
@@ -152,8 +181,11 @@ class CustomLocalModelProvider(
         return when {
             model != null && runtime?.isReady() == true ->
                 "${model.displayName} via ${runtime.runtimeName()}"
-            model != null && model.localPath.isNotBlank() ->
-                "${model.displayName} — ready (will load on first use)"
+            model != null && model.localPath.isNotBlank() -> {
+                val error = (runtime as? com.smartexpense.tracker.ai.runtime.MediaPipeLlmRuntimeAdapter)?.lastLoadError
+                if (error != null) "${model.displayName} — error: $error"
+                else "${model.displayName} — ready (will load on first use)"
+            }
             model != null -> "${model.displayName} — not loaded"
             else -> "No model installed"
         }
@@ -166,6 +198,10 @@ class CustomLocalModelProvider(
 
     /** Returns the active runtime name. */
     fun activeRuntimeName(): String = activeRuntime?.runtimeName() ?: ""
+
+    /** Returns the last model load error, or null if no error. */
+    fun lastLoadError(): String? =
+        (activeRuntime as? com.smartexpense.tracker.ai.runtime.MediaPipeLlmRuntimeAdapter)?.lastLoadError
 
     private fun getRuntimeForModel(model: LocalAiModel): LocalModelRuntime {
         return when (model.runtimeType) {
