@@ -221,7 +221,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                 when (screen) {
                     "dashboard" -> DashboardScreen(
                         uiState = uiState,
-                        weeklyChartData = viewModel.getWeeklyChartData(),
+                        weeklyChartData = uiState.weeklyChartData,
                         onDismissSuggestion = { viewModel.dismissSuggestion(it) },
                         onDeleteTransaction = { viewModel.deleteTransaction(it) },
                         sectionOrder = dashboardSectionOrder,
