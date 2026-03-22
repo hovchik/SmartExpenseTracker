@@ -173,7 +173,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         batteryMonitor.startMonitoring()
 
         viewModelScope.launch {
-            repository.initialize()
+            // Wait for the initialization started in SmartExpenseApp.onCreate()
+            // instead of calling initialize() again, which would redundantly reload
+            // data from disk and could race with the first init.
+            repository.awaitInitialization()
             val settings = repository.appData.value.settings
             _themeMode.value = settings.themeMode
 
@@ -1740,7 +1743,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val data = repository.appData.value
             val suggestions = aiEngine.generateSuggestions(
-                data.transactions, data.budgets, data.settings.currencyCode
+                data.transactions, data.budgets, data.settings.currencyCode, data.categories
             )
             repository.addSuggestions(suggestions)
         }
@@ -2534,7 +2537,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             tx.amount, parsedCurrency, appCurrency
                         )
                     }
-                    if (converted != null) {
+                    if (converted != null && tx.amount > 0) {
                         rate = converted / tx.amount
                         origAmount = tx.amount
                         origCode = parsedCurrency

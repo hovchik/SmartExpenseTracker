@@ -4,20 +4,22 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 object DateUtils {
-    private val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-    private val shortDateFormat = SimpleDateFormat("MMM dd", Locale.getDefault())
-    private val timeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
-    private val dayFormat = SimpleDateFormat("EEE", Locale.getDefault())
-    private val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+    // SimpleDateFormat is NOT thread-safe — use ThreadLocal to avoid corruption
+    // when multiple coroutines or threads format dates concurrently.
+    private val dateFormat = ThreadLocal.withInitial { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
+    private val shortDateFormat = ThreadLocal.withInitial { SimpleDateFormat("MMM dd", Locale.getDefault()) }
+    private val timeFormat = ThreadLocal.withInitial { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
+    private val dayFormat = ThreadLocal.withInitial { SimpleDateFormat("EEE", Locale.getDefault()) }
+    private val monthFormat = ThreadLocal.withInitial { SimpleDateFormat("MMMM yyyy", Locale.getDefault()) }
 
-    fun formatDate(timestamp: Long): String = dateFormat.format(Date(timestamp))
-    fun formatShortDate(timestamp: Long): String = shortDateFormat.format(Date(timestamp))
-    fun formatTime(timestamp: Long): String = timeFormat.format(Date(timestamp))
-    fun formatDay(timestamp: Long): String = dayFormat.format(Date(timestamp))
-    fun formatMonth(timestamp: Long): String = monthFormat.format(Date(timestamp))
+    fun formatDate(timestamp: Long): String = dateFormat.get()!!.format(Date(timestamp))
+    fun formatShortDate(timestamp: Long): String = shortDateFormat.get()!!.format(Date(timestamp))
+    fun formatTime(timestamp: Long): String = timeFormat.get()!!.format(Date(timestamp))
+    fun formatDay(timestamp: Long): String = dayFormat.get()!!.format(Date(timestamp))
+    fun formatMonth(timestamp: Long): String = monthFormat.get()!!.format(Date(timestamp))
 
     fun formatDateTime(timestamp: Long): String =
-        "${dateFormat.format(Date(timestamp))} ${timeFormat.format(Date(timestamp))}"
+        "${dateFormat.get()!!.format(Date(timestamp))} ${timeFormat.get()!!.format(Date(timestamp))}"
 
     fun getStartOfDay(timestamp: Long = System.currentTimeMillis()): Long {
         val cal = Calendar.getInstance()

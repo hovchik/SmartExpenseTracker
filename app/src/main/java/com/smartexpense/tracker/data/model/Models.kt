@@ -7,8 +7,11 @@ import java.util.UUID
 
 /**
  * ISO-8601 datetime formatter used for the dateTime field.
+ * ThreadLocal because SimpleDateFormat is not thread-safe and Transaction
+ * default values can be evaluated from any thread.
  */
-private val isoDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+private val isoDateFormat: ThreadLocal<SimpleDateFormat> =
+    ThreadLocal.withInitial { SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US) }
 
 /**
  * GPS coordinates captured at the moment a transaction is created.
@@ -31,7 +34,7 @@ data class Transaction(
     val source: TransactionSource,
     val timestamp: Long = System.currentTimeMillis(),
     /** ISO-8601 datetime string (e.g. "2026-02-17T14:30:00") for human-readable storage and grouping. */
-    val dateTime: String = isoDateFormat.format(Date(System.currentTimeMillis())),
+    val dateTime: String = isoDateFormat.get()!!.format(Date(System.currentTimeMillis())),
     val tags: List<String> = emptyList(),
     val notes: String = "",
     val merchantName: String = "",
