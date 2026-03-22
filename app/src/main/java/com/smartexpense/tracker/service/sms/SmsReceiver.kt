@@ -175,7 +175,7 @@ class SmsReceiver : BroadcastReceiver() {
                             val converted = CurrencyConverterService.convert(
                                 parsed.amount, parsedCurrency, appCurrency
                             )
-                            if (converted != null) {
+                            if (converted != null && parsed.amount > 0) {
                                 usedRate = converted / parsed.amount
                                 origAmount = parsed.amount
                                 origCurrencyCode = parsedCurrency
@@ -264,7 +264,7 @@ class SmsReceiver : BroadcastReceiver() {
                         var fbRate = 0.0
                         if (fbIsForeign) {
                             val c = CurrencyConverterService.convert(parsed.amount, fbCurrency, "AMD")
-                            if (c != null) {
+                            if (c != null && parsed.amount > 0) {
                                 fbRate = c / parsed.amount
                                 fbOrigAmt = parsed.amount
                                 fbOrigCode = fbCurrency

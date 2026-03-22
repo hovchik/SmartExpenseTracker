@@ -100,9 +100,10 @@ class JsonStorageManager(private val context: Context) {
     /**
      * Export data as JSON string for sharing.
      */
-    suspend fun exportData(): String = mutex.withLock {
-        withContext(Dispatchers.IO) {
-            val data = cachedData ?: loadData()
+    suspend fun exportData(): String {
+        // Load data first (acquires its own lock), then serialize outside the lock.
+        val data = cachedData ?: loadData()
+        return withContext(Dispatchers.IO) {
             gson.toJson(data)
         }
     }

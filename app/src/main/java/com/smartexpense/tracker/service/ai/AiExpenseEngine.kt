@@ -266,7 +266,8 @@ class AiExpenseEngine {
     fun generateSuggestions(
         transactions: List<Transaction>,
         budgets: List<Budget>,
-        currencyCode: String = "USD"
+        currencyCode: String = "USD",
+        categories: List<Category> = emptyList()
     ): List<AiSuggestion> {
         if (transactions.isEmpty()) return emptyList()
         val sym = currencyInfoFor(currencyCode).symbol
@@ -279,7 +280,7 @@ class AiExpenseEngine {
         suggestions.addAll(detectHighSpendingCategories(recentExpenses, sym))
         suggestions.addAll(detectSubscriptionOptimizations(recentExpenses, sym))
         suggestions.addAll(detectSpendingSpikes(expenses, sym))
-        suggestions.addAll(detectBudgetOverruns(recentExpenses, budgets, sym))
+        suggestions.addAll(detectBudgetOverruns(recentExpenses, budgets, sym, categories))
         suggestions.addAll(detectDiningPatterns(recentExpenses, sym))
         suggestions.addAll(detectWeekendSpending(recentExpenses, sym))
         suggestions.addAll(detectSavingsPotential(recentExpenses, transactions))
@@ -351,16 +352,19 @@ class AiExpenseEngine {
         return suggestions
     }
 
-    private fun detectBudgetOverruns(expenses: List<Transaction>, budgets: List<Budget>, sym: String): List<AiSuggestion> {
+    private fun detectBudgetOverruns(expenses: List<Transaction>, budgets: List<Budget>, sym: String, categories: List<Category> = emptyList()): List<AiSuggestion> {
         val suggestions = mutableListOf<AiSuggestion>()
         for (budget in budgets) {
-            val spent = expenses.filter { it.category == budget.categoryId }.sumOf { it.amount }
+            // Resolve the budget's categoryId (UUID) to a human-readable category name.
+            // Transactions store category by name, so we must compare against the resolved name.
+            val categoryName = categories.find { it.id == budget.categoryId }?.name ?: budget.categoryId
+            val spent = expenses.filter { it.category == categoryName }.sumOf { it.amount }
             if (spent > budget.monthlyLimit * budget.alertThreshold) {
                 val percentage = (spent / budget.monthlyLimit * 100).roundToInt()
                 suggestions.add(AiSuggestion(
-                    title = "Budget alert: ${budget.categoryId}",
+                    title = "Budget alert: $categoryName",
                     description = "You've used $percentage% of your $sym${String.format("%.2f", budget.monthlyLimit)} budget.",
-                    potentialSaving = spent - budget.monthlyLimit, category = budget.categoryId,
+                    potentialSaving = spent - budget.monthlyLimit, category = categoryName,
                     priority = if (spent > budget.monthlyLimit) SuggestionPriority.HIGH else SuggestionPriority.MEDIUM
                 ))
             }

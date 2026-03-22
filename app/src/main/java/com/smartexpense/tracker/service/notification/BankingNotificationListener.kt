@@ -195,7 +195,7 @@ class BankingNotificationListener : NotificationListenerService() {
                         val converted = CurrencyConverterService.convert(
                             parsed.amount, parsedCurrency, appCurrency
                         )
-                        if (converted != null) {
+                        if (converted != null && parsed.amount > 0) {
                             usedRate = converted / parsed.amount
                             origAmount = parsed.amount
                             origCurrencyCode = parsedCurrency

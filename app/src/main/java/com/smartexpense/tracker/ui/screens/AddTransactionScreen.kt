@@ -290,7 +290,7 @@ fun AddTransactionScreen(
         ) {
             items(categories.filter {
                 if (isExpense) !listOf("Salary", "Freelance", "Investment").contains(it.name)
-                else listOf("Salary", "Freelance", "Investment", "Other").contains(it.name)
+                else listOf("Salary", "Freelance", "Investment", "Other").contains(it.name) || !it.isDefault
             }) { category ->
                 FilterChip(
                     selected = selectedCategory == category.name,
