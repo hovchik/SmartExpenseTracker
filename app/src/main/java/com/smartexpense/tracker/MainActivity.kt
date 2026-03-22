@@ -308,6 +308,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         categories = uiState.categories,
                         currencyCode = currencyCode,
                         onAnalyze = { start, end, cat -> viewModel.analyzeTransactions(start, end, cat) },
+                        onAnalyzeSuspend = { start, end, cat -> viewModel.analyzeTransactionsSuspend(start, end, cat) },
                         onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
                     )
                     "settings" -> SettingsScreen(

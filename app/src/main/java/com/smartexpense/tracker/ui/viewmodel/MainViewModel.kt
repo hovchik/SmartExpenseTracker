@@ -1079,6 +1079,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    /**
+     * Suspend version that tries the LLM (Ollama/DeepSeek) first, falling back to rule-based.
+     * Sends structured transaction data so the model can produce meaningful analysis.
+     */
+    suspend fun analyzeTransactionsSuspend(startMillis: Long, endMillis: Long, category: String?): String {
+        val settings = repository.appData.value.settings
+        val currencyCode = settings.currencyCode
+        val transactions = transactionsInDisplayCurrency(currencyCode)
+
+        if (settings.localAiEnabled) {
+            val dateFormat = SimpleDateFormat("MMM dd", Locale.US)
+            val rangeLabel = "${dateFormat.format(Date(startMillis))} – ${dateFormat.format(Date(endMillis))}"
+
+            val filtered = transactions.filter { t ->
+                t.timestamp in startMillis..endMillis &&
+                    (category == null || t.category == category)
+            }
+
+            if (filtered.isNotEmpty()) {
+                val txDateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                val transactionLines = filtered.map { t ->
+                    val date = txDateFormat.format(Date(t.timestamp))
+                    val type = if (t.type == TransactionType.EXPENSE) "expense" else "income"
+                    val desc = t.description.take(40)
+                    "$date | $type | ${String.format("%.2f", t.amount)} | ${t.category} | $desc"
+                }
+
+                val llmResult = localAiService.analyzeTransactions(
+                    transactionLines, rangeLabel, currencyCode, category
+                )
+                if (llmResult != null) return llmResult
+            }
+        }
+
+        // Fall back to rule-based analysis
+        return aiEngine.generateAnalysis(transactions, startMillis, endMillis, currencyCode, category)
+    }
+
     fun getWeeklyChartData(): List<Pair<String, Double>> {
         val data = repository.appData.value
         val appCurrency = data.settings.currencyCode

@@ -395,11 +395,21 @@ class MediaPipeLlmService(private val context: Context) {
         try {
             val method = inference.javaClass.getMethod("generateResponse", String::class.java)
             val result = method.invoke(inference, prompt) as? String
-            result?.trim()
+            result?.trim()?.let { stripThinkTags(it) }
         } catch (e: Exception) {
             Log.e(TAG, "Inference failed: ${e.message}")
             null
         }
+    }
+
+    /**
+     * Strips DeepSeek R1 thinking tags from the response.
+     */
+    private fun stripThinkTags(text: String): String {
+        return text
+            .replace(Regex("<think>[\\s\\S]*?</think>"), "")
+            .replace(Regex("</?think>"), "")
+            .trim()
     }
 
     suspend fun categorize(
