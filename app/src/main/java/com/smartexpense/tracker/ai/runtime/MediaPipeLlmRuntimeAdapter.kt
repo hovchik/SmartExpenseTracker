@@ -17,15 +17,8 @@ class MediaPipeLlmRuntimeAdapter(private val context: Context) : LocalModelRunti
 
     companion object {
         private const val TAG = "MediaPipeLlmRuntime"
-        // Most catalog models use ekv1280 (1280-token KV cache).
-        // Setting maxTokens higher than the KV cache causes GATHER_ND
-        // out-of-bounds errors in TFLite, leading to a native SIGSEGV.
-        private const val MAX_TOKENS = 1280
-        // Reserve ~256 tokens for output → ~1024 input tokens.
-        // Multilingual text (Armenian, CJK, Cyrillic) tokenizes at ~1.5 chars/token
-        // so we need a tighter char limit than pure English would require.
-        // 1200 chars ≈ 800 tokens, leaving ~480 for output.
-        private const val MAX_INPUT_CHARS = 1200
+        // Default token limit — overridden per-model by loadModel(maxTokens).
+        private const val DEFAULT_MAX_TOKENS = 1280
     }
 
     @Volatile
@@ -37,6 +30,16 @@ class MediaPipeLlmRuntimeAdapter(private val context: Context) : LocalModelRunti
     @Volatile
     private var currentModelPath: String? = null
 
+    /** Active token limit — stored so recreateSession() uses the same value. */
+    @Volatile
+    private var activeMaxTokens: Int = DEFAULT_MAX_TOKENS
+
+    /** Scaled input char limit based on activeMaxTokens.
+     *  Formula: reserve ~20% of tokens for output, convert remaining to chars
+     *  at ~1.2 chars/token (conservative for multilingual text). */
+    private val maxInputChars: Int
+        get() = ((activeMaxTokens * 0.80) * 1.2).toInt().coerceAtLeast(400)
+
     @Volatile
     var modelName: String = ""
         private set
@@ -45,10 +48,12 @@ class MediaPipeLlmRuntimeAdapter(private val context: Context) : LocalModelRunti
         var inference = llmInference ?: return@withContext ""
         try {
             // Truncate input to avoid exceeding the combined input+output token limit
-            // which causes a native crash (SIGSEGV) in MediaPipe
-            val safePrompt = if (prompt.length > MAX_INPUT_CHARS) {
-                Log.w(TAG, "Prompt truncated from ${prompt.length} to $MAX_INPUT_CHARS chars")
-                prompt.take(MAX_INPUT_CHARS)
+            // which causes a native crash (SIGSEGV) in MediaPipe.
+            // maxInputChars scales with the model's actual maxTokens setting.
+            val limit = maxInputChars
+            val safePrompt = if (prompt.length > limit) {
+                Log.w(TAG, "Prompt truncated from ${prompt.length} to $limit chars (maxTokens=$activeMaxTokens)")
+                prompt.take(limit)
             } else {
                 prompt
             }
@@ -77,10 +82,11 @@ class MediaPipeLlmRuntimeAdapter(private val context: Context) : LocalModelRunti
 
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(path)
-                .setMaxTokens(MAX_TOKENS)
+                .setMaxTokens(activeMaxTokens)
                 .build()
             llmInference = LlmInference.createFromOptions(context, options)
-            Log.d(TAG, "Session recreated successfully")
+            ready = true
+            Log.d(TAG, "Session recreated successfully (maxTokens=$activeMaxTokens)")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to recreate session: ${e.message}")
             llmInference = null
@@ -92,7 +98,7 @@ class MediaPipeLlmRuntimeAdapter(private val context: Context) : LocalModelRunti
 
     override fun isReady(): Boolean = ready
 
-    override suspend fun loadModel(modelPath: String): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun loadModel(modelPath: String, maxTokens: Int): Boolean = withContext(Dispatchers.IO) {
         try {
             releaseModel()
 
@@ -102,18 +108,19 @@ class MediaPipeLlmRuntimeAdapter(private val context: Context) : LocalModelRunti
                 return@withContext false
             }
 
-            Log.d(TAG, "Loading MediaPipe model: $modelPath (${file.length() / 1024 / 1024} MB)")
+            activeMaxTokens = maxTokens
+            Log.d(TAG, "Loading MediaPipe model: $modelPath (${file.length() / 1024 / 1024} MB, maxTokens=$maxTokens)")
 
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(modelPath)
-                .setMaxTokens(MAX_TOKENS)
+                .setMaxTokens(maxTokens)
                 .build()
 
             llmInference = LlmInference.createFromOptions(context, options)
             currentModelPath = modelPath
             modelName = file.nameWithoutExtension.replaceFirstChar { it.uppercase() }
             ready = true
-            Log.d(TAG, "MediaPipe model loaded: $modelName")
+            Log.d(TAG, "MediaPipe model loaded: $modelName (maxTokens=$maxTokens)")
             true
         } catch (e: Exception) {
             val cause = e.cause ?: e

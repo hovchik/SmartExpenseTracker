@@ -48,7 +48,7 @@ class LiteRtRuntimeAdapter : LocalModelRuntime {
 
     override fun isReady(): Boolean = ready
 
-    override suspend fun loadModel(modelPath: String): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun loadModel(modelPath: String, maxTokens: Int): Boolean = withContext(Dispatchers.IO) {
         try {
             val file = File(modelPath)
             if (!file.exists()) {

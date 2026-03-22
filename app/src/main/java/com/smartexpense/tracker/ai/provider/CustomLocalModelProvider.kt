@@ -57,7 +57,7 @@ class CustomLocalModelProvider(
         activeModel = model
 
         val runtime = getRuntimeForModel(model)
-        val success = runtime.loadModel(model.localPath)
+        val success = runtime.loadModel(model.localPath, model.maxTokens)
 
         if (success) {
             activeRuntime = runtime
@@ -91,7 +91,7 @@ class CustomLocalModelProvider(
         if (runtime == null || !runtime.isReady()) {
             android.util.Log.i(TAG, "Runtime not ready, retrying load for ${model.displayName}")
             runtime = getRuntimeForModel(model)
-            val reloaded = runtime.loadModel(model.localPath)
+            val reloaded = runtime.loadModel(model.localPath, model.maxTokens)
             if (reloaded) {
                 activeRuntime = runtime
             } else {
@@ -103,10 +103,14 @@ class CustomLocalModelProvider(
 
         val startTime = System.currentTimeMillis()
         // Local models have tight token budgets — condense the prompt first.
+        // Scale maxChars with the model's maxTokens (reserve ~20% for output,
+        // use ~1.2 chars/token for multilingual safety).
         // Reasoning models (e.g. DeepSeek R1) get a task-oriented format
         // without role-play/system instructions, which improves output quality.
+        val maxInputChars = ((model.maxTokens * 0.80) * 1.2).toInt().coerceAtLeast(400)
         val condensed = promptAdapter.condenseForLocalModel(
             input.prompt,
+            maxChars = maxInputChars,
             isReasoningModel = model.isReasoningModel
         )
         val adaptedPrompt = promptAdapter.adaptPrompt(

@@ -790,7 +790,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     benchmarkRunner.runBenchmark(aiProviderSelector.getActiveProvider())
                 }
                 _benchmarkResult.value = result
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
+                // Catch Throwable (not just Exception) to handle OutOfMemoryError
+                // from large models like Gemma 2 2B without crashing the app.
                 android.util.Log.e("MainViewModel", "Benchmark failed", e)
                 _benchmarkResult.value = null
             } finally {

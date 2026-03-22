@@ -41,7 +41,7 @@ class SystemAiRuntimeAdapter(private val context: Context) : LocalModelRuntime {
 
     override fun isReady(): Boolean = ready
 
-    override suspend fun loadModel(modelPath: String): Boolean {
+    override suspend fun loadModel(modelPath: String, maxTokens: Int): Boolean {
         // System AI doesn't need explicit model loading — the system manages models.
         // We just check if the runtime is available.
         return try {

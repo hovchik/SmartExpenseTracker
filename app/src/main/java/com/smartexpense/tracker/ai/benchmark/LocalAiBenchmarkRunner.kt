@@ -68,7 +68,9 @@ class LocalAiBenchmarkRunner {
 
                 Log.d(TAG, "Prompt ${latencies.size}: ${elapsed}ms, " +
                         "response=${result.text.length} chars, success=${result.success}")
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
+                // Catch Throwable (not just Exception) to handle OutOfMemoryError
+                // from large models like Gemma 2 2B without crashing the app.
                 Log.w(TAG, "Benchmark prompt failed: ${e.message}")
                 latencies.add(-1)
             }

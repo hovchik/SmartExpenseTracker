@@ -15,8 +15,10 @@ interface LocalModelRuntime {
     /** Whether a model is currently loaded and ready. */
     fun isReady(): Boolean
 
-    /** Load a model from the given file path. */
-    suspend fun loadModel(modelPath: String): Boolean
+    /** Load a model from the given file path.
+     *  @param maxTokens Maximum combined input+output tokens. Must not exceed
+     *         the KV cache size baked into the model file. */
+    suspend fun loadModel(modelPath: String, maxTokens: Int = 1280): Boolean
 
     /** Release the currently loaded model and free resources. */
     fun releaseModel()

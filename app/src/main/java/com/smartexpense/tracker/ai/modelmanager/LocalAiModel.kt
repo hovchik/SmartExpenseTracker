@@ -30,7 +30,12 @@ data class LocalAiModel(
     val licenseUrl: String = "",
     /** True for reasoning models (e.g. DeepSeek R1) that use chain-of-thought
      *  and work best without system/role-play instructions. */
-    val isReasoningModel: Boolean = false
+    val isReasoningModel: Boolean = false,
+    /** Maximum token limit (input + output) for the model's KV cache.
+     *  Must not exceed the value baked into the .task/.bin file.
+     *  Models from litert-community with "ekv1280" in the filename use 1280.
+     *  Community mirrors without explicit ekv info use a conservative 1024. */
+    val maxTokens: Int = 1280
 )
 
 enum class RuntimeType(val label: String) {
@@ -124,7 +129,8 @@ object ModelCatalog {
             supportsStreaming = true,
             version = "3.0",
             downloadUrl = "https://huggingface.co/AfiOne/gemma3-1b-it-int4.task/resolve/main/gemma3-1b-it-int4.task",
-            description = "Smallest Gemma model. Fast inference, good for categorization."
+            description = "Smallest Gemma model. Fast inference, good for categorization.",
+            maxTokens = 1024 // Community mirror — KV cache size unknown
         ),
 
         // ── Small models (1–1.5 GB) — phones with 4 GB RAM ─────────────
@@ -160,7 +166,8 @@ object ModelCatalog {
             supportsStreaming = true,
             version = "1.0",
             downloadUrl = "https://huggingface.co/autoocrat0413/gemma-2b-it-gpu-int4-mediapipe/resolve/main/gemma-2b-it-gpu-int4.bin",
-            description = "GPU-optimized Gemma 2B. Fast inference with hardware acceleration."
+            description = "GPU-optimized Gemma 2B. Fast inference with hardware acceleration.",
+            maxTokens = 1024 // Community mirror — KV cache size unknown
         ),
 
         // ── Medium models (1.5–2 GB) — phones with 6 GB RAM ────────────
@@ -216,7 +223,8 @@ object ModelCatalog {
             supportsStreaming = true,
             version = "2.0",
             downloadUrl = "https://huggingface.co/CarlosJefte/Gemma-2-2b-mediapipe/resolve/main/gemma2-2b-it-cpu-int8.task",
-            description = "Gemma 2 2B with int8 precision. Great accuracy for financial analysis."
+            description = "Gemma 2 2B with int8 precision. Great accuracy for financial analysis.",
+            maxTokens = 1024 // Community mirror — KV cache size unknown, use safe default
         ),
 
         LocalAiModel(
@@ -233,7 +241,8 @@ object ModelCatalog {
             supportsStreaming = true,
             version = "3.0",
             downloadUrl = "https://huggingface.co/realbyte/gemma-3n-E2B-it-int4-mediapipe/resolve/main/gemma-3n-E2B-it-int4.task",
-            description = "Latest Gemma 3n architecture with selective parameter activation."
+            description = "Latest Gemma 3n architecture with selective parameter activation.",
+            maxTokens = 1024 // Community mirror — KV cache size unknown
         ),
 
         LocalAiModel(
@@ -363,7 +372,8 @@ object ModelCatalog {
             downloadUrl = "https://huggingface.co/google/gemma-3n-E4B-it-litert-preview/resolve/main/gemma-3n-E4B-it-int4.task",
             description = "Official Gemma 3n E4B (4.41 GB). Best quality. Requires HuggingFace token.",
             isGated = true,
-            licenseUrl = "https://huggingface.co/google/gemma-3n-E4B-it-litert-preview"
+            licenseUrl = "https://huggingface.co/google/gemma-3n-E4B-it-litert-preview",
+            maxTokens = 1024 // Official preview — no ekv info in filename, use safe default
         )
     )
 
