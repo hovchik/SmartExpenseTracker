@@ -250,7 +250,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         categories = uiState.categories,
                         onAdd = { amount, desc, category, type, source, merchant, notes, timestamp ->
                             viewModel.addTransaction(amount = amount, description = desc,
-                                category = category, type = type, source = source,
+                                category = category.ifEmpty { null }, type = type, source = source,
                                 merchantName = merchant, notes = notes, timestamp = timestamp)
                         },
                         onScanReceipt = {
