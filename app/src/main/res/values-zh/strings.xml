@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FlowSense</string>
+    <string name="app_tagline">智能支出追踪</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">首页</string>
+    <string name="nav_reports">报告</string>
+    <string name="nav_add">添加</string>
+    <string name="nav_history">历史</string>
+    <string name="nav_settings">设置</string>
+    <string name="nav_transactions">交易</string>
+
+    <!-- Top bar actions -->
+    <string name="action_ai_analyze">AI分析</string>
+    <string name="action_store_map">商店地图</string>
+    <string name="action_scanned_sections">已扫描部分</string>
+
+    <!-- Dashboard -->
+    <string name="monthly_balance">月度余额</string>
+    <string name="show_balance">显示余额</string>
+    <string name="hide_balance">隐藏余额</string>
+    <string name="income">收入</string>
+    <string name="expenses">支出</string>
+    <string name="today">今天</string>
+    <string name="this_week">本周</string>
+    <string name="transactions">交易</string>
+    <string name="ai_insights">AI洞察</string>
+    <string name="spending_by_category">按类别支出</string>
+    <string name="recent_transactions">最近交易</string>
+    <string name="no_transactions_yet">暂无交易</string>
+    <string name="no_transactions_hint">手动添加、扫描收据或启用短信/通知追踪</string>
+    <string name="save_per_month">每月节省 %s</string>
+    <string name="priority_high">高</string>
+    <string name="priority_medium">中</string>
+    <string name="priority_low">低</string>
+    <string name="dismiss">关闭</string>
+    <string name="currency_converted">货币已换算</string>
+
+    <!-- Add Transaction -->
+    <string name="add_transaction">添加交易</string>
+    <string name="amount">金额</string>
+    <string name="description">描述</string>
+    <string name="category">类别</string>
+    <string name="expense">支出</string>
+    <string name="type_income">收入</string>
+    <string name="merchant_name">商户名称</string>
+    <string name="notes">备注</string>
+    <string name="save">保存</string>
+    <string name="cancel">取消</string>
+    <string name="scan_receipt">扫描收据</string>
+    <string name="from_ocr_scan">来自OCR扫描</string>
+    <string name="select_category">选择类别</string>
+    <string name="enter_amount">输入金额</string>
+    <string name="enter_description">输入描述</string>
+
+    <!-- Receipt Scanner -->
+    <string name="scan_receipt_title">扫描收据</string>
+    <string name="take_photo">拍照</string>
+    <string name="choose_from_gallery">从相册选择</string>
+    <string name="processing_ocr">处理中…</string>
+    <string name="no_text_detected">未检测到文字</string>
+    <string name="save_as_section">保存为部分</string>
+    <string name="edit_as_transaction">编辑为交易</string>
+    <string name="view_sections">查看部分</string>
+    <string name="camera_permission_required">扫描收据需要相机权限</string>
+
+    <!-- OCR Sections -->
+    <string name="ocr_sections_title">已扫描部分</string>
+    <string name="clear_all">清除全部</string>
+    <string name="no_sections_yet">暂无已扫描部分</string>
+    <string name="goods_report">商品报告</string>
+    <string name="items_total">商品合计</string>
+
+    <!-- Reports -->
+    <string name="reports_title">报告</string>
+    <string name="daily">每日</string>
+    <string name="weekly">每周</string>
+    <string name="monthly">每月</string>
+    <string name="custom">自定义</string>
+    <string name="total_expenses">总支出</string>
+    <string name="total_income">总收入</string>
+    <string name="net_balance">净余额</string>
+    <string name="avg_daily_spend">日均支出</string>
+    <string name="top_expenses">最大支出</string>
+    <string name="top_merchants">主要商户</string>
+    <string name="comparison_with_previous">与上期对比</string>
+    <string name="ai_expense_tips">AI节省建议</string>
+    <string name="generate_ai_tips">生成AI建议</string>
+
+    <!-- Settings -->
+    <string name="settings_title">设置</string>
+    <string name="appearance">外观</string>
+    <string name="theme">主题</string>
+    <string name="theme_system">跟随系统</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+    <string name="currency">货币</string>
+    <string name="exchange_rates">汇率</string>
+    <string name="fetch_rates">获取汇率</string>
+    <string name="currency_converter">货币换算</string>
+    <string name="data_sources">数据来源</string>
+    <string name="sms_parsing">短信解析</string>
+    <string name="notification_listener">通知监听</string>
+    <string name="scan_sms_inbox">扫描短信收件箱</string>
+    <string name="banking_apps">银行应用</string>
+    <string name="scan_for_apps">搜索应用</string>
+    <string name="connected_apps">已连接应用</string>
+    <string name="budget_alerts">预算 &amp; 提醒</string>
+    <string name="monthly_expense_limit">月度支出上限</string>
+    <string name="salary_scheduler">工资计划</string>
+    <string name="scheduled_expenses">计划支出</string>
+    <string name="categories">类别</string>
+    <string name="add_category">添加类别</string>
+    <string name="ai_engine">AI引擎</string>
+    <string name="import_export">导入 / 导出</string>
+    <string name="export_data">导出数据</string>
+    <string name="import_data">导入数据</string>
+    <string name="clear_all_data">清除所有数据</string>
+    <string name="storage">存储</string>
+    <string name="battery">电池</string>
+    <string name="permissions">权限</string>
+    <string name="about">关于</string>
+    <string name="version">版本 %s</string>
+    <string name="subscription">订阅</string>
+    <string name="restore_purchases">恢复购买</string>
+    <string name="premium">高级版</string>
+
+    <!-- Language / i18n -->
+    <string name="language">语言</string>
+    <string name="language_system">系统默认</string>
+    <string name="language_changed">语言已更改。请重启应用以完全生效。</string>
+
+    <!-- AI -->
+    <string name="ai_analyze_title">AI分析</string>
+    <string name="ai_chat_history">聊天记录</string>
+    <string name="analyze">分析</string>
+    <string name="analyzing">分析中…</string>
+    <string name="ai_mode_auto">自动（推荐）</string>
+    <string name="ai_mode_system">系统AI</string>
+    <string name="ai_mode_local">本地模型</string>
+    <string name="ai_mode_cloud">云端AI</string>
+    <string name="ai_setup_wizard">AI设置向导</string>
+
+    <!-- SMS Scan -->
+    <string name="sms_scan_title">短信扫描</string>
+    <string name="start_scan">开始扫描</string>
+    <string name="confirm_all">全部确认</string>
+    <string name="discard">丢弃</string>
+    <string name="sms_found">找到 %d 笔交易</string>
+
+    <!-- Store Map -->
+    <string name="store_map_title">商店地图</string>
+    <string name="add_store">添加商店</string>
+    <string name="delete_store">删除商店</string>
+    <string name="store_name">商店名称</string>
+    <string name="address">地址</string>
+
+    <!-- Transaction Detail -->
+    <string name="transaction_detail">交易详情</string>
+    <string name="delete_transaction">删除交易</string>
+    <string name="source">来源</string>
+    <string name="date">日期</string>
+    <string name="tags">标签</string>
+    <string name="location">位置</string>
+
+    <!-- Notifications -->
+    <string name="notifications">通知</string>
+    <string name="mark_all_read">全部标为已读</string>
+    <string name="no_notifications">没有通知</string>
+    <string name="transaction_detected">检测到交易</string>
+    <string name="budget_alert">预算提醒</string>
+
+    <!-- Onboarding / Splash -->
+    <string name="onboarding_title">FlowSense</string>
+    <string name="key_features">核心功能</string>
+    <string name="feature_ai_title">AI智能分类</string>
+    <string name="feature_ai_desc">使用设备端AI或云端模型自动分类支出</string>
+    <string name="feature_reports_title">报告 &amp; 洞察</string>
+    <string name="feature_reports_desc">详细的支出报告，附带AI生成的财务分析</string>
+    <string name="feature_ocr_title">收据扫描</string>
+    <string name="feature_ocr_desc">通过OCR扫描收据，提取金额和商户信息</string>
+    <string name="feature_sms_title">短信解析</string>
+    <string name="feature_sms_desc">自动从银行短信中检测交易</string>
+    <string name="feature_map_title">商店地图</string>
+    <string name="feature_map_desc">通过地理标记的交易可视化消费地点</string>
+    <string name="feature_currency_title">多币种</string>
+    <string name="feature_currency_desc">使用实时汇率追踪多币种支出</string>
+    <string name="onboarding_permissions">权限</string>
+    <string name="onboarding_permissions_desc">授予权限以解锁全部功能。\n不授权也可以使用应用。</string>
+    <string name="permission_camera">相机</string>
+    <string name="permission_camera_desc">扫描收据和拍摄支出凭证</string>
+    <string name="permission_sms">短信</string>
+    <string name="permission_sms_desc">读取银行短信以自动检测交易</string>
+    <string name="permission_notifications">通知</string>
+    <string name="permission_notifications_desc">预算提醒、阈值警告和备忘</string>
+    <string name="permission_location">位置</string>
+    <string name="permission_location_desc">为交易添加地理标记并在地图上显示支出</string>
+    <string name="permission_granted">已授权</string>
+    <string name="permission_not_available">不可用</string>
+    <string name="grant">授权</string>
+    <string name="ai_engine_title">AI引擎</string>
+    <string name="ai_on_device_title">设备端AI</string>
+    <string name="ai_on_device_subtitle">推荐</string>
+    <string name="ai_on_device_badge">隐私</string>
+    <string name="ai_on_device_desc">下载一个小型AI模型（500 MB – 2 GB），完全在设备上运行。您的数据永远不会离开手机。</string>
+    <string name="ai_system_title">系统AI</string>
+    <string name="ai_system_desc">使用设备内置的AI运行时（Pixel上的Google AICore、三星Galaxy AI）。如果设备支持则无需下载。</string>
+    <string name="ai_cloud_title">云端AI</string>
+    <string name="ai_cloud_desc">通过API使用Claude AI进行最高质量的分析。需要API密钥。数据将发送至Anthropic服务器。</string>
+    <string name="ai_change_anytime">您可以随时在设置 > AI引擎中更改。</string>
+    <string name="ai_uses_info">FlowSense使用AI来分类交易、\n生成洞察和分析支出。</string>
+    <string name="ready_title">一切就绪！</string>
+    <string name="ready_subtitle">开始记录您的支出，\nAI会处理其余工作。</string>
+    <string name="tip_add">点击 + 按钮添加您的第一笔支出</string>
+    <string name="tip_scan">使用收据扫描器免手动录入</string>
+    <string name="tip_ai">AI将自动分类您的交易</string>
+    <string name="tip_settings">访问设置来配置AI模型和短信解析</string>
+    <string name="data_privacy_note">您的数据保留在设备上。\n无需注册账户。</string>
+    <string name="skip">跳过</string>
+    <string name="back">返回</string>
+    <string name="next">下一步</string>
+    <string name="get_started">开始使用</string>
+
+    <!-- Paywall -->
+    <string name="paywall_title">解锁 %s</string>
+    <string name="start_free_trial">开始免费试用</string>
+    <string name="subscribe">订阅</string>
+
+    <!-- Accessibility -->
+    <string name="accessibility_settings">无障碍</string>
+    <string name="voice_input">语音输入</string>
+    <string name="voice_input_desc">使用语音添加交易和导航</string>
+    <string name="dynamic_font_scaling">动态字体缩放</string>
+    <string name="dynamic_font_scaling_desc">调整文字大小以提高可读性</string>
+    <string name="high_contrast">高对比度模式</string>
+    <string name="high_contrast_desc">增强对比度以提高可见性</string>
+    <string name="screen_reader_optimized">屏幕阅读器优化</string>
+    <string name="font_scale">字体大小</string>
+    <string name="font_scale_small">小</string>
+    <string name="font_scale_normal">正常</string>
+    <string name="font_scale_large">大</string>
+    <string name="font_scale_extra_large">特大</string>
+    <string name="tap_to_speak">点击说话</string>
+    <string name="listening">正在听…</string>
+    <string name="voice_not_available">语音输入不可用</string>
+
+    <!-- Engagement / Reminders -->
+    <string name="daily_reminder">每日提醒</string>
+    <string name="daily_reminder_desc">接收每日提醒以记录支出</string>
+    <string name="weekly_summary_notification">每周摘要</string>
+    <string name="weekly_summary_desc">接收每周支出摘要通知</string>
+    <string name="reminder_time">提醒时间</string>
+    <string name="widget_balance_title">FlowSense 余额</string>
+    <string name="widget_description">一览当前月度余额</string>
+    <string name="widget_monthly_balance">月度余额</string>
+    <string name="widget_income_label">收入</string>
+    <string name="widget_expense_label">支出</string>
+
+    <!-- Price Tracking / Store Integration -->
+    <string name="price_tracking">价格追踪</string>
+    <string name="price_tracking_desc">使用相机追踪商品价格变化</string>
+    <string name="scan_price">扫描价格</string>
+    <string name="price_history">价格历史</string>
+    <string name="item_name">商品名称</string>
+    <string name="current_price">当前价格</string>
+    <string name="lowest_price">最低价</string>
+    <string name="highest_price">最高价</string>
+    <string name="price_trend">价格趋势</string>
+    <string name="add_price_entry">添加价格记录</string>
+    <string name="tracked_items">追踪的商品</string>
+    <string name="no_tracked_items">暂无追踪商品</string>
+    <string name="no_tracked_items_hint">拍摄任意商品照片开始追踪其价格</string>
+    <string name="price_alert">价格提醒</string>
+    <string name="price_dropped">价格下降了！</string>
+    <string name="price_drop_message">%1$s 现在是 %2$s（之前 %3$s）</string>
+    <string name="deal_found">发现优惠</string>
+    <string name="scan_item_price">扫描商品价格</string>
+    <string name="enter_item_name">输入商品名称</string>
+    <string name="enter_price">输入价格</string>
+    <string name="store_location_label">商店 / 位置</string>
+    <string name="price_saved">价格已保存</string>
+    <string name="delete_item">删除商品</string>
+
+    <!-- Common -->
+    <string name="ok">确定</string>
+    <string name="yes">是</string>
+    <string name="no">否</string>
+    <string name="delete">删除</string>
+    <string name="edit">编辑</string>
+    <string name="close">关闭</string>
+    <string name="search">搜索</string>
+    <string name="loading">加载中…</string>
+    <string name="error">错误</string>
+    <string name="retry">重试</string>
+    <string name="confirm">确认</string>
+    <string name="are_you_sure">确定吗？</string>
+    <string name="no_data">暂无数据</string>
+</resources>

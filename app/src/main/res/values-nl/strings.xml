@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FlowSense</string>
+    <string name="app_tagline">Slim Uitgaven Bijhouden</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_reports">Rapporten</string>
+    <string name="nav_add">Toevoegen</string>
+    <string name="nav_history">Geschiedenis</string>
+    <string name="nav_settings">Instellingen</string>
+    <string name="nav_transactions">Transacties</string>
+
+    <!-- Top bar actions -->
+    <string name="action_ai_analyze">AI-analyse</string>
+    <string name="action_store_map">Winkelkaart</string>
+    <string name="action_scanned_sections">Gescande Secties</string>
+
+    <!-- Dashboard -->
+    <string name="monthly_balance">Maandelijks Saldo</string>
+    <string name="show_balance">Saldo tonen</string>
+    <string name="hide_balance">Saldo verbergen</string>
+    <string name="income">Inkomsten</string>
+    <string name="expenses">Uitgaven</string>
+    <string name="today">Vandaag</string>
+    <string name="this_week">Deze Week</string>
+    <string name="transactions">Transacties</string>
+    <string name="ai_insights">AI-inzichten</string>
+    <string name="spending_by_category">Uitgaven per Categorie</string>
+    <string name="recent_transactions">Recente Transacties</string>
+    <string name="no_transactions_yet">Nog geen transacties</string>
+    <string name="no_transactions_hint">Voeg er handmatig een toe, scan een bon of schakel SMS-/meldingstracking in</string>
+    <string name="save_per_month">Bespaar %s/mnd</string>
+    <string name="priority_high">Hoog</string>
+    <string name="priority_medium">Gemiddeld</string>
+    <string name="priority_low">Laag</string>
+    <string name="dismiss">Negeren</string>
+    <string name="currency_converted">Valuta omgezet</string>
+
+    <!-- Add Transaction -->
+    <string name="add_transaction">Transactie Toevoegen</string>
+    <string name="amount">Bedrag</string>
+    <string name="description">Beschrijving</string>
+    <string name="category">Categorie</string>
+    <string name="expense">Uitgave</string>
+    <string name="type_income">Inkomst</string>
+    <string name="merchant_name">Winkelnaam</string>
+    <string name="notes">Notities</string>
+    <string name="save">Opslaan</string>
+    <string name="cancel">Annuleren</string>
+    <string name="scan_receipt">Bon Scannen</string>
+    <string name="from_ocr_scan">Van OCR-scan</string>
+    <string name="select_category">Categorie Selecteren</string>
+    <string name="enter_amount">Bedrag invoeren</string>
+    <string name="enter_description">Beschrijving invoeren</string>
+
+    <!-- Receipt Scanner -->
+    <string name="scan_receipt_title">Bon Scannen</string>
+    <string name="take_photo">Foto Maken</string>
+    <string name="choose_from_gallery">Kies uit Galerij</string>
+    <string name="processing_ocr">Verwerken\u2026</string>
+    <string name="no_text_detected">Geen tekst gedetecteerd</string>
+    <string name="save_as_section">Opslaan als Sectie</string>
+    <string name="edit_as_transaction">Bewerken als Transactie</string>
+    <string name="view_sections">Secties Bekijken</string>
+    <string name="camera_permission_required">Cameratoestemming is vereist om bonnen te scannen</string>
+
+    <!-- OCR Sections -->
+    <string name="ocr_sections_title">Gescande Secties</string>
+    <string name="clear_all">Alles Wissen</string>
+    <string name="no_sections_yet">Nog geen gescande secties</string>
+    <string name="goods_report">Artikelrapport</string>
+    <string name="items_total">Totaal Artikelen</string>
+
+    <!-- Reports -->
+    <string name="reports_title">Rapporten</string>
+    <string name="daily">Dagelijks</string>
+    <string name="weekly">Wekelijks</string>
+    <string name="monthly">Maandelijks</string>
+    <string name="custom">Aangepast</string>
+    <string name="total_expenses">Totale Uitgaven</string>
+    <string name="total_income">Totale Inkomsten</string>
+    <string name="net_balance">Netto Saldo</string>
+    <string name="avg_daily_spend">Gem. Dagelijkse Uitgaven</string>
+    <string name="top_expenses">Grootste Uitgaven</string>
+    <string name="top_merchants">Grootste Winkels</string>
+    <string name="comparison_with_previous">vs Vorige Periode</string>
+    <string name="ai_expense_tips">AI-tips om Uitgaven te Verminderen</string>
+    <string name="generate_ai_tips">AI-tips Genereren</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Instellingen</string>
+    <string name="appearance">Uiterlijk</string>
+    <string name="theme">Thema</string>
+    <string name="theme_system">Systeem</string>
+    <string name="theme_light">Licht</string>
+    <string name="theme_dark">Donker</string>
+    <string name="currency">Valuta</string>
+    <string name="exchange_rates">Wisselkoersen</string>
+    <string name="fetch_rates">Koersen Ophalen</string>
+    <string name="currency_converter">Valutaomrekening</string>
+    <string name="data_sources">Gegevensbronnen</string>
+    <string name="sms_parsing">SMS-verwerking</string>
+    <string name="notification_listener">Meldingsluisteraar</string>
+    <string name="scan_sms_inbox">SMS-inbox Scannen</string>
+    <string name="banking_apps">Bank-apps</string>
+    <string name="scan_for_apps">Apps Zoeken</string>
+    <string name="connected_apps">Verbonden Apps</string>
+    <string name="budget_alerts">Budget &amp; Meldingen</string>
+    <string name="monthly_expense_limit">Maandelijks Uitgavenlimiet</string>
+    <string name="salary_scheduler">Salarisplanner</string>
+    <string name="scheduled_expenses">Geplande Uitgaven</string>
+    <string name="categories">Categorieën</string>
+    <string name="add_category">Categorie Toevoegen</string>
+    <string name="ai_engine">AI-motor</string>
+    <string name="import_export">Importeren / Exporteren</string>
+    <string name="export_data">Gegevens Exporteren</string>
+    <string name="import_data">Gegevens Importeren</string>
+    <string name="clear_all_data">Alle Gegevens Wissen</string>
+    <string name="storage">Opslag</string>
+    <string name="battery">Batterij</string>
+    <string name="permissions">Machtigingen</string>
+    <string name="about">Over</string>
+    <string name="version">Versie %s</string>
+    <string name="subscription">Abonnement</string>
+    <string name="restore_purchases">Aankopen Herstellen</string>
+    <string name="premium">Premium</string>
+
+    <!-- Language / i18n -->
+    <string name="language">Taal</string>
+    <string name="language_system">Systeemstandaard</string>
+    <string name="language_changed">Taal gewijzigd. Herstart de app voor volledig effect.</string>
+
+    <!-- AI -->
+    <string name="ai_analyze_title">AI-analyse</string>
+    <string name="ai_chat_history">Chatgeschiedenis</string>
+    <string name="analyze">Analyseren</string>
+    <string name="analyzing">Analyseren\u2026</string>
+    <string name="ai_mode_auto">Automatisch (aanbevolen)</string>
+    <string name="ai_mode_system">Systeem-AI</string>
+    <string name="ai_mode_local">Lokaal model</string>
+    <string name="ai_mode_cloud">Cloud-AI</string>
+    <string name="ai_setup_wizard">AI-configuratiewizard</string>
+
+    <!-- SMS Scan -->
+    <string name="sms_scan_title">SMS Scannen</string>
+    <string name="start_scan">Scan Starten</string>
+    <string name="confirm_all">Alles Bevestigen</string>
+    <string name="discard">Verwerpen</string>
+    <string name="sms_found">%d transacties gevonden</string>
+
+    <!-- Store Map -->
+    <string name="store_map_title">Winkelkaart</string>
+    <string name="add_store">Winkel Toevoegen</string>
+    <string name="delete_store">Winkel Verwijderen</string>
+    <string name="store_name">Winkelnaam</string>
+    <string name="address">Adres</string>
+
+    <!-- Transaction Detail -->
+    <string name="transaction_detail">Transactiedetail</string>
+    <string name="delete_transaction">Transactie Verwijderen</string>
+    <string name="source">Bron</string>
+    <string name="date">Datum</string>
+    <string name="tags">Tags</string>
+    <string name="location">Locatie</string>
+
+    <!-- Notifications -->
+    <string name="notifications">Meldingen</string>
+    <string name="mark_all_read">Alles als Gelezen Markeren</string>
+    <string name="no_notifications">Geen meldingen</string>
+    <string name="transaction_detected">Transactie Gedetecteerd</string>
+    <string name="budget_alert">Budgetmelding</string>
+
+    <!-- Onboarding / Splash -->
+    <string name="onboarding_title">FlowSense</string>
+    <string name="key_features">Belangrijkste Functies</string>
+    <string name="feature_ai_title">AI-categorisering</string>
+    <string name="feature_ai_desc">Categoriseer uitgaven automatisch met AI op het apparaat of cloudmodellen</string>
+    <string name="feature_reports_title">Rapporten &amp; Inzichten</string>
+    <string name="feature_reports_desc">Gedetailleerde uitgavenrapporten met door AI gegenereerde financiële inzichten</string>
+    <string name="feature_ocr_title">Bonscanner</string>
+    <string name="feature_ocr_desc">Scan bonnen met OCR om bedragen en winkelinformatie te extraheren</string>
+    <string name="feature_sms_title">SMS-verwerking</string>
+    <string name="feature_sms_desc">Detecteer automatisch transacties uit bank-SMS-berichten</string>
+    <string name="feature_map_title">Winkelkaart</string>
+    <string name="feature_map_desc">Visualiseer waar je uitgeeft met geo-getagde transacties</string>
+    <string name="feature_currency_title">Multi-valuta</string>
+    <string name="feature_currency_desc">Volg uitgaven in meerdere valuta\'s met live wisselkoersen</string>
+    <string name="onboarding_permissions">Machtigingen</string>
+    <string name="onboarding_permissions_desc">Verleen machtigingen om alle functionaliteit te ontgrendelen.\nDe app werkt ook zonder.</string>
+    <string name="permission_camera">Camera</string>
+    <string name="permission_camera_desc">Scan bonnen en leg uitgavendocumenten vast</string>
+    <string name="permission_sms">SMS</string>
+    <string name="permission_sms_desc">Lees bankberichten om automatisch transacties te detecteren</string>
+    <string name="permission_notifications">Meldingen</string>
+    <string name="permission_notifications_desc">Budgetmeldingen, drempelwaarschuwingen en herinneringen</string>
+    <string name="permission_location">Locatie</string>
+    <string name="permission_location_desc">Tag transacties met locatie en toon uitgaven op een kaart</string>
+    <string name="permission_granted">Verleend</string>
+    <string name="permission_not_available">N.v.t.</string>
+    <string name="grant">Verlenen</string>
+    <string name="ai_engine_title">AI-motor</string>
+    <string name="ai_on_device_title">AI op Apparaat</string>
+    <string name="ai_on_device_subtitle">Aanbevolen</string>
+    <string name="ai_on_device_badge">Privé</string>
+    <string name="ai_on_device_desc">Download een klein AI-model (500 MB – 2 GB) dat volledig op je apparaat draait. Je gegevens verlaten nooit je telefoon.</string>
+    <string name="ai_system_title">Systeem-AI</string>
+    <string name="ai_system_desc">Gebruik de ingebouwde AI-runtime van je apparaat (Google AICore op Pixel, Samsung Galaxy AI). Geen download nodig als je apparaat dit ondersteunt.</string>
+    <string name="ai_cloud_title">Cloud-AI</string>
+    <string name="ai_cloud_desc">Gebruik Claude AI via API voor de hoogste kwaliteitsanalyse. Vereist een API-sleutel. Gegevens worden naar Anthropic-servers gestuurd.</string>
+    <string name="ai_change_anytime">Je kunt dit altijd wijzigen in Instellingen > AI-motor.</string>
+    <string name="ai_uses_info">FlowSense gebruikt AI om transacties te categoriseren,\ninzichten te genereren en uitgaven te analyseren.</string>
+    <string name="ready_title">Alles Klaar!</string>
+    <string name="ready_subtitle">Begin met het bijhouden van je uitgaven en\nlaat AI de rest doen.</string>
+    <string name="tip_add">Tik op de + knop om je eerste uitgave toe te voegen</string>
+    <string name="tip_scan">Gebruik de bonscanner voor handsfree invoer</string>
+    <string name="tip_ai">AI categoriseert je transacties automatisch</string>
+    <string name="tip_settings">Ga naar Instellingen om AI-modellen en SMS-verwerking te configureren</string>
+    <string name="data_privacy_note">Je gegevens blijven op je apparaat.\nGeen account vereist.</string>
+    <string name="skip">Overslaan</string>
+    <string name="back">Terug</string>
+    <string name="next">Volgende</string>
+    <string name="get_started">Aan de Slag</string>
+
+    <!-- Paywall -->
+    <string name="paywall_title">Ontgrendel %s</string>
+    <string name="start_free_trial">Gratis Proefperiode Starten</string>
+    <string name="subscribe">Abonneren</string>
+
+    <!-- Accessibility -->
+    <string name="accessibility_settings">Toegankelijkheid</string>
+    <string name="voice_input">Spraakinvoer</string>
+    <string name="voice_input_desc">Gebruik spraak om transacties toe te voegen en te navigeren</string>
+    <string name="dynamic_font_scaling">Dynamische Lettertypeschaling</string>
+    <string name="dynamic_font_scaling_desc">Pas de tekstgrootte aan voor betere leesbaarheid</string>
+    <string name="high_contrast">Hoog Contrast Modus</string>
+    <string name="high_contrast_desc">Verhoog het contrast voor betere zichtbaarheid</string>
+    <string name="screen_reader_optimized">Geoptimaliseerd voor Schermlezer</string>
+    <string name="font_scale">Lettertypeschaal</string>
+    <string name="font_scale_small">Klein</string>
+    <string name="font_scale_normal">Normaal</string>
+    <string name="font_scale_large">Groot</string>
+    <string name="font_scale_extra_large">Extra Groot</string>
+    <string name="tap_to_speak">Tik om te spreken</string>
+    <string name="listening">Luisteren\u2026</string>
+    <string name="voice_not_available">Spraakinvoer niet beschikbaar</string>
+
+    <!-- Engagement / Reminders -->
+    <string name="daily_reminder">Dagelijkse Herinnering</string>
+    <string name="daily_reminder_desc">Ontvang een dagelijkse herinnering om je uitgaven bij te houden</string>
+    <string name="weekly_summary_notification">Wekelijks Overzicht</string>
+    <string name="weekly_summary_desc">Ontvang een wekelijkse samenvatting van je uitgaven</string>
+    <string name="reminder_time">Herinneringstijd</string>
+    <string name="widget_balance_title">FlowSense Saldo</string>
+    <string name="widget_description">Toont je huidige maandelijks saldo in één oogopslag</string>
+    <string name="widget_monthly_balance">Maandelijks Saldo</string>
+    <string name="widget_income_label">Inkomsten</string>
+    <string name="widget_expense_label">Uitgaven</string>
+
+    <!-- Price Tracking / Store Integration -->
+    <string name="price_tracking">Prijstracking</string>
+    <string name="price_tracking_desc">Volg artikelprijzen in de loop van de tijd met de camera</string>
+    <string name="scan_price">Prijs Scannen</string>
+    <string name="price_history">Prijsgeschiedenis</string>
+    <string name="item_name">Artikelnaam</string>
+    <string name="current_price">Huidige Prijs</string>
+    <string name="lowest_price">Laagste Prijs</string>
+    <string name="highest_price">Hoogste Prijs</string>
+    <string name="price_trend">Prijstrend</string>
+    <string name="add_price_entry">Prijsvermelding Toevoegen</string>
+    <string name="tracked_items">Gevolgde Artikelen</string>
+    <string name="no_tracked_items">Nog geen gevolgde artikelen</string>
+    <string name="no_tracked_items_hint">Maak een foto van een artikel om de prijs te volgen</string>
+    <string name="price_alert">Prijsmelding</string>
+    <string name="price_dropped">Prijs gedaald!</string>
+    <string name="price_drop_message">%1$s kost nu %2$s (was %3$s)</string>
+    <string name="deal_found">Deal Gevonden</string>
+    <string name="scan_item_price">Artikelprijs Scannen</string>
+    <string name="enter_item_name">Artikelnaam invoeren</string>
+    <string name="enter_price">Prijs invoeren</string>
+    <string name="store_location_label">Winkel / Locatie</string>
+    <string name="price_saved">Prijs opgeslagen</string>
+    <string name="delete_item">Artikel Verwijderen</string>
+
+    <!-- Common -->
+    <string name="ok">OK</string>
+    <string name="yes">Ja</string>
+    <string name="no">Nee</string>
+    <string name="delete">Verwijderen</string>
+    <string name="edit">Bewerken</string>
+    <string name="close">Sluiten</string>
+    <string name="search">Zoeken</string>
+    <string name="loading">Laden\u2026</string>
+    <string name="error">Fout</string>
+    <string name="retry">Opnieuw proberen</string>
+    <string name="confirm">Bevestigen</string>
+    <string name="are_you_sure">Weet je het zeker?</string>
+    <string name="no_data">Geen gegevens beschikbaar</string>
+</resources>

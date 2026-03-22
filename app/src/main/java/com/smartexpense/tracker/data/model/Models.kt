@@ -227,6 +227,8 @@ data class AppData(
     val rateHistory: List<RateHistoryEntry> = emptyList(),
     /** AI prompt/response conversation history. */
     val aiConversations: List<AiConversation> = emptyList(),
+    /** Items being tracked for price changes over time. */
+    val trackedItems: List<TrackedItem> = emptyList(),
     val settings: AppSettings = AppSettings(),
     val lastUpdated: Long = System.currentTimeMillis()
 )
@@ -560,7 +562,31 @@ data class AppSettings(
     /** Timestamp of the last successful rate fetch (epoch millis). 0 = never. */
     val lastRateUpdateTimestamp: Long = 0,
     /** Whether the splash/onboarding screen has been shown to the user. */
-    val splashShown: Boolean = false
+    val splashShown: Boolean = false,
+    // ── Internationalization (i18n) ──────────────────────────────────
+    /** BCP-47 language code for the UI (e.g. "en", "es", "ja"). "system" = follow device. */
+    val languageCode: String = "system",
+    // ── Accessibility ────────────────────────────────────────────────
+    /** Custom font scale multiplier (0.85 = small, 1.0 = normal, 1.3 = large, 1.6 = extra-large). */
+    val fontScale: Float = 1.0f,
+    /** High-contrast mode for improved visibility. */
+    val highContrastEnabled: Boolean = false,
+    /** Simplify UI layout for screen reader users. */
+    val screenReaderMode: Boolean = false,
+    /** Enable voice input for adding transactions. */
+    val voiceInputEnabled: Boolean = false,
+    // ── Engagement / Reminders ───────────────────────────────────────
+    /** Enable daily reminder notification to log expenses. */
+    val dailyReminderEnabled: Boolean = false,
+    /** Hour of day (0–23) for the daily reminder. */
+    val dailyReminderHour: Int = 20,
+    /** Minute (0–59) for the daily reminder. */
+    val dailyReminderMinute: Int = 0,
+    /** Enable weekly spending summary notification. */
+    val weeklySummaryEnabled: Boolean = false,
+    // ── Price Tracking ───────────────────────────────────────────────
+    /** Enable price drop alert notifications. */
+    val priceAlertEnabled: Boolean = true
 )
 
 fun defaultCategories(): List<Category> = listOf(

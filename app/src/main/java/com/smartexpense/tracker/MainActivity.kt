@@ -1,6 +1,7 @@
 package com.smartexpense.tracker
 
 import android.app.Activity
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -14,6 +15,9 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -22,9 +26,14 @@ import com.smartexpense.tracker.ui.screens.*
 import com.smartexpense.tracker.ui.theme.SmartExpenseTheme
 import com.smartexpense.tracker.ui.viewmodel.MainViewModel
 import com.smartexpense.tracker.service.subscription.SubscriptionPlan
+import com.smartexpense.tracker.util.LocaleManager
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleManager.applyLocale(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -87,6 +96,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     val storeLocations by viewModel.storeLocations.collectAsState()
     val isSubscribed by viewModel.isSubscribed.collectAsState()
     val billingError by viewModel.subscriptionManager.billingError.collectAsState()
+    val trackedItems by viewModel.trackedItems.collectAsState()
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -117,12 +127,13 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
             "ocr_sections"     -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
             "local_ai_setup"   -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
             "ai_chat_history"  -> { currentScreen = "ai_analyze" }
+            "price_tracking"   -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
             else               -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
         }
     }
 
     // Hide the top bar on full-screen sub-screens (they have their own top bar)
-    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup")
+    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup", "price_tracking")
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -132,38 +143,47 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                     title = {
                         Text(
                             when (currentScreen) {
-                                "dashboard"    -> "FlowSense"
-                                "reports"      -> "Reports"
-                                "transactions" -> "Transactions"
-                                "settings"     -> "Settings"
-                                else           -> "FlowSense"
+                                "dashboard"    -> stringResource(R.string.app_name)
+                                "reports"      -> stringResource(R.string.nav_reports)
+                                "transactions" -> stringResource(R.string.nav_transactions)
+                                "settings"     -> stringResource(R.string.nav_settings)
+                                else           -> stringResource(R.string.app_name)
                             },
                             fontWeight = FontWeight.Bold
                         )
                     },
                     actions = {
                         IconButton(onClick = { currentScreen = "ai_analyze" }) {
-                            Icon(Icons.Filled.AutoAwesome, contentDescription = "AI Analyze")
+                            Icon(Icons.Filled.AutoAwesome, contentDescription = stringResource(R.string.action_ai_analyze))
                         }
-                        IconButton(onClick = {
-                            if (isSubscribed) {
-                                currentScreen = "store_map"
-                            } else {
-                                paywallFeatureName = "Store Map"
-                                showPaywall = true
-                            }
-                        }) {
-                            Icon(Icons.Filled.Map, contentDescription = "Store Map")
+                        IconButton(onClick = { currentScreen = "price_tracking" }) {
+                            Icon(Icons.Filled.PriceCheck, contentDescription = stringResource(R.string.price_tracking))
                         }
-                        IconButton(onClick = {
-                            if (isSubscribed) {
-                                currentScreen = "ocr_sections"
-                            } else {
-                                paywallFeatureName = "Scanned Sections"
-                                showPaywall = true
+                        run {
+                            val storeMapLabel = stringResource(R.string.action_store_map)
+                            IconButton(onClick = {
+                                if (isSubscribed) {
+                                    currentScreen = "store_map"
+                                } else {
+                                    paywallFeatureName = storeMapLabel
+                                    showPaywall = true
+                                }
+                            }) {
+                                Icon(Icons.Filled.Map, contentDescription = storeMapLabel)
                             }
-                        }) {
-                            Icon(Icons.Filled.Inventory2, contentDescription = "Scanned Sections")
+                        }
+                        run {
+                            val sectionsLabel = stringResource(R.string.action_scanned_sections)
+                            IconButton(onClick = {
+                                if (isSubscribed) {
+                                    currentScreen = "ocr_sections"
+                                } else {
+                                    paywallFeatureName = sectionsLabel
+                                    showPaywall = true
+                                }
+                            }) {
+                                Icon(Icons.Filled.Inventory2, contentDescription = sectionsLabel)
+                            }
                         }
                         NotificationBell(
                             notifications  = inAppNotifications,
@@ -178,42 +198,37 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
             }
         },
         bottomBar = {
-            if (currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup")) {
+            if (currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup", "price_tracking")) {
                 NavigationBar(tonalElevation = 2.dp) {
-                    // Home
                     NavigationBarItem(
                         selected = selectedTab == 0,
                         onClick = { viewModel.setSelectedTab(0); currentScreen = "dashboard" },
-                        icon = { Icon(if (selectedTab == 0) Icons.Filled.Home else Icons.Outlined.Home, "Home") },
-                        label = { Text("Home") }
+                        icon = { Icon(if (selectedTab == 0) Icons.Filled.Home else Icons.Outlined.Home, stringResource(R.string.nav_home)) },
+                        label = { Text(stringResource(R.string.nav_home)) }
                     )
-                    // Reports
                     NavigationBarItem(
                         selected = selectedTab == 1,
                         onClick = { viewModel.setSelectedTab(1); currentScreen = "reports" },
-                        icon = { Icon(if (selectedTab == 1) Icons.Filled.BarChart else Icons.Outlined.BarChart, "Reports") },
-                        label = { Text("Reports") }
+                        icon = { Icon(if (selectedTab == 1) Icons.Filled.BarChart else Icons.Outlined.BarChart, stringResource(R.string.nav_reports)) },
+                        label = { Text(stringResource(R.string.nav_reports)) }
                     )
-                    // Add (FAB-style centre item)
                     NavigationBarItem(
                         selected = false,
                         onClick = { currentScreen = "add" },
-                        icon = { Icon(Icons.Filled.AddCircle, "Add", modifier = Modifier.size(32.dp)) },
-                        label = { Text("Add", fontWeight = FontWeight.Bold) }
+                        icon = { Icon(Icons.Filled.AddCircle, stringResource(R.string.nav_add), modifier = Modifier.size(32.dp)) },
+                        label = { Text(stringResource(R.string.nav_add), fontWeight = FontWeight.Bold) }
                     )
-                    // Transactions
                     NavigationBarItem(
                         selected = selectedTab == 2,
                         onClick = { viewModel.setSelectedTab(2); currentScreen = "transactions" },
-                        icon = { Icon(if (selectedTab == 2) Icons.Filled.Receipt else Icons.Outlined.Receipt, "Transactions") },
-                        label = { Text("History") }
+                        icon = { Icon(if (selectedTab == 2) Icons.Filled.Receipt else Icons.Outlined.Receipt, stringResource(R.string.nav_transactions)) },
+                        label = { Text(stringResource(R.string.nav_history)) }
                     )
-                    // Settings
                     NavigationBarItem(
                         selected = selectedTab == 3,
                         onClick = { viewModel.setSelectedTab(3); currentScreen = "settings" },
-                        icon = { Icon(if (selectedTab == 3) Icons.Filled.Settings else Icons.Outlined.Settings, "Settings") },
-                        label = { Text("Settings") }
+                        icon = { Icon(if (selectedTab == 3) Icons.Filled.Settings else Icons.Outlined.Settings, stringResource(R.string.nav_settings)) },
+                        label = { Text(stringResource(R.string.nav_settings)) }
                     )
                 }
             }
@@ -363,6 +378,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                     "settings" -> SettingsScreen(
                         settings = uiState.settings,
                         storageInfo = viewModel.getStorageInfoText(),
+                        onNavigateToPriceTracking = { currentScreen = "price_tracking" },
                         isSubscribed = isSubscribed,
                         isTrialActive = viewModel.subscriptionManager.isTrialActive.collectAsState().value,
                         activePlanName = viewModel.subscriptionManager.activePlan.collectAsState().value?.displayName,
@@ -417,6 +433,23 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         onRemoveHuggingFaceToken = { viewModel.removeHuggingFaceToken() },
                         tokenValidationError = tokenValidationError,
                         batteryState = batteryState
+                    )
+                    "price_tracking" -> PriceTrackingScreen(
+                        trackedItems = trackedItems,
+                        currencyCode = currencyCode,
+                        onAddItem = { name, price, store ->
+                            viewModel.addTrackedItem(name, price, store)
+                        },
+                        onAddPriceEntry = { itemId, price, store ->
+                            viewModel.addPriceEntry(itemId, price, store)
+                        },
+                        onDeleteItem = { itemId ->
+                            viewModel.deleteTrackedItem(itemId)
+                        },
+                        onNavigateBack = {
+                            currentScreen = "dashboard"
+                            viewModel.setSelectedTab(0)
+                        }
                     )
                     "local_ai_setup" -> com.smartexpense.tracker.ai.setupwizard.LocalAiSetupWizardScreen(
                         capability = deviceCapability,

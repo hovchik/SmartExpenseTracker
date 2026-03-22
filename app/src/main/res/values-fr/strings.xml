@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FlowSense</string>
+    <string name="app_tagline">Suivi Intelligent des Dépenses</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Accueil</string>
+    <string name="nav_reports">Rapports</string>
+    <string name="nav_add">Ajouter</string>
+    <string name="nav_history">Historique</string>
+    <string name="nav_settings">Paramètres</string>
+    <string name="nav_transactions">Transactions</string>
+
+    <!-- Top bar actions -->
+    <string name="action_ai_analyze">Analyse IA</string>
+    <string name="action_store_map">Carte des Magasins</string>
+    <string name="action_scanned_sections">Sections Numérisées</string>
+
+    <!-- Dashboard -->
+    <string name="monthly_balance">Solde Mensuel</string>
+    <string name="show_balance">Afficher le solde</string>
+    <string name="hide_balance">Masquer le solde</string>
+    <string name="income">Revenus</string>
+    <string name="expenses">Dépenses</string>
+    <string name="today">Aujourd\'hui</string>
+    <string name="this_week">Cette Semaine</string>
+    <string name="transactions">Transactions</string>
+    <string name="ai_insights">Analyses IA</string>
+    <string name="spending_by_category">Dépenses par Catégorie</string>
+    <string name="recent_transactions">Transactions Récentes</string>
+    <string name="no_transactions_yet">Aucune transaction pour le moment</string>
+    <string name="no_transactions_hint">Ajoutez-en une manuellement, numérisez un reçu ou activez le suivi par SMS/notifications</string>
+    <string name="save_per_month">Économisez %s/mois</string>
+    <string name="priority_high">Haute</string>
+    <string name="priority_medium">Moy</string>
+    <string name="priority_low">Basse</string>
+    <string name="dismiss">Ignorer</string>
+    <string name="currency_converted">Devise convertie</string>
+
+    <!-- Add Transaction -->
+    <string name="add_transaction">Ajouter une Transaction</string>
+    <string name="amount">Montant</string>
+    <string name="description">Description</string>
+    <string name="category">Catégorie</string>
+    <string name="expense">Dépense</string>
+    <string name="type_income">Revenu</string>
+    <string name="merchant_name">Nom du Commerçant</string>
+    <string name="notes">Notes</string>
+    <string name="save">Enregistrer</string>
+    <string name="cancel">Annuler</string>
+    <string name="scan_receipt">Numériser un Reçu</string>
+    <string name="from_ocr_scan">Depuis Numérisation OCR</string>
+    <string name="select_category">Sélectionner une Catégorie</string>
+    <string name="enter_amount">Saisir le montant</string>
+    <string name="enter_description">Saisir la description</string>
+
+    <!-- Receipt Scanner -->
+    <string name="scan_receipt_title">Numériser un Reçu</string>
+    <string name="take_photo">Prendre une Photo</string>
+    <string name="choose_from_gallery">Choisir dans la Galerie</string>
+    <string name="processing_ocr">Traitement en cours…</string>
+    <string name="no_text_detected">Aucun texte détecté</string>
+    <string name="save_as_section">Enregistrer comme Section</string>
+    <string name="edit_as_transaction">Modifier en Transaction</string>
+    <string name="view_sections">Voir les Sections</string>
+    <string name="camera_permission_required">L\'autorisation de la caméra est requise pour numériser les reçus</string>
+
+    <!-- OCR Sections -->
+    <string name="ocr_sections_title">Sections Numérisées</string>
+    <string name="clear_all">Tout Effacer</string>
+    <string name="no_sections_yet">Aucune section numérisée pour le moment</string>
+    <string name="goods_report">Rapport d\'Articles</string>
+    <string name="items_total">Total des Articles</string>
+
+    <!-- Reports -->
+    <string name="reports_title">Rapports</string>
+    <string name="daily">Quotidien</string>
+    <string name="weekly">Hebdomadaire</string>
+    <string name="monthly">Mensuel</string>
+    <string name="custom">Personnalisé</string>
+    <string name="total_expenses">Dépenses Totales</string>
+    <string name="total_income">Revenus Totaux</string>
+    <string name="net_balance">Solde Net</string>
+    <string name="avg_daily_spend">Dépense Quotidienne Moy.</string>
+    <string name="top_expenses">Principales Dépenses</string>
+    <string name="top_merchants">Principaux Commerçants</string>
+    <string name="comparison_with_previous">vs Période Précédente</string>
+    <string name="ai_expense_tips">Conseils IA pour Réduire les Dépenses</string>
+    <string name="generate_ai_tips">Générer des Conseils IA</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Paramètres</string>
+    <string name="appearance">Apparence</string>
+    <string name="theme">Thème</string>
+    <string name="theme_system">Système</string>
+    <string name="theme_light">Clair</string>
+    <string name="theme_dark">Sombre</string>
+    <string name="currency">Devise</string>
+    <string name="exchange_rates">Taux de Change</string>
+    <string name="fetch_rates">Obtenir les Taux</string>
+    <string name="currency_converter">Convertisseur de Devises</string>
+    <string name="data_sources">Sources de Données</string>
+    <string name="sms_parsing">Analyse des SMS</string>
+    <string name="notification_listener">Écoute des Notifications</string>
+    <string name="scan_sms_inbox">Analyser la Boîte SMS</string>
+    <string name="banking_apps">Apps Bancaires</string>
+    <string name="scan_for_apps">Rechercher des Apps</string>
+    <string name="connected_apps">Apps Connectées</string>
+    <string name="budget_alerts">Budget &amp; Alertes</string>
+    <string name="monthly_expense_limit">Limite de Dépenses Mensuelle</string>
+    <string name="salary_scheduler">Planificateur de Salaire</string>
+    <string name="scheduled_expenses">Dépenses Planifiées</string>
+    <string name="categories">Catégories</string>
+    <string name="add_category">Ajouter une Catégorie</string>
+    <string name="ai_engine">Moteur IA</string>
+    <string name="import_export">Importer / Exporter</string>
+    <string name="export_data">Exporter les Données</string>
+    <string name="import_data">Importer les Données</string>
+    <string name="clear_all_data">Effacer Toutes les Données</string>
+    <string name="storage">Stockage</string>
+    <string name="battery">Batterie</string>
+    <string name="permissions">Autorisations</string>
+    <string name="about">À propos</string>
+    <string name="version">Version %s</string>
+    <string name="subscription">Abonnement</string>
+    <string name="restore_purchases">Restaurer les Achats</string>
+    <string name="premium">Premium</string>
+
+    <!-- Language / i18n -->
+    <string name="language">Langue</string>
+    <string name="language_system">Par défaut du Système</string>
+    <string name="language_changed">Langue modifiée. Redémarrez l\'app pour appliquer complètement.</string>
+
+    <!-- AI -->
+    <string name="ai_analyze_title">Analyse IA</string>
+    <string name="ai_chat_history">Historique de Chat</string>
+    <string name="analyze">Analyser</string>
+    <string name="analyzing">Analyse en cours…</string>
+    <string name="ai_mode_auto">Automatique (recommandé)</string>
+    <string name="ai_mode_system">IA Système</string>
+    <string name="ai_mode_local">Modèle local</string>
+    <string name="ai_mode_cloud">IA Cloud</string>
+    <string name="ai_setup_wizard">Assistant de Configuration IA</string>
+
+    <!-- SMS Scan -->
+    <string name="sms_scan_title">Analyse SMS</string>
+    <string name="start_scan">Lancer l\'Analyse</string>
+    <string name="confirm_all">Tout Confirmer</string>
+    <string name="discard">Supprimer</string>
+    <string name="sms_found">%d transactions trouvées</string>
+
+    <!-- Store Map -->
+    <string name="store_map_title">Carte des Magasins</string>
+    <string name="add_store">Ajouter un Magasin</string>
+    <string name="delete_store">Supprimer le Magasin</string>
+    <string name="store_name">Nom du Magasin</string>
+    <string name="address">Adresse</string>
+
+    <!-- Transaction Detail -->
+    <string name="transaction_detail">Détail de la Transaction</string>
+    <string name="delete_transaction">Supprimer la Transaction</string>
+    <string name="source">Source</string>
+    <string name="date">Date</string>
+    <string name="tags">Étiquettes</string>
+    <string name="location">Emplacement</string>
+
+    <!-- Notifications -->
+    <string name="notifications">Notifications</string>
+    <string name="mark_all_read">Tout Marquer comme Lu</string>
+    <string name="no_notifications">Aucune notification</string>
+    <string name="transaction_detected">Transaction Détectée</string>
+    <string name="budget_alert">Alerte Budget</string>
+
+    <!-- Onboarding / Splash -->
+    <string name="onboarding_title">FlowSense</string>
+    <string name="key_features">Fonctionnalités Clés</string>
+    <string name="feature_ai_title">Catégorisation par IA</string>
+    <string name="feature_ai_desc">Catégorisez automatiquement les dépenses grâce à l\'IA embarquée ou aux modèles cloud</string>
+    <string name="feature_reports_title">Rapports &amp; Analyses</string>
+    <string name="feature_reports_desc">Rapports de dépenses détaillés avec analyses financières générées par l\'IA</string>
+    <string name="feature_ocr_title">Scanner de Reçus</string>
+    <string name="feature_ocr_desc">Numérisez les reçus par OCR pour extraire montants et infos du commerçant</string>
+    <string name="feature_sms_title">Analyse des SMS</string>
+    <string name="feature_sms_desc">Détection automatique des transactions depuis les SMS bancaires</string>
+    <string name="feature_map_title">Carte des Magasins</string>
+    <string name="feature_map_desc">Visualisez où vous dépensez avec des transactions géolocalisées</string>
+    <string name="feature_currency_title">Multi-Devises</string>
+    <string name="feature_currency_desc">Suivez vos dépenses en plusieurs devises avec les taux de change en temps réel</string>
+    <string name="onboarding_permissions">Autorisations</string>
+    <string name="onboarding_permissions_desc">Accordez les autorisations pour débloquer toutes les fonctionnalités.\nL\'app fonctionne sans elles.</string>
+    <string name="permission_camera">Caméra</string>
+    <string name="permission_camera_desc">Numérisez les reçus et capturez les documents de dépenses</string>
+    <string name="permission_sms">SMS</string>
+    <string name="permission_sms_desc">Lisez les messages bancaires pour détecter automatiquement les transactions</string>
+    <string name="permission_notifications">Notifications</string>
+    <string name="permission_notifications_desc">Alertes budget, avertissements de seuil et rappels</string>
+    <string name="permission_location">Localisation</string>
+    <string name="permission_location_desc">Géolocalisez les transactions et affichez les dépenses sur une carte</string>
+    <string name="permission_granted">Accordé</string>
+    <string name="permission_not_available">N/D</string>
+    <string name="grant">Accorder</string>
+    <string name="ai_engine_title">Moteur IA</string>
+    <string name="ai_on_device_title">IA Embarquée</string>
+    <string name="ai_on_device_subtitle">Recommandé</string>
+    <string name="ai_on_device_badge">Privé</string>
+    <string name="ai_on_device_desc">Téléchargez un petit modèle IA (500 Mo – 2 Go) qui fonctionne entièrement sur votre appareil. Vos données ne quittent jamais votre téléphone.</string>
+    <string name="ai_system_title">IA Système</string>
+    <string name="ai_system_desc">Utilisez l\'IA intégrée de votre appareil (Google AICore sur Pixel, Samsung Galaxy AI). Aucun téléchargement nécessaire si votre appareil le supporte.</string>
+    <string name="ai_cloud_title">IA Cloud</string>
+    <string name="ai_cloud_desc">Utilisez Claude AI via API pour l\'analyse de la meilleure qualité. Nécessite une clé API. Les données sont envoyées aux serveurs d\'Anthropic.</string>
+    <string name="ai_change_anytime">Vous pouvez changer cela à tout moment dans Paramètres > Moteur IA.</string>
+    <string name="ai_uses_info">FlowSense utilise l\'IA pour catégoriser les transactions,\ngénérer des analyses et étudier les dépenses.</string>
+    <string name="ready_title">Vous êtes Prêt !</string>
+    <string name="ready_subtitle">Commencez à suivre vos dépenses et\nlaissez l\'IA s\'occuper du reste.</string>
+    <string name="tip_add">Appuyez sur le bouton + pour ajouter votre première dépense</string>
+    <string name="tip_scan">Utilisez le scanner de reçus pour une saisie mains libres</string>
+    <string name="tip_ai">L\'IA catégorisera automatiquement vos transactions</string>
+    <string name="tip_settings">Visitez Paramètres pour configurer les modèles IA et l\'analyse SMS</string>
+    <string name="data_privacy_note">Vos données restent sur votre appareil.\nAucun compte requis.</string>
+    <string name="skip">Passer</string>
+    <string name="back">Retour</string>
+    <string name="next">Suivant</string>
+    <string name="get_started">Commencer</string>
+
+    <!-- Paywall -->
+    <string name="paywall_title">Débloquer %s</string>
+    <string name="start_free_trial">Essai Gratuit</string>
+    <string name="subscribe">S\'abonner</string>
+
+    <!-- Accessibility -->
+    <string name="accessibility_settings">Accessibilité</string>
+    <string name="voice_input">Saisie Vocale</string>
+    <string name="voice_input_desc">Utilisez la voix pour ajouter des transactions et naviguer</string>
+    <string name="dynamic_font_scaling">Mise à l\'Échelle Dynamique</string>
+    <string name="dynamic_font_scaling_desc">Ajustez la taille du texte pour une meilleure lisibilité</string>
+    <string name="high_contrast">Mode Contraste Élevé</string>
+    <string name="high_contrast_desc">Augmentez le contraste pour une meilleure visibilité</string>
+    <string name="screen_reader_optimized">Optimisé pour Lecteur d\'Écran</string>
+    <string name="font_scale">Échelle de Police</string>
+    <string name="font_scale_small">Petite</string>
+    <string name="font_scale_normal">Normale</string>
+    <string name="font_scale_large">Grande</string>
+    <string name="font_scale_extra_large">Très Grande</string>
+    <string name="tap_to_speak">Appuyez pour parler</string>
+    <string name="listening">Écoute en cours…</string>
+    <string name="voice_not_available">Saisie vocale non disponible</string>
+
+    <!-- Engagement / Reminders -->
+    <string name="daily_reminder">Rappel Quotidien</string>
+    <string name="daily_reminder_desc">Recevez un rappel quotidien pour enregistrer vos dépenses</string>
+    <string name="weekly_summary_notification">Résumé Hebdomadaire</string>
+    <string name="weekly_summary_desc">Recevez une notification de résumé hebdomadaire des dépenses</string>
+    <string name="reminder_time">Heure du Rappel</string>
+    <string name="widget_balance_title">Solde FlowSense</string>
+    <string name="widget_description">Affichez votre solde mensuel actuel en un coup d\'œil</string>
+    <string name="widget_monthly_balance">Solde Mensuel</string>
+    <string name="widget_income_label">Revenus</string>
+    <string name="widget_expense_label">Dépenses</string>
+
+    <!-- Price Tracking / Store Integration -->
+    <string name="price_tracking">Suivi des Prix</string>
+    <string name="price_tracking_desc">Suivez les prix des articles au fil du temps avec la caméra</string>
+    <string name="scan_price">Scanner le Prix</string>
+    <string name="price_history">Historique des Prix</string>
+    <string name="item_name">Nom de l\'Article</string>
+    <string name="current_price">Prix Actuel</string>
+    <string name="lowest_price">Prix le Plus Bas</string>
+    <string name="highest_price">Prix le Plus Élevé</string>
+    <string name="price_trend">Tendance des Prix</string>
+    <string name="add_price_entry">Ajouter une Entrée de Prix</string>
+    <string name="tracked_items">Articles Suivis</string>
+    <string name="no_tracked_items">Aucun article suivi pour le moment</string>
+    <string name="no_tracked_items_hint">Prenez une photo de n\'importe quel article pour commencer à suivre son prix</string>
+    <string name="price_alert">Alerte de Prix</string>
+    <string name="price_dropped">Le prix a baissé !</string>
+    <string name="price_drop_message">%1$s est maintenant à %2$s (était %3$s)</string>
+    <string name="deal_found">Offre Trouvée</string>
+    <string name="scan_item_price">Scanner le Prix d\'un Article</string>
+    <string name="enter_item_name">Saisir le nom de l\'article</string>
+    <string name="enter_price">Saisir le prix</string>
+    <string name="store_location_label">Magasin / Emplacement</string>
+    <string name="price_saved">Prix enregistré</string>
+    <string name="delete_item">Supprimer l\'Article</string>
+
+    <!-- Common -->
+    <string name="ok">OK</string>
+    <string name="yes">Oui</string>
+    <string name="no">Non</string>
+    <string name="delete">Supprimer</string>
+    <string name="edit">Modifier</string>
+    <string name="close">Fermer</string>
+    <string name="search">Rechercher</string>
+    <string name="loading">Chargement…</string>
+    <string name="error">Erreur</string>
+    <string name="retry">Réessayer</string>
+    <string name="confirm">Confirmer</string>
+    <string name="are_you_sure">Êtes-vous sûr ?</string>
+    <string name="no_data">Aucune donnée disponible</string>
+</resources>

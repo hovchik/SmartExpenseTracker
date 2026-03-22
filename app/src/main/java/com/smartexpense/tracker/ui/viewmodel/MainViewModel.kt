@@ -2757,6 +2757,68 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.clearNotifications() }
     }
 
+    // ─── Price Tracking ─────────────────────────────────────────
+
+    /** Reactive flow of tracked items for the Price Tracking screen. */
+    val trackedItems: StateFlow<List<TrackedItem>> = repository.appData
+        .map { it.trackedItems }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    fun addTrackedItem(name: String, price: Double, storeName: String) {
+        viewModelScope.launch {
+            val entry = PriceEntry(
+                price = price,
+                storeName = storeName,
+                currencyCode = repository.appData.value.settings.currencyCode,
+                scannedFromCamera = false
+            )
+            val item = TrackedItem(
+                name = name,
+                priceEntries = listOf(entry)
+            )
+            val data = repository.appData.value
+            repository.update(data.copy(trackedItems = data.trackedItems + item))
+        }
+    }
+
+    fun addPriceEntry(itemId: String, price: Double, storeName: String) {
+        viewModelScope.launch {
+            val data = repository.appData.value
+            val entry = PriceEntry(
+                price = price,
+                storeName = storeName,
+                currencyCode = data.settings.currencyCode,
+                scannedFromCamera = false
+            )
+            val updatedItems = data.trackedItems.map { item ->
+                if (item.id == itemId) {
+                    val oldPrice = item.currentPrice
+                    val updated = item.copy(priceEntries = item.priceEntries + entry)
+                    // Check for price drop and notify
+                    if (data.settings.priceAlertEnabled && price < oldPrice && oldPrice > 0) {
+                        val sym = data.settings.currency.ifEmpty { "$" }
+                        repository.addInAppNotification(
+                            InAppNotification(
+                                title = "Price dropped: ${item.name}",
+                                message = "Now $sym${String.format("%.2f", price)} (was $sym${String.format("%.2f", oldPrice)})",
+                                type = InAppNotificationType.TRANSACTION_DETECTED
+                            )
+                        )
+                    }
+                    updated
+                } else item
+            }
+            repository.update(data.copy(trackedItems = updatedItems))
+        }
+    }
+
+    fun deleteTrackedItem(itemId: String) {
+        viewModelScope.launch {
+            val data = repository.appData.value
+            repository.update(data.copy(trackedItems = data.trackedItems.filter { it.id != itemId }))
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         batteryMonitor.stopMonitoring()

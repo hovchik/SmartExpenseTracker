@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FlowSense</string>
+    <string name="app_tagline">Smart Utgiftsspårning</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Hem</string>
+    <string name="nav_reports">Rapporter</string>
+    <string name="nav_add">Lägg till</string>
+    <string name="nav_history">Historik</string>
+    <string name="nav_settings">Inställningar</string>
+    <string name="nav_transactions">Transaktioner</string>
+
+    <!-- Top bar actions -->
+    <string name="action_ai_analyze">AI-analys</string>
+    <string name="action_store_map">Butikskarta</string>
+    <string name="action_scanned_sections">Skannade Sektioner</string>
+
+    <!-- Dashboard -->
+    <string name="monthly_balance">Månatligt Saldo</string>
+    <string name="show_balance">Visa saldo</string>
+    <string name="hide_balance">Dölj saldo</string>
+    <string name="income">Inkomst</string>
+    <string name="expenses">Utgifter</string>
+    <string name="today">Idag</string>
+    <string name="this_week">Denna Vecka</string>
+    <string name="transactions">Transaktioner</string>
+    <string name="ai_insights">AI-insikter</string>
+    <string name="spending_by_category">Utgifter per Kategori</string>
+    <string name="recent_transactions">Senaste Transaktioner</string>
+    <string name="no_transactions_yet">Inga transaktioner ännu</string>
+    <string name="no_transactions_hint">Lägg till en manuellt, skanna ett kvitto eller aktivera SMS-/aviseringsspårning</string>
+    <string name="save_per_month">Spara %s/mån</string>
+    <string name="priority_high">Hög</string>
+    <string name="priority_medium">Medel</string>
+    <string name="priority_low">Låg</string>
+    <string name="dismiss">Avfärda</string>
+    <string name="currency_converted">Valuta konverterad</string>
+
+    <!-- Add Transaction -->
+    <string name="add_transaction">Lägg till Transaktion</string>
+    <string name="amount">Belopp</string>
+    <string name="description">Beskrivning</string>
+    <string name="category">Kategori</string>
+    <string name="expense">Utgift</string>
+    <string name="type_income">Inkomst</string>
+    <string name="merchant_name">Butiksnamn</string>
+    <string name="notes">Anteckningar</string>
+    <string name="save">Spara</string>
+    <string name="cancel">Avbryt</string>
+    <string name="scan_receipt">Skanna Kvitto</string>
+    <string name="from_ocr_scan">Från OCR-skanning</string>
+    <string name="select_category">Välj Kategori</string>
+    <string name="enter_amount">Ange belopp</string>
+    <string name="enter_description">Ange beskrivning</string>
+
+    <!-- Receipt Scanner -->
+    <string name="scan_receipt_title">Skanna Kvitto</string>
+    <string name="take_photo">Ta Foto</string>
+    <string name="choose_from_gallery">Välj från Galleri</string>
+    <string name="processing_ocr">Bearbetar\u2026</string>
+    <string name="no_text_detected">Ingen text hittades</string>
+    <string name="save_as_section">Spara som Sektion</string>
+    <string name="edit_as_transaction">Redigera som Transaktion</string>
+    <string name="view_sections">Visa Sektioner</string>
+    <string name="camera_permission_required">Kamerabehörighet krävs för att skanna kvitton</string>
+
+    <!-- OCR Sections -->
+    <string name="ocr_sections_title">Skannade Sektioner</string>
+    <string name="clear_all">Rensa Allt</string>
+    <string name="no_sections_yet">Inga skannade sektioner ännu</string>
+    <string name="goods_report">Varurapport</string>
+    <string name="items_total">Totalt Varor</string>
+
+    <!-- Reports -->
+    <string name="reports_title">Rapporter</string>
+    <string name="daily">Daglig</string>
+    <string name="weekly">Veckovis</string>
+    <string name="monthly">Månadsvis</string>
+    <string name="custom">Anpassad</string>
+    <string name="total_expenses">Totala Utgifter</string>
+    <string name="total_income">Total Inkomst</string>
+    <string name="net_balance">Nettosaldo</string>
+    <string name="avg_daily_spend">Genomsn. Daglig Utgift</string>
+    <string name="top_expenses">Största Utgifter</string>
+    <string name="top_merchants">Största Butiker</string>
+    <string name="comparison_with_previous">vs Föregående Period</string>
+    <string name="ai_expense_tips">AI-tips för att Minska Utgifter</string>
+    <string name="generate_ai_tips">Generera AI-tips</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Inställningar</string>
+    <string name="appearance">Utseende</string>
+    <string name="theme">Tema</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Ljust</string>
+    <string name="theme_dark">Mörkt</string>
+    <string name="currency">Valuta</string>
+    <string name="exchange_rates">Växelkurser</string>
+    <string name="fetch_rates">Hämta Kurser</string>
+    <string name="currency_converter">Valutaomvandlare</string>
+    <string name="data_sources">Datakällor</string>
+    <string name="sms_parsing">SMS-tolkning</string>
+    <string name="notification_listener">Aviseringslyssnare</string>
+    <string name="scan_sms_inbox">Skanna SMS-inkorg</string>
+    <string name="banking_apps">Bankappar</string>
+    <string name="scan_for_apps">Sök efter Appar</string>
+    <string name="connected_apps">Anslutna Appar</string>
+    <string name="budget_alerts">Budget &amp; Aviseringar</string>
+    <string name="monthly_expense_limit">Månatlig Utgiftsgräns</string>
+    <string name="salary_scheduler">Löneplanerare</string>
+    <string name="scheduled_expenses">Schemalagda Utgifter</string>
+    <string name="categories">Kategorier</string>
+    <string name="add_category">Lägg till Kategori</string>
+    <string name="ai_engine">AI-motor</string>
+    <string name="import_export">Importera / Exportera</string>
+    <string name="export_data">Exportera Data</string>
+    <string name="import_data">Importera Data</string>
+    <string name="clear_all_data">Radera All Data</string>
+    <string name="storage">Lagring</string>
+    <string name="battery">Batteri</string>
+    <string name="permissions">Behörigheter</string>
+    <string name="about">Om</string>
+    <string name="version">Version %s</string>
+    <string name="subscription">Prenumeration</string>
+    <string name="restore_purchases">Återställ Köp</string>
+    <string name="premium">Premium</string>
+
+    <!-- Language / i18n -->
+    <string name="language">Språk</string>
+    <string name="language_system">Systemstandard</string>
+    <string name="language_changed">Språk ändrat. Starta om appen för full effekt.</string>
+
+    <!-- AI -->
+    <string name="ai_analyze_title">AI-analys</string>
+    <string name="ai_chat_history">Chatthistorik</string>
+    <string name="analyze">Analysera</string>
+    <string name="analyzing">Analyserar\u2026</string>
+    <string name="ai_mode_auto">Automatiskt (rekommenderat)</string>
+    <string name="ai_mode_system">System-AI</string>
+    <string name="ai_mode_local">Lokal modell</string>
+    <string name="ai_mode_cloud">Moln-AI</string>
+    <string name="ai_setup_wizard">AI-konfigurationsguide</string>
+
+    <!-- SMS Scan -->
+    <string name="sms_scan_title">SMS-skanning</string>
+    <string name="start_scan">Starta Skanning</string>
+    <string name="confirm_all">Bekräfta Allt</string>
+    <string name="discard">Släng</string>
+    <string name="sms_found">%d transaktioner hittades</string>
+
+    <!-- Store Map -->
+    <string name="store_map_title">Butikskarta</string>
+    <string name="add_store">Lägg till Butik</string>
+    <string name="delete_store">Ta bort Butik</string>
+    <string name="store_name">Butiksnamn</string>
+    <string name="address">Adress</string>
+
+    <!-- Transaction Detail -->
+    <string name="transaction_detail">Transaktionsdetalj</string>
+    <string name="delete_transaction">Ta bort Transaktion</string>
+    <string name="source">Källa</string>
+    <string name="date">Datum</string>
+    <string name="tags">Taggar</string>
+    <string name="location">Plats</string>
+
+    <!-- Notifications -->
+    <string name="notifications">Aviseringar</string>
+    <string name="mark_all_read">Markera Allt som Läst</string>
+    <string name="no_notifications">Inga aviseringar</string>
+    <string name="transaction_detected">Transaktion Upptäckt</string>
+    <string name="budget_alert">Budgetavisering</string>
+
+    <!-- Onboarding / Splash -->
+    <string name="onboarding_title">FlowSense</string>
+    <string name="key_features">Nyckelfunktioner</string>
+    <string name="feature_ai_title">AI-kategorisering</string>
+    <string name="feature_ai_desc">Kategorisera utgifter automatiskt med AI på enheten eller molnmodeller</string>
+    <string name="feature_reports_title">Rapporter &amp; Insikter</string>
+    <string name="feature_reports_desc">Detaljerade utgiftsrapporter med AI-genererade finansiella insikter</string>
+    <string name="feature_ocr_title">Kvittoskanner</string>
+    <string name="feature_ocr_desc">Skanna kvitton med OCR för att extrahera belopp och butiksinformation</string>
+    <string name="feature_sms_title">SMS-tolkning</string>
+    <string name="feature_sms_desc">Upptäck transaktioner automatiskt från bank-SMS</string>
+    <string name="feature_map_title">Butikskarta</string>
+    <string name="feature_map_desc">Visualisera var du spenderar med geotaggade transaktioner</string>
+    <string name="feature_currency_title">Multi-valuta</string>
+    <string name="feature_currency_desc">Spåra utgifter i flera valutor med realtidsväxelkurser</string>
+    <string name="onboarding_permissions">Behörigheter</string>
+    <string name="onboarding_permissions_desc">Ge behörigheter för att låsa upp all funktionalitet.\nAppen fungerar utan dem.</string>
+    <string name="permission_camera">Kamera</string>
+    <string name="permission_camera_desc">Skanna kvitton och fånga utgiftsdokument</string>
+    <string name="permission_sms">SMS</string>
+    <string name="permission_sms_desc">Läs bankmeddelanden för att automatiskt upptäcka transaktioner</string>
+    <string name="permission_notifications">Aviseringar</string>
+    <string name="permission_notifications_desc">Budgetaviseringar, tröskelvarningar och påminnelser</string>
+    <string name="permission_location">Plats</string>
+    <string name="permission_location_desc">Geotagga transaktioner och visa utgifter på en karta</string>
+    <string name="permission_granted">Beviljad</string>
+    <string name="permission_not_available">Ej tillgänglig</string>
+    <string name="grant">Bevilja</string>
+    <string name="ai_engine_title">AI-motor</string>
+    <string name="ai_on_device_title">AI på Enheten</string>
+    <string name="ai_on_device_subtitle">Rekommenderat</string>
+    <string name="ai_on_device_badge">Privat</string>
+    <string name="ai_on_device_desc">Ladda ner en liten AI-modell (500 MB – 2 GB) som körs helt på din enhet. Dina data lämnar aldrig din telefon.</string>
+    <string name="ai_system_title">System-AI</string>
+    <string name="ai_system_desc">Använd enhetens inbyggda AI-runtime (Google AICore på Pixel, Samsung Galaxy AI). Ingen nedladdning behövs om din enhet stöder det.</string>
+    <string name="ai_cloud_title">Moln-AI</string>
+    <string name="ai_cloud_desc">Använd Claude AI via API för analys av högsta kvalitet. Kräver en API-nyckel. Data skickas till Anthropics servrar.</string>
+    <string name="ai_change_anytime">Du kan ändra detta när som helst i Inställningar > AI-motor.</string>
+    <string name="ai_uses_info">FlowSense använder AI för att kategorisera transaktioner,\ngenerera insikter och analysera utgifter.</string>
+    <string name="ready_title">Allt Klart!</string>
+    <string name="ready_subtitle">Börja spåra dina utgifter och\nlåt AI sköta resten.</string>
+    <string name="tip_add">Tryck på + knappen för att lägga till din första utgift</string>
+    <string name="tip_scan">Använd kvittoskannern för handsfree-inmatning</string>
+    <string name="tip_ai">AI kategoriserar dina transaktioner automatiskt</string>
+    <string name="tip_settings">Gå till Inställningar för att konfigurera AI-modeller och SMS-tolkning</string>
+    <string name="data_privacy_note">Dina data stannar på din enhet.\nInget konto krävs.</string>
+    <string name="skip">Hoppa över</string>
+    <string name="back">Tillbaka</string>
+    <string name="next">Nästa</string>
+    <string name="get_started">Kom igång</string>
+
+    <!-- Paywall -->
+    <string name="paywall_title">Lås upp %s</string>
+    <string name="start_free_trial">Starta Gratis Provperiod</string>
+    <string name="subscribe">Prenumerera</string>
+
+    <!-- Accessibility -->
+    <string name="accessibility_settings">Tillgänglighet</string>
+    <string name="voice_input">Röstinmatning</string>
+    <string name="voice_input_desc">Använd rösten för att lägga till transaktioner och navigera</string>
+    <string name="dynamic_font_scaling">Dynamisk Teckenskalning</string>
+    <string name="dynamic_font_scaling_desc">Justera textstorleken för bättre läsbarhet</string>
+    <string name="high_contrast">Högkontrastläge</string>
+    <string name="high_contrast_desc">Öka kontrasten för bättre synlighet</string>
+    <string name="screen_reader_optimized">Optimerad för Skärmläsare</string>
+    <string name="font_scale">Teckenstorlek</string>
+    <string name="font_scale_small">Liten</string>
+    <string name="font_scale_normal">Normal</string>
+    <string name="font_scale_large">Stor</string>
+    <string name="font_scale_extra_large">Extra Stor</string>
+    <string name="tap_to_speak">Tryck för att tala</string>
+    <string name="listening">Lyssnar\u2026</string>
+    <string name="voice_not_available">Röstinmatning inte tillgänglig</string>
+
+    <!-- Engagement / Reminders -->
+    <string name="daily_reminder">Daglig Påminnelse</string>
+    <string name="daily_reminder_desc">Få en daglig påminnelse att logga dina utgifter</string>
+    <string name="weekly_summary_notification">Veckosammanfattning</string>
+    <string name="weekly_summary_desc">Få en veckovis sammanfattning av dina utgifter</string>
+    <string name="reminder_time">Påminnelsetid</string>
+    <string name="widget_balance_title">FlowSense Saldo</string>
+    <string name="widget_description">Visar ditt aktuella månatliga saldo med en blick</string>
+    <string name="widget_monthly_balance">Månatligt Saldo</string>
+    <string name="widget_income_label">Inkomst</string>
+    <string name="widget_expense_label">Utgifter</string>
+
+    <!-- Price Tracking / Store Integration -->
+    <string name="price_tracking">Prisspårning</string>
+    <string name="price_tracking_desc">Spåra varupriser över tid med kameran</string>
+    <string name="scan_price">Skanna Pris</string>
+    <string name="price_history">Prishistorik</string>
+    <string name="item_name">Varunamn</string>
+    <string name="current_price">Aktuellt Pris</string>
+    <string name="lowest_price">Lägsta Pris</string>
+    <string name="highest_price">Högsta Pris</string>
+    <string name="price_trend">Pristrend</string>
+    <string name="add_price_entry">Lägg till Prispost</string>
+    <string name="tracked_items">Spårade Varor</string>
+    <string name="no_tracked_items">Inga spårade varor ännu</string>
+    <string name="no_tracked_items_hint">Ta en bild av valfri vara för att börja spåra dess pris</string>
+    <string name="price_alert">Prisavisering</string>
+    <string name="price_dropped">Priset har sjunkit!</string>
+    <string name="price_drop_message">%1$s kostar nu %2$s (var %3$s)</string>
+    <string name="deal_found">Erbjudande Hittat</string>
+    <string name="scan_item_price">Skanna Varupris</string>
+    <string name="enter_item_name">Ange varunamn</string>
+    <string name="enter_price">Ange pris</string>
+    <string name="store_location_label">Butik / Plats</string>
+    <string name="price_saved">Pris sparat</string>
+    <string name="delete_item">Ta bort Vara</string>
+
+    <!-- Common -->
+    <string name="ok">OK</string>
+    <string name="yes">Ja</string>
+    <string name="no">Nej</string>
+    <string name="delete">Ta bort</string>
+    <string name="edit">Redigera</string>
+    <string name="close">Stäng</string>
+    <string name="search">Sök</string>
+    <string name="loading">Laddar\u2026</string>
+    <string name="error">Fel</string>
+    <string name="retry">Försök igen</string>
+    <string name="confirm">Bekräfta</string>
+    <string name="are_you_sure">Är du säker?</string>
+    <string name="no_data">Inga data tillgängliga</string>
+</resources>

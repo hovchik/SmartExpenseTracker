@@ -52,6 +52,7 @@ import com.smartexpense.tracker.data.model.SUPPORTED_CURRENCIES
 import com.smartexpense.tracker.data.model.ThemeMode
 import com.smartexpense.tracker.data.model.currencyInfoFor
 import com.smartexpense.tracker.BuildConfig
+import com.smartexpense.tracker.R
 import com.smartexpense.tracker.service.currency.CurrencyConverterService
 import com.smartexpense.tracker.ui.components.PremiumBadge
 import com.smartexpense.tracker.ui.theme.*
@@ -60,6 +61,7 @@ import com.smartexpense.tracker.ui.theme.*
 fun SettingsScreen(
     settings: AppSettings,
     storageInfo: String,
+    onNavigateToPriceTracking: () -> Unit = {},
     isSubscribed: Boolean = false,
     isTrialActive: Boolean = false,
     activePlanName: String? = null,
@@ -2506,6 +2508,165 @@ fun SettingsScreen(
             }
         }
         } // end AnimatedVisibility for Storage
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ─── Language (i18n) Section ──────────────────────────────────
+        var languageExpanded by remember { mutableStateOf(false) }
+        CollapsibleSectionHeader("LANGUAGE", languageExpanded) { languageExpanded = !languageExpanded }
+
+        AnimatedVisibility(
+            visible = languageExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    LanguageSettingsSection(
+                        currentLanguage = settings.languageCode,
+                        onLanguageChange = { langCode ->
+                            onUpdateSettings(settings.copy(languageCode = langCode))
+                            com.smartexpense.tracker.util.LocaleManager.setLanguage(context, langCode)
+                            Toast.makeText(context, context.getString(R.string.language_changed), Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ─── Accessibility Section ────────────────────────────────────
+        var accessibilityExpanded by remember { mutableStateOf(false) }
+        CollapsibleSectionHeader("ACCESSIBILITY", accessibilityExpanded) { accessibilityExpanded = !accessibilityExpanded }
+
+        AnimatedVisibility(
+            visible = accessibilityExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    AccessibilitySettingsSection(
+                        fontScale = settings.fontScale,
+                        highContrast = settings.highContrastEnabled,
+                        screenReaderMode = settings.screenReaderMode,
+                        voiceInputEnabled = settings.voiceInputEnabled,
+                        onFontScaleChange = { scale ->
+                            onUpdateSettings(settings.copy(fontScale = scale))
+                        },
+                        onHighContrastChange = { enabled ->
+                            onUpdateSettings(settings.copy(highContrastEnabled = enabled))
+                        },
+                        onScreenReaderModeChange = { enabled ->
+                            onUpdateSettings(settings.copy(screenReaderMode = enabled))
+                        },
+                        onVoiceInputChange = { enabled ->
+                            onUpdateSettings(settings.copy(voiceInputEnabled = enabled))
+                        }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ─── Engagement (Reminders) Section ───────────────────────────
+        var engagementExpanded by remember { mutableStateOf(false) }
+        CollapsibleSectionHeader("REMINDERS & ENGAGEMENT", engagementExpanded) { engagementExpanded = !engagementExpanded }
+
+        AnimatedVisibility(
+            visible = engagementExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    // Daily reminder toggle
+                    SettingsToggleItem(
+                        icon = Icons.Filled.Alarm,
+                        title = "Daily Reminder",
+                        subtitle = "Get reminded to log your expenses at ${String.format("%02d:%02d", settings.dailyReminderHour, settings.dailyReminderMinute)}",
+                        checked = settings.dailyReminderEnabled,
+                        onToggle = { enabled ->
+                            onUpdateSettings(settings.copy(dailyReminderEnabled = enabled))
+                            if (enabled) {
+                                com.smartexpense.tracker.service.engagement.DailyReminderWorker.schedule(
+                                    context, settings.dailyReminderHour, settings.dailyReminderMinute
+                                )
+                            } else {
+                                com.smartexpense.tracker.service.engagement.DailyReminderWorker.cancel(context)
+                            }
+                        }
+                    )
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    // Weekly summary toggle
+                    SettingsToggleItem(
+                        icon = Icons.Filled.Summarize,
+                        title = "Weekly Summary",
+                        subtitle = "Receive a weekly spending summary notification",
+                        checked = settings.weeklySummaryEnabled,
+                        onToggle = { enabled ->
+                            onUpdateSettings(settings.copy(weeklySummaryEnabled = enabled))
+                            if (enabled) {
+                                com.smartexpense.tracker.service.engagement.WeeklySummaryWorker.schedule(context)
+                            } else {
+                                com.smartexpense.tracker.service.engagement.WeeklySummaryWorker.cancel(context)
+                            }
+                        }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ─── Price Tracking Section ───────────────────────────────────
+        var priceTrackingExpanded by remember { mutableStateOf(false) }
+        CollapsibleSectionHeader("PRICE TRACKING", priceTrackingExpanded) { priceTrackingExpanded = !priceTrackingExpanded }
+
+        AnimatedVisibility(
+            visible = priceTrackingExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    SettingsToggleItem(
+                        icon = Icons.Filled.PriceCheck,
+                        title = "Price Drop Alerts",
+                        subtitle = "Get notified when tracked item prices decrease",
+                        checked = settings.priceAlertEnabled,
+                        onToggle = { enabled ->
+                            onUpdateSettings(settings.copy(priceAlertEnabled = enabled))
+                        }
+                    )
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    SettingsClickItem(
+                        icon = Icons.Filled.CameraAlt,
+                        title = "Open Price Tracker",
+                        subtitle = "Track item prices over time with camera scanning",
+                        onClick = { onNavigateToPriceTracking() }
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
 

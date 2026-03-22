@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FlowSense</string>
+    <string name="app_tagline">تتبع ذكي للنفقات</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">الرئيسية</string>
+    <string name="nav_reports">التقارير</string>
+    <string name="nav_add">إضافة</string>
+    <string name="nav_history">السجل</string>
+    <string name="nav_settings">الإعدادات</string>
+    <string name="nav_transactions">المعاملات</string>
+
+    <!-- Top bar actions -->
+    <string name="action_ai_analyze">تحليل الذكاء الاصطناعي</string>
+    <string name="action_store_map">خريطة المتاجر</string>
+    <string name="action_scanned_sections">الأقسام الممسوحة</string>
+
+    <!-- Dashboard -->
+    <string name="monthly_balance">الرصيد الشهري</string>
+    <string name="show_balance">إظهار الرصيد</string>
+    <string name="hide_balance">إخفاء الرصيد</string>
+    <string name="income">الدخل</string>
+    <string name="expenses">النفقات</string>
+    <string name="today">اليوم</string>
+    <string name="this_week">هذا الأسبوع</string>
+    <string name="transactions">المعاملات</string>
+    <string name="ai_insights">تحليلات الذكاء الاصطناعي</string>
+    <string name="spending_by_category">الإنفاق حسب الفئة</string>
+    <string name="recent_transactions">المعاملات الأخيرة</string>
+    <string name="no_transactions_yet">لا توجد معاملات بعد</string>
+    <string name="no_transactions_hint">أضف واحدة يدويًا، أو امسح إيصالًا، أو فعّل تتبع الرسائل القصيرة/الإشعارات</string>
+    <string name="save_per_month">وفّر %s/شهر</string>
+    <string name="priority_high">عالي</string>
+    <string name="priority_medium">متوسط</string>
+    <string name="priority_low">منخفض</string>
+    <string name="dismiss">تجاهل</string>
+    <string name="currency_converted">تم تحويل العملة</string>
+
+    <!-- Add Transaction -->
+    <string name="add_transaction">إضافة معاملة</string>
+    <string name="amount">المبلغ</string>
+    <string name="description">الوصف</string>
+    <string name="category">الفئة</string>
+    <string name="expense">نفقة</string>
+    <string name="type_income">دخل</string>
+    <string name="merchant_name">اسم التاجر</string>
+    <string name="notes">ملاحظات</string>
+    <string name="save">حفظ</string>
+    <string name="cancel">إلغاء</string>
+    <string name="scan_receipt">مسح الإيصال</string>
+    <string name="from_ocr_scan">من مسح OCR</string>
+    <string name="select_category">اختيار الفئة</string>
+    <string name="enter_amount">أدخل المبلغ</string>
+    <string name="enter_description">أدخل الوصف</string>
+
+    <!-- Receipt Scanner -->
+    <string name="scan_receipt_title">مسح الإيصال</string>
+    <string name="take_photo">التقاط صورة</string>
+    <string name="choose_from_gallery">اختيار من المعرض</string>
+    <string name="processing_ocr">جاري المعالجة…</string>
+    <string name="no_text_detected">لم يتم اكتشاف نص</string>
+    <string name="save_as_section">حفظ كقسم</string>
+    <string name="edit_as_transaction">تعديل كمعاملة</string>
+    <string name="view_sections">عرض الأقسام</string>
+    <string name="camera_permission_required">إذن الكاميرا مطلوب لمسح الإيصالات</string>
+
+    <!-- OCR Sections -->
+    <string name="ocr_sections_title">الأقسام الممسوحة</string>
+    <string name="clear_all">مسح الكل</string>
+    <string name="no_sections_yet">لا توجد أقسام ممسوحة بعد</string>
+    <string name="goods_report">تقرير البضائع</string>
+    <string name="items_total">إجمالي العناصر</string>
+
+    <!-- Reports -->
+    <string name="reports_title">التقارير</string>
+    <string name="daily">يومي</string>
+    <string name="weekly">أسبوعي</string>
+    <string name="monthly">شهري</string>
+    <string name="custom">مخصص</string>
+    <string name="total_expenses">إجمالي النفقات</string>
+    <string name="total_income">إجمالي الدخل</string>
+    <string name="net_balance">صافي الرصيد</string>
+    <string name="avg_daily_spend">متوسط الإنفاق اليومي</string>
+    <string name="top_expenses">أعلى النفقات</string>
+    <string name="top_merchants">أبرز التجار</string>
+    <string name="comparison_with_previous">مقارنة بالفترة السابقة</string>
+    <string name="ai_expense_tips">نصائح الذكاء الاصطناعي لتقليل النفقات</string>
+    <string name="generate_ai_tips">إنشاء نصائح الذكاء الاصطناعي</string>
+
+    <!-- Settings -->
+    <string name="settings_title">الإعدادات</string>
+    <string name="appearance">المظهر</string>
+    <string name="theme">السمة</string>
+    <string name="theme_system">النظام</string>
+    <string name="theme_light">فاتح</string>
+    <string name="theme_dark">داكن</string>
+    <string name="currency">العملة</string>
+    <string name="exchange_rates">أسعار الصرف</string>
+    <string name="fetch_rates">جلب الأسعار</string>
+    <string name="currency_converter">محوّل العملات</string>
+    <string name="data_sources">مصادر البيانات</string>
+    <string name="sms_parsing">تحليل الرسائل القصيرة</string>
+    <string name="notification_listener">مراقب الإشعارات</string>
+    <string name="scan_sms_inbox">مسح صندوق الرسائل</string>
+    <string name="banking_apps">التطبيقات البنكية</string>
+    <string name="scan_for_apps">البحث عن التطبيقات</string>
+    <string name="connected_apps">التطبيقات المتصلة</string>
+    <string name="budget_alerts">الميزانية &amp; التنبيهات</string>
+    <string name="monthly_expense_limit">حد النفقات الشهري</string>
+    <string name="salary_scheduler">جدولة الراتب</string>
+    <string name="scheduled_expenses">النفقات المجدولة</string>
+    <string name="categories">الفئات</string>
+    <string name="add_category">إضافة فئة</string>
+    <string name="ai_engine">محرك الذكاء الاصطناعي</string>
+    <string name="import_export">استيراد / تصدير</string>
+    <string name="export_data">تصدير البيانات</string>
+    <string name="import_data">استيراد البيانات</string>
+    <string name="clear_all_data">مسح جميع البيانات</string>
+    <string name="storage">التخزين</string>
+    <string name="battery">البطارية</string>
+    <string name="permissions">الأذونات</string>
+    <string name="about">حول التطبيق</string>
+    <string name="version">الإصدار %s</string>
+    <string name="subscription">الاشتراك</string>
+    <string name="restore_purchases">استعادة المشتريات</string>
+    <string name="premium">بريميوم</string>
+
+    <!-- Language / i18n -->
+    <string name="language">اللغة</string>
+    <string name="language_system">الافتراضي للنظام</string>
+    <string name="language_changed">تم تغيير اللغة. أعد تشغيل التطبيق للتطبيق الكامل.</string>
+
+    <!-- AI -->
+    <string name="ai_analyze_title">تحليل الذكاء الاصطناعي</string>
+    <string name="ai_chat_history">سجل المحادثة</string>
+    <string name="analyze">تحليل</string>
+    <string name="analyzing">جاري التحليل…</string>
+    <string name="ai_mode_auto">تلقائي (مُوصى به)</string>
+    <string name="ai_mode_system">ذكاء النظام</string>
+    <string name="ai_mode_local">نموذج محلي</string>
+    <string name="ai_mode_cloud">ذكاء سحابي</string>
+    <string name="ai_setup_wizard">معالج إعداد الذكاء الاصطناعي</string>
+
+    <!-- SMS Scan -->
+    <string name="sms_scan_title">مسح الرسائل القصيرة</string>
+    <string name="start_scan">بدء المسح</string>
+    <string name="confirm_all">تأكيد الكل</string>
+    <string name="discard">تجاهل</string>
+    <string name="sms_found">تم العثور على %d معاملة</string>
+
+    <!-- Store Map -->
+    <string name="store_map_title">خريطة المتاجر</string>
+    <string name="add_store">إضافة متجر</string>
+    <string name="delete_store">حذف المتجر</string>
+    <string name="store_name">اسم المتجر</string>
+    <string name="address">العنوان</string>
+
+    <!-- Transaction Detail -->
+    <string name="transaction_detail">تفاصيل المعاملة</string>
+    <string name="delete_transaction">حذف المعاملة</string>
+    <string name="source">المصدر</string>
+    <string name="date">التاريخ</string>
+    <string name="tags">الوسوم</string>
+    <string name="location">الموقع</string>
+
+    <!-- Notifications -->
+    <string name="notifications">الإشعارات</string>
+    <string name="mark_all_read">تحديد الكل كمقروء</string>
+    <string name="no_notifications">لا توجد إشعارات</string>
+    <string name="transaction_detected">تم اكتشاف معاملة</string>
+    <string name="budget_alert">تنبيه الميزانية</string>
+
+    <!-- Onboarding / Splash -->
+    <string name="onboarding_title">FlowSense</string>
+    <string name="key_features">الميزات الرئيسية</string>
+    <string name="feature_ai_title">تصنيف بالذكاء الاصطناعي</string>
+    <string name="feature_ai_desc">تصنيف النفقات تلقائيًا باستخدام الذكاء الاصطناعي على الجهاز أو النماذج السحابية</string>
+    <string name="feature_reports_title">التقارير &amp; التحليلات</string>
+    <string name="feature_reports_desc">تقارير إنفاق مفصلة مع تحليلات مالية مولّدة بالذكاء الاصطناعي</string>
+    <string name="feature_ocr_title">ماسح الإيصالات</string>
+    <string name="feature_ocr_desc">مسح الإيصالات بتقنية OCR لاستخراج المبالغ ومعلومات التاجر</string>
+    <string name="feature_sms_title">تحليل الرسائل القصيرة</string>
+    <string name="feature_sms_desc">اكتشاف المعاملات تلقائيًا من رسائل SMS البنكية</string>
+    <string name="feature_map_title">خريطة المتاجر</string>
+    <string name="feature_map_desc">تصور أماكن إنفاقك عبر معاملات مُحددة جغرافيًا</string>
+    <string name="feature_currency_title">عملات متعددة</string>
+    <string name="feature_currency_desc">تتبع النفقات بعملات متعددة مع أسعار صرف حية</string>
+    <string name="onboarding_permissions">الأذونات</string>
+    <string name="onboarding_permissions_desc">امنح الأذونات لفتح كامل الوظائف.\nالتطبيق يعمل بدونها.</string>
+    <string name="permission_camera">الكاميرا</string>
+    <string name="permission_camera_desc">مسح الإيصالات والتقاط مستندات النفقات</string>
+    <string name="permission_sms">الرسائل القصيرة</string>
+    <string name="permission_sms_desc">قراءة الرسائل البنكية لاكتشاف المعاملات تلقائيًا</string>
+    <string name="permission_notifications">الإشعارات</string>
+    <string name="permission_notifications_desc">تنبيهات الميزانية وتحذيرات الحد والتذكيرات</string>
+    <string name="permission_location">الموقع</string>
+    <string name="permission_location_desc">تحديد مواقع المعاملات جغرافيًا وعرض الإنفاق على الخريطة</string>
+    <string name="permission_granted">تم المنح</string>
+    <string name="permission_not_available">غير متاح</string>
+    <string name="grant">منح</string>
+    <string name="ai_engine_title">محرك الذكاء الاصطناعي</string>
+    <string name="ai_on_device_title">ذكاء اصطناعي على الجهاز</string>
+    <string name="ai_on_device_subtitle">مُوصى به</string>
+    <string name="ai_on_device_badge">خاص</string>
+    <string name="ai_on_device_desc">قم بتنزيل نموذج ذكاء اصطناعي صغير (500 ميجابايت – 2 جيجابايت) يعمل بالكامل على جهازك. بياناتك لا تغادر هاتفك أبدًا.</string>
+    <string name="ai_system_title">ذكاء النظام</string>
+    <string name="ai_system_desc">استخدم بيئة الذكاء الاصطناعي المدمجة في جهازك (Google AICore على Pixel، Samsung Galaxy AI). لا حاجة للتنزيل إذا كان جهازك يدعمها.</string>
+    <string name="ai_cloud_title">ذكاء سحابي</string>
+    <string name="ai_cloud_desc">استخدم Claude AI عبر API للحصول على تحليل بأعلى جودة. يتطلب مفتاح API. يتم إرسال البيانات إلى خوادم Anthropic.</string>
+    <string name="ai_change_anytime">يمكنك تغيير هذا في أي وقت من الإعدادات > محرك الذكاء الاصطناعي.</string>
+    <string name="ai_uses_info">يستخدم FlowSense الذكاء الاصطناعي لتصنيف المعاملات،\nوإنشاء التحليلات، وتحليل الإنفاق.</string>
+    <string name="ready_title">أنت جاهز!</string>
+    <string name="ready_subtitle">ابدأ بتتبع نفقاتك\nودع الذكاء الاصطناعي يتولى الباقي.</string>
+    <string name="tip_add">اضغط على زر + لإضافة أول نفقة</string>
+    <string name="tip_scan">استخدم ماسح الإيصالات للإدخال بدون استخدام اليدين</string>
+    <string name="tip_ai">سيقوم الذكاء الاصطناعي بتصنيف معاملاتك تلقائيًا</string>
+    <string name="tip_settings">قم بزيارة الإعدادات لتكوين نماذج الذكاء الاصطناعي وتحليل الرسائل</string>
+    <string name="data_privacy_note">بياناتك تبقى على جهازك.\nلا حاجة لإنشاء حساب.</string>
+    <string name="skip">تخطي</string>
+    <string name="back">رجوع</string>
+    <string name="next">التالي</string>
+    <string name="get_started">ابدأ الآن</string>
+
+    <!-- Paywall -->
+    <string name="paywall_title">فتح %s</string>
+    <string name="start_free_trial">بدء التجربة المجانية</string>
+    <string name="subscribe">اشتراك</string>
+
+    <!-- Accessibility -->
+    <string name="accessibility_settings">إمكانية الوصول</string>
+    <string name="voice_input">الإدخال الصوتي</string>
+    <string name="voice_input_desc">استخدم الصوت لإضافة المعاملات والتنقل</string>
+    <string name="dynamic_font_scaling">تحجيم الخط الديناميكي</string>
+    <string name="dynamic_font_scaling_desc">ضبط حجم النص لقراءة أفضل</string>
+    <string name="high_contrast">وضع التباين العالي</string>
+    <string name="high_contrast_desc">زيادة التباين لرؤية أفضل</string>
+    <string name="screen_reader_optimized">محسّن لقارئ الشاشة</string>
+    <string name="font_scale">حجم الخط</string>
+    <string name="font_scale_small">صغير</string>
+    <string name="font_scale_normal">عادي</string>
+    <string name="font_scale_large">كبير</string>
+    <string name="font_scale_extra_large">كبير جدًا</string>
+    <string name="tap_to_speak">اضغط للتحدث</string>
+    <string name="listening">جاري الاستماع…</string>
+    <string name="voice_not_available">الإدخال الصوتي غير متاح</string>
+
+    <!-- Engagement / Reminders -->
+    <string name="daily_reminder">تذكير يومي</string>
+    <string name="daily_reminder_desc">احصل على تذكير يومي لتسجيل نفقاتك</string>
+    <string name="weekly_summary_notification">ملخص أسبوعي</string>
+    <string name="weekly_summary_desc">احصل على إشعار ملخص الإنفاق الأسبوعي</string>
+    <string name="reminder_time">وقت التذكير</string>
+    <string name="widget_balance_title">رصيد FlowSense</string>
+    <string name="widget_description">يعرض رصيدك الشهري الحالي بنظرة سريعة</string>
+    <string name="widget_monthly_balance">الرصيد الشهري</string>
+    <string name="widget_income_label">الدخل</string>
+    <string name="widget_expense_label">النفقات</string>
+
+    <!-- Price Tracking / Store Integration -->
+    <string name="price_tracking">تتبع الأسعار</string>
+    <string name="price_tracking_desc">تتبع أسعار العناصر بمرور الوقت باستخدام الكاميرا</string>
+    <string name="scan_price">مسح السعر</string>
+    <string name="price_history">سجل الأسعار</string>
+    <string name="item_name">اسم العنصر</string>
+    <string name="current_price">السعر الحالي</string>
+    <string name="lowest_price">أدنى سعر</string>
+    <string name="highest_price">أعلى سعر</string>
+    <string name="price_trend">اتجاه الأسعار</string>
+    <string name="add_price_entry">إضافة إدخال سعر</string>
+    <string name="tracked_items">العناصر المتتبعة</string>
+    <string name="no_tracked_items">لا توجد عناصر متتبعة بعد</string>
+    <string name="no_tracked_items_hint">التقط صورة لأي عنصر لبدء تتبع سعره</string>
+    <string name="price_alert">تنبيه السعر</string>
+    <string name="price_dropped">انخفض السعر!</string>
+    <string name="price_drop_message">%1$s الآن بسعر %2$s (كان %3$s)</string>
+    <string name="deal_found">تم العثور على عرض</string>
+    <string name="scan_item_price">مسح سعر العنصر</string>
+    <string name="enter_item_name">أدخل اسم العنصر</string>
+    <string name="enter_price">أدخل السعر</string>
+    <string name="store_location_label">المتجر / الموقع</string>
+    <string name="price_saved">تم حفظ السعر</string>
+    <string name="delete_item">حذف العنصر</string>
+
+    <!-- Common -->
+    <string name="ok">موافق</string>
+    <string name="yes">نعم</string>
+    <string name="no">لا</string>
+    <string name="delete">حذف</string>
+    <string name="edit">تعديل</string>
+    <string name="close">إغلاق</string>
+    <string name="search">بحث</string>
+    <string name="loading">جاري التحميل…</string>
+    <string name="error">خطأ</string>
+    <string name="retry">إعادة المحاولة</string>
+    <string name="confirm">تأكيد</string>
+    <string name="are_you_sure">هل أنت متأكد؟</string>
+    <string name="no_data">لا تتوفر بيانات</string>
+</resources>

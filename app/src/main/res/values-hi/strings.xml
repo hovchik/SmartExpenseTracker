@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FlowSense</string>
+    <string name="app_tagline">स्मार्ट खर्च ट्रैकिंग</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">होम</string>
+    <string name="nav_reports">रिपोर्ट</string>
+    <string name="nav_add">जोड़ें</string>
+    <string name="nav_history">इतिहास</string>
+    <string name="nav_settings">सेटिंग्स</string>
+    <string name="nav_transactions">लेन-देन</string>
+
+    <!-- Top bar actions -->
+    <string name="action_ai_analyze">AI विश्लेषण</string>
+    <string name="action_store_map">स्टोर मैप</string>
+    <string name="action_scanned_sections">स्कैन किए गए अनुभाग</string>
+
+    <!-- Dashboard -->
+    <string name="monthly_balance">मासिक शेष</string>
+    <string name="show_balance">शेष दिखाएं</string>
+    <string name="hide_balance">शेष छुपाएं</string>
+    <string name="income">आय</string>
+    <string name="expenses">खर्च</string>
+    <string name="today">आज</string>
+    <string name="this_week">इस सप्ताह</string>
+    <string name="transactions">लेन-देन</string>
+    <string name="ai_insights">AI अंतर्दृष्टि</string>
+    <string name="spending_by_category">श्रेणी अनुसार खर्च</string>
+    <string name="recent_transactions">हाल के लेन-देन</string>
+    <string name="no_transactions_yet">अभी तक कोई लेन-देन नहीं</string>
+    <string name="no_transactions_hint">मैन्युअल रूप से जोड़ें, रसीद स्कैन करें, या SMS/सूचना ट्रैकिंग सक्षम करें</string>
+    <string name="save_per_month">%s/माह बचाएं</string>
+    <string name="priority_high">उच्च</string>
+    <string name="priority_medium">मध्यम</string>
+    <string name="priority_low">निम्न</string>
+    <string name="dismiss">खारिज करें</string>
+    <string name="currency_converted">मुद्रा परिवर्तित</string>
+
+    <!-- Add Transaction -->
+    <string name="add_transaction">लेन-देन जोड़ें</string>
+    <string name="amount">राशि</string>
+    <string name="description">विवरण</string>
+    <string name="category">श्रेणी</string>
+    <string name="expense">खर्च</string>
+    <string name="type_income">आय</string>
+    <string name="merchant_name">व्यापारी का नाम</string>
+    <string name="notes">नोट्स</string>
+    <string name="save">सहेजें</string>
+    <string name="cancel">रद्द करें</string>
+    <string name="scan_receipt">रसीद स्कैन करें</string>
+    <string name="from_ocr_scan">OCR स्कैन से</string>
+    <string name="select_category">श्रेणी चुनें</string>
+    <string name="enter_amount">राशि दर्ज करें</string>
+    <string name="enter_description">विवरण दर्ज करें</string>
+
+    <!-- Receipt Scanner -->
+    <string name="scan_receipt_title">रसीद स्कैन करें</string>
+    <string name="take_photo">फोटो लें</string>
+    <string name="choose_from_gallery">गैलरी से चुनें</string>
+    <string name="processing_ocr">प्रसंस्करण…</string>
+    <string name="no_text_detected">कोई टेक्स्ट नहीं मिला</string>
+    <string name="save_as_section">अनुभाग के रूप में सहेजें</string>
+    <string name="edit_as_transaction">लेन-देन के रूप में संपादित करें</string>
+    <string name="view_sections">अनुभाग देखें</string>
+    <string name="camera_permission_required">रसीद स्कैन करने के लिए कैमरा अनुमति आवश्यक है</string>
+
+    <!-- OCR Sections -->
+    <string name="ocr_sections_title">स्कैन किए गए अनुभाग</string>
+    <string name="clear_all">सब साफ करें</string>
+    <string name="no_sections_yet">अभी तक कोई स्कैन किया गया अनुभाग नहीं</string>
+    <string name="goods_report">सामान रिपोर्ट</string>
+    <string name="items_total">वस्तुओं का कुल</string>
+
+    <!-- Reports -->
+    <string name="reports_title">रिपोर्ट</string>
+    <string name="daily">दैनिक</string>
+    <string name="weekly">साप्ताहिक</string>
+    <string name="monthly">मासिक</string>
+    <string name="custom">कस्टम</string>
+    <string name="total_expenses">कुल खर्च</string>
+    <string name="total_income">कुल आय</string>
+    <string name="net_balance">शुद्ध शेष</string>
+    <string name="avg_daily_spend">औसत दैनिक खर्च</string>
+    <string name="top_expenses">शीर्ष खर्च</string>
+    <string name="top_merchants">शीर्ष व्यापारी</string>
+    <string name="comparison_with_previous">पिछली अवधि से तुलना</string>
+    <string name="ai_expense_tips">AI खर्च कटौती सुझाव</string>
+    <string name="generate_ai_tips">AI सुझाव बनाएं</string>
+
+    <!-- Settings -->
+    <string name="settings_title">सेटिंग्स</string>
+    <string name="appearance">दिखावट</string>
+    <string name="theme">थीम</string>
+    <string name="theme_system">सिस्टम</string>
+    <string name="theme_light">लाइट</string>
+    <string name="theme_dark">डार्क</string>
+    <string name="currency">मुद्रा</string>
+    <string name="exchange_rates">विनिमय दरें</string>
+    <string name="fetch_rates">दरें प्राप्त करें</string>
+    <string name="currency_converter">मुद्रा परिवर्तक</string>
+    <string name="data_sources">डेटा स्रोत</string>
+    <string name="sms_parsing">SMS विश्लेषण</string>
+    <string name="notification_listener">सूचना श्रोता</string>
+    <string name="scan_sms_inbox">SMS इनबॉक्स स्कैन करें</string>
+    <string name="banking_apps">बैंकिंग ऐप्स</string>
+    <string name="scan_for_apps">ऐप्स खोजें</string>
+    <string name="connected_apps">जुड़े हुए ऐप्स</string>
+    <string name="budget_alerts">बजट &amp; अलर्ट</string>
+    <string name="monthly_expense_limit">मासिक खर्च सीमा</string>
+    <string name="salary_scheduler">वेतन शेड्यूलर</string>
+    <string name="scheduled_expenses">निर्धारित खर्च</string>
+    <string name="categories">श्रेणियां</string>
+    <string name="add_category">श्रेणी जोड़ें</string>
+    <string name="ai_engine">AI इंजन</string>
+    <string name="import_export">आयात / निर्यात</string>
+    <string name="export_data">डेटा निर्यात करें</string>
+    <string name="import_data">डेटा आयात करें</string>
+    <string name="clear_all_data">सभी डेटा मिटाएं</string>
+    <string name="storage">स्टोरेज</string>
+    <string name="battery">बैटरी</string>
+    <string name="permissions">अनुमतियां</string>
+    <string name="about">ऐप के बारे में</string>
+    <string name="version">संस्करण %s</string>
+    <string name="subscription">सदस्यता</string>
+    <string name="restore_purchases">खरीदारी पुनर्स्थापित करें</string>
+    <string name="premium">प्रीमियम</string>
+
+    <!-- Language / i18n -->
+    <string name="language">भाषा</string>
+    <string name="language_system">सिस्टम डिफ़ॉल्ट</string>
+    <string name="language_changed">भाषा बदली गई। पूर्ण प्रभाव के लिए ऐप पुनः शुरू करें।</string>
+
+    <!-- AI -->
+    <string name="ai_analyze_title">AI विश्लेषण</string>
+    <string name="ai_chat_history">चैट इतिहास</string>
+    <string name="analyze">विश्लेषण करें</string>
+    <string name="analyzing">विश्लेषण हो रहा है…</string>
+    <string name="ai_mode_auto">ऑटो (अनुशंसित)</string>
+    <string name="ai_mode_system">सिस्टम AI</string>
+    <string name="ai_mode_local">स्थानीय मॉडल</string>
+    <string name="ai_mode_cloud">क्लाउड AI</string>
+    <string name="ai_setup_wizard">AI सेटअप विज़ार्ड</string>
+
+    <!-- SMS Scan -->
+    <string name="sms_scan_title">SMS स्कैन</string>
+    <string name="start_scan">स्कैन शुरू करें</string>
+    <string name="confirm_all">सभी पुष्टि करें</string>
+    <string name="discard">त्यागें</string>
+    <string name="sms_found">%d लेन-देन मिले</string>
+
+    <!-- Store Map -->
+    <string name="store_map_title">स्टोर मैप</string>
+    <string name="add_store">स्टोर जोड़ें</string>
+    <string name="delete_store">स्टोर हटाएं</string>
+    <string name="store_name">स्टोर का नाम</string>
+    <string name="address">पता</string>
+
+    <!-- Transaction Detail -->
+    <string name="transaction_detail">लेन-देन विवरण</string>
+    <string name="delete_transaction">लेन-देन हटाएं</string>
+    <string name="source">स्रोत</string>
+    <string name="date">तारीख</string>
+    <string name="tags">टैग</string>
+    <string name="location">स्थान</string>
+
+    <!-- Notifications -->
+    <string name="notifications">सूचनाएं</string>
+    <string name="mark_all_read">सभी पढ़ा हुआ चिह्नित करें</string>
+    <string name="no_notifications">कोई सूचना नहीं</string>
+    <string name="transaction_detected">लेन-देन पता चला</string>
+    <string name="budget_alert">बजट अलर्ट</string>
+
+    <!-- Onboarding / Splash -->
+    <string name="onboarding_title">FlowSense</string>
+    <string name="key_features">प्रमुख विशेषताएं</string>
+    <string name="feature_ai_title">AI-संचालित वर्गीकरण</string>
+    <string name="feature_ai_desc">डिवाइस पर AI या क्लाउड मॉडल का उपयोग करके स्वचालित रूप से खर्चों को वर्गीकृत करें</string>
+    <string name="feature_reports_title">रिपोर्ट &amp; अंतर्दृष्टि</string>
+    <string name="feature_reports_desc">AI द्वारा जनित वित्तीय अंतर्दृष्टि के साथ विस्तृत खर्च रिपोर्ट</string>
+    <string name="feature_ocr_title">रसीद स्कैनर</string>
+    <string name="feature_ocr_desc">OCR से रसीद स्कैन करके राशि और व्यापारी जानकारी निकालें</string>
+    <string name="feature_sms_title">SMS विश्लेषण</string>
+    <string name="feature_sms_desc">बैंकिंग SMS संदेशों से लेन-देन स्वचालित रूप से पहचानें</string>
+    <string name="feature_map_title">स्टोर मैप</string>
+    <string name="feature_map_desc">जियो-टैग किए गए लेन-देन से देखें कि आप कहां खर्च करते हैं</string>
+    <string name="feature_currency_title">बहु-मुद्रा</string>
+    <string name="feature_currency_desc">लाइव विनिमय दरों के साथ कई मुद्राओं में खर्च ट्रैक करें</string>
+    <string name="onboarding_permissions">अनुमतियां</string>
+    <string name="onboarding_permissions_desc">पूर्ण कार्यक्षमता अनलॉक करने के लिए अनुमतियां दें।\nऐप इनके बिना भी काम करता है।</string>
+    <string name="permission_camera">कैमरा</string>
+    <string name="permission_camera_desc">रसीद स्कैन करें और खर्च दस्तावेज कैप्चर करें</string>
+    <string name="permission_sms">SMS</string>
+    <string name="permission_sms_desc">लेन-देन स्वचालित पहचानने के लिए बैंकिंग संदेश पढ़ें</string>
+    <string name="permission_notifications">सूचनाएं</string>
+    <string name="permission_notifications_desc">बजट अलर्ट, सीमा चेतावनी और रिमाइंडर</string>
+    <string name="permission_location">स्थान</string>
+    <string name="permission_location_desc">लेन-देन को जियो-टैग करें और मैप पर खर्च दिखाएं</string>
+    <string name="permission_granted">प्रदान किया गया</string>
+    <string name="permission_not_available">उपलब्ध नहीं</string>
+    <string name="grant">अनुमति दें</string>
+    <string name="ai_engine_title">AI इंजन</string>
+    <string name="ai_on_device_title">डिवाइस पर AI</string>
+    <string name="ai_on_device_subtitle">अनुशंसित</string>
+    <string name="ai_on_device_badge">प्राइवेट</string>
+    <string name="ai_on_device_desc">एक छोटा AI मॉडल (500 MB – 2 GB) डाउनलोड करें जो पूरी तरह आपके डिवाइस पर चलता है। आपका डेटा कभी फोन से बाहर नहीं जाता।</string>
+    <string name="ai_system_title">सिस्टम AI</string>
+    <string name="ai_system_desc">अपने डिवाइस की बिल्ट-इन AI रनटाइम का उपयोग करें (Pixel पर Google AICore, Samsung Galaxy AI)। अगर डिवाइस सपोर्ट करता है तो डाउनलोड की जरूरत नहीं।</string>
+    <string name="ai_cloud_title">क्लाउड AI</string>
+    <string name="ai_cloud_desc">सर्वोच्च गुणवत्ता विश्लेषण के लिए API के माध्यम से Claude AI का उपयोग करें। API कुंजी आवश्यक। डेटा Anthropic सर्वर को भेजा जाता है।</string>
+    <string name="ai_change_anytime">आप इसे सेटिंग्स > AI इंजन में कभी भी बदल सकते हैं।</string>
+    <string name="ai_uses_info">FlowSense AI का उपयोग लेन-देन वर्गीकृत करने,\nअंतर्दृष्टि बनाने और खर्च विश्लेषण करने के लिए करता है।</string>
+    <string name="ready_title">सब तैयार!</string>
+    <string name="ready_subtitle">अपने खर्चों को ट्रैक करना शुरू करें और\nबाकी AI पर छोड़ दें।</string>
+    <string name="tip_add">अपना पहला खर्च जोड़ने के लिए + बटन दबाएं</string>
+    <string name="tip_scan">हैंड्स-फ्री एंट्री के लिए रसीद स्कैनर का उपयोग करें</string>
+    <string name="tip_ai">AI आपके लेन-देन को स्वचालित रूप से वर्गीकृत करेगा</string>
+    <string name="tip_settings">AI मॉडल और SMS विश्लेषण कॉन्फ़िगर करने के लिए सेटिंग्स पर जाएं</string>
+    <string name="data_privacy_note">आपका डेटा आपके डिवाइस पर रहता है।\nकोई अकाउंट आवश्यक नहीं।</string>
+    <string name="skip">छोड़ें</string>
+    <string name="back">वापस</string>
+    <string name="next">अगला</string>
+    <string name="get_started">शुरू करें</string>
+
+    <!-- Paywall -->
+    <string name="paywall_title">%s अनलॉक करें</string>
+    <string name="start_free_trial">मुफ्त ट्रायल शुरू करें</string>
+    <string name="subscribe">सदस्यता लें</string>
+
+    <!-- Accessibility -->
+    <string name="accessibility_settings">सुगम्यता</string>
+    <string name="voice_input">वॉइस इनपुट</string>
+    <string name="voice_input_desc">लेन-देन जोड़ने और नेविगेट करने के लिए आवाज़ का उपयोग करें</string>
+    <string name="dynamic_font_scaling">डायनामिक फ़ॉन्ट स्केलिंग</string>
+    <string name="dynamic_font_scaling_desc">बेहतर पठनीयता के लिए टेक्स्ट आकार समायोजित करें</string>
+    <string name="high_contrast">उच्च कंट्रास्ट मोड</string>
+    <string name="high_contrast_desc">बेहतर दृश्यता के लिए कंट्रास्ट बढ़ाएं</string>
+    <string name="screen_reader_optimized">स्क्रीन रीडर अनुकूलित</string>
+    <string name="font_scale">फ़ॉन्ट स्केल</string>
+    <string name="font_scale_small">छोटा</string>
+    <string name="font_scale_normal">सामान्य</string>
+    <string name="font_scale_large">बड़ा</string>
+    <string name="font_scale_extra_large">अतिरिक्त बड़ा</string>
+    <string name="tap_to_speak">बोलने के लिए टैप करें</string>
+    <string name="listening">सुन रहा है…</string>
+    <string name="voice_not_available">वॉइस इनपुट उपलब्ध नहीं</string>
+
+    <!-- Engagement / Reminders -->
+    <string name="daily_reminder">दैनिक रिमाइंडर</string>
+    <string name="daily_reminder_desc">अपने खर्चों को रिकॉर्ड करने के लिए दैनिक रिमाइंडर प्राप्त करें</string>
+    <string name="weekly_summary_notification">साप्ताहिक सारांश</string>
+    <string name="weekly_summary_desc">साप्ताहिक खर्च सारांश सूचना प्राप्त करें</string>
+    <string name="reminder_time">रिमाइंडर समय</string>
+    <string name="widget_balance_title">FlowSense शेष</string>
+    <string name="widget_description">एक नज़र में अपना वर्तमान मासिक शेष दिखाता है</string>
+    <string name="widget_monthly_balance">मासिक शेष</string>
+    <string name="widget_income_label">आय</string>
+    <string name="widget_expense_label">खर्च</string>
+
+    <!-- Price Tracking / Store Integration -->
+    <string name="price_tracking">मूल्य ट्रैकिंग</string>
+    <string name="price_tracking_desc">कैमरे से समय के साथ वस्तुओं की कीमतें ट्रैक करें</string>
+    <string name="scan_price">मूल्य स्कैन करें</string>
+    <string name="price_history">मूल्य इतिहास</string>
+    <string name="item_name">वस्तु का नाम</string>
+    <string name="current_price">वर्तमान मूल्य</string>
+    <string name="lowest_price">सबसे कम मूल्य</string>
+    <string name="highest_price">सबसे अधिक मूल्य</string>
+    <string name="price_trend">मूल्य प्रवृत्ति</string>
+    <string name="add_price_entry">मूल्य प्रविष्टि जोड़ें</string>
+    <string name="tracked_items">ट्रैक की गई वस्तुएं</string>
+    <string name="no_tracked_items">अभी तक कोई ट्रैक की गई वस्तु नहीं</string>
+    <string name="no_tracked_items_hint">किसी भी वस्तु की फोटो लेकर उसकी कीमत ट्रैक करना शुरू करें</string>
+    <string name="price_alert">मूल्य अलर्ट</string>
+    <string name="price_dropped">मूल्य गिरा!</string>
+    <string name="price_drop_message">%1$s अब %2$s है (पहले %3$s था)</string>
+    <string name="deal_found">सौदा मिला</string>
+    <string name="scan_item_price">वस्तु मूल्य स्कैन करें</string>
+    <string name="enter_item_name">वस्तु का नाम दर्ज करें</string>
+    <string name="enter_price">मूल्य दर्ज करें</string>
+    <string name="store_location_label">स्टोर / स्थान</string>
+    <string name="price_saved">मूल्य सहेजा गया</string>
+    <string name="delete_item">वस्तु हटाएं</string>
+
+    <!-- Common -->
+    <string name="ok">ठीक है</string>
+    <string name="yes">हां</string>
+    <string name="no">नहीं</string>
+    <string name="delete">हटाएं</string>
+    <string name="edit">संपादित करें</string>
+    <string name="close">बंद करें</string>
+    <string name="search">खोजें</string>
+    <string name="loading">लोड हो रहा है…</string>
+    <string name="error">त्रुटि</string>
+    <string name="retry">पुनः प्रयास करें</string>
+    <string name="confirm">पुष्टि करें</string>
+    <string name="are_you_sure">क्या आप सुनिश्चित हैं?</string>
+    <string name="no_data">कोई डेटा उपलब्ध नहीं</string>
+</resources>

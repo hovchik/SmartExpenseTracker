@@ -32,6 +32,10 @@ import androidx.compose.ui.unit.sp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.smartexpense.tracker.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -125,11 +129,11 @@ fun SplashScreen(onGetStarted: () -> Unit) {
                     TextButton(onClick = {
                         scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
                     }) {
-                        Text("Back", color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f))
+                        Text(stringResource(R.string.back), color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f))
                     }
                 } else {
                     TextButton(onClick = onGetStarted) {
-                        Text("Skip", color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f))
+                        Text(stringResource(R.string.skip), color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f))
                     }
                 }
 
@@ -150,7 +154,7 @@ fun SplashScreen(onGetStarted: () -> Unit) {
                     elevation = ButtonDefaults.buttonElevation(4.dp)
                 ) {
                     Text(
-                        text = if (isLastPage) "Get Started" else "Next",
+                        text = if (isLastPage) stringResource(R.string.get_started) else stringResource(R.string.next),
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                     )
@@ -205,7 +209,7 @@ private fun AppInfoPage(visible: Boolean) {
         AnimatedVisibility(visible = visible, enter = fadeIn(tween(700, 100))) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    "FlowSense",
+                    stringResource(R.string.app_name),
                     style = MaterialTheme.typography.headlineLarge.copy(
                         fontWeight = FontWeight.Bold, fontSize = 32.sp
                     ),
@@ -213,7 +217,7 @@ private fun AppInfoPage(visible: Boolean) {
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    "Smart Expense Tracking",
+                    stringResource(R.string.app_tagline),
                     style = MaterialTheme.typography.bodyLarge,
                     color = onPrimary.copy(alpha = 0.8f)
                 )
@@ -234,23 +238,23 @@ private fun AppInfoPage(visible: Boolean) {
             ) {
                 Column(modifier = Modifier.padding(24.dp)) {
                     Text(
-                        "Key Features",
+                        stringResource(R.string.key_features),
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    FeatureRow(Icons.Filled.SmartToy, "AI-Powered Categorization",
-                        "Automatically categorize expenses using on-device AI or cloud models")
-                    FeatureRow(Icons.Filled.BarChart, "Reports & Insights",
-                        "Detailed spending reports with AI-generated financial insights")
-                    FeatureRow(Icons.Filled.CameraAlt, "Receipt Scanner",
-                        "Scan receipts with OCR to extract amounts and merchant info")
-                    FeatureRow(Icons.Filled.Sms, "SMS Parsing",
-                        "Auto-detect transactions from banking SMS messages")
-                    FeatureRow(Icons.Filled.Map, "Store Map",
-                        "Visualize where you spend with geo-tagged transactions")
-                    FeatureRow(Icons.Filled.CurrencyExchange, "Multi-Currency",
-                        "Track expenses in multiple currencies with live exchange rates")
+                    FeatureRow(Icons.Filled.SmartToy, stringResource(R.string.feature_ai_title),
+                        stringResource(R.string.feature_ai_desc))
+                    FeatureRow(Icons.Filled.BarChart, stringResource(R.string.feature_reports_title),
+                        stringResource(R.string.feature_reports_desc))
+                    FeatureRow(Icons.Filled.CameraAlt, stringResource(R.string.feature_ocr_title),
+                        stringResource(R.string.feature_ocr_desc))
+                    FeatureRow(Icons.Filled.Sms, stringResource(R.string.feature_sms_title),
+                        stringResource(R.string.feature_sms_desc))
+                    FeatureRow(Icons.Filled.Map, stringResource(R.string.feature_map_title),
+                        stringResource(R.string.feature_map_desc))
+                    FeatureRow(Icons.Filled.CurrencyExchange, stringResource(R.string.feature_currency_title),
+                        stringResource(R.string.feature_currency_desc))
                 }
             }
         }
@@ -301,13 +305,13 @@ private fun PermissionsPage(visible: Boolean) {
         Spacer(modifier = Modifier.height(20.dp))
 
         Text(
-            "Permissions",
+            stringResource(R.string.onboarding_permissions),
             style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
             color = onPrimary
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            "Grant permissions to unlock full functionality.\nThe app works without them.",
+            stringResource(R.string.onboarding_permissions_desc),
             style = MaterialTheme.typography.bodyMedium,
             color = onPrimary.copy(alpha = 0.75f),
             textAlign = TextAlign.Center
@@ -330,8 +334,8 @@ private fun PermissionsPage(visible: Boolean) {
                 Column(modifier = Modifier.padding(24.dp)) {
                     PermissionGrantRow(
                         icon = Icons.Filled.CameraAlt,
-                        name = "Camera",
-                        reason = "Scan receipts and capture expense documents",
+                        name = stringResource(R.string.permission_camera),
+                        reason = stringResource(R.string.permission_camera_desc),
                         isGranted = cameraPermission.status.isGranted,
                         onGrant = { cameraPermission.launchPermissionRequest() }
                     )
@@ -339,8 +343,8 @@ private fun PermissionsPage(visible: Boolean) {
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     PermissionGrantRow(
                         icon = Icons.Filled.Sms,
-                        name = "SMS",
-                        reason = "Read banking messages to auto-detect transactions",
+                        name = stringResource(R.string.permission_sms),
+                        reason = stringResource(R.string.permission_sms_desc),
                         isGranted = smsPermission.status.isGranted,
                         onGrant = { smsPermission.launchPermissionRequest() }
                     )
@@ -348,8 +352,8 @@ private fun PermissionsPage(visible: Boolean) {
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     PermissionGrantRow(
                         icon = Icons.Filled.Notifications,
-                        name = "Notifications",
-                        reason = "Budget alerts, threshold warnings, and reminders",
+                        name = stringResource(R.string.permission_notifications),
+                        reason = stringResource(R.string.permission_notifications_desc),
                         isGranted = notificationPermission?.status?.isGranted ?: true,
                         onGrant = { notificationPermission?.launchPermissionRequest() },
                         available = notificationPermission != null
@@ -358,8 +362,8 @@ private fun PermissionsPage(visible: Boolean) {
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     PermissionGrantRow(
                         icon = Icons.Filled.LocationOn,
-                        name = "Location",
-                        reason = "Geo-tag transactions and show spending on a map",
+                        name = stringResource(R.string.permission_location),
+                        reason = stringResource(R.string.permission_location_desc),
                         isGranted = locationPermission.status.isGranted,
                         onGrant = { locationPermission.launchPermissionRequest() }
                     )
@@ -488,7 +492,7 @@ private fun ReadyPage(visible: Boolean) {
         Spacer(modifier = Modifier.height(28.dp))
 
         Text(
-            "You're All Set!",
+            stringResource(R.string.ready_title),
             style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
             color = onPrimary
         )
@@ -496,7 +500,7 @@ private fun ReadyPage(visible: Boolean) {
         Spacer(modifier = Modifier.height(12.dp))
 
         Text(
-            "Start tracking your expenses and\nlet AI handle the rest.",
+            stringResource(R.string.ready_subtitle),
             style = MaterialTheme.typography.bodyLarge,
             color = onPrimary.copy(alpha = 0.8f),
             textAlign = TextAlign.Center
@@ -519,10 +523,10 @@ private fun ReadyPage(visible: Boolean) {
                     modifier = Modifier.padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    QuickTipRow(Icons.Filled.AddCircle, "Tap the + button to add your first expense")
-                    QuickTipRow(Icons.Filled.CameraAlt, "Use the receipt scanner for hands-free entry")
-                    QuickTipRow(Icons.Filled.AutoAwesome, "AI will auto-categorize your transactions")
-                    QuickTipRow(Icons.Filled.Settings, "Visit Settings to configure AI models and SMS parsing")
+                    QuickTipRow(Icons.Filled.AddCircle, stringResource(R.string.tip_add))
+                    QuickTipRow(Icons.Filled.CameraAlt, stringResource(R.string.tip_scan))
+                    QuickTipRow(Icons.Filled.AutoAwesome, stringResource(R.string.tip_ai))
+                    QuickTipRow(Icons.Filled.Settings, stringResource(R.string.tip_settings))
                 }
             }
         }
@@ -530,7 +534,7 @@ private fun ReadyPage(visible: Boolean) {
         Spacer(modifier = Modifier.height(20.dp))
 
         Text(
-            "Your data stays on your device.\nNo account required.",
+            stringResource(R.string.data_privacy_note),
             style = MaterialTheme.typography.bodySmall,
             color = onPrimary.copy(alpha = 0.6f),
             textAlign = TextAlign.Center
@@ -610,7 +614,7 @@ private fun PermissionGrantRow(
         if (!available) {
             // Permission not applicable on this API level
             Text(
-                "N/A",
+                stringResource(R.string.permission_not_available),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -628,7 +632,7 @@ private fun PermissionGrantRow(
                 modifier = Modifier.height(32.dp),
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Text("Grant", style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(R.string.grant), style = MaterialTheme.typography.labelSmall)
             }
         }
     }

@@ -85,6 +85,12 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         return true
     }
 
+    /** Generic update for the entire AppData (used for price tracking, etc). */
+    suspend fun update(data: AppData) {
+        _appData.value = data
+        storage.saveData(data)
+    }
+
     suspend fun updateTransaction(transaction: Transaction) {
         val current = _appData.value
         val updated = current.copy(

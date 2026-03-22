@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FlowSense</string>
+    <string name="app_tagline">スマート支出管理</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">ホーム</string>
+    <string name="nav_reports">レポート</string>
+    <string name="nav_add">追加</string>
+    <string name="nav_history">履歴</string>
+    <string name="nav_settings">設定</string>
+    <string name="nav_transactions">取引</string>
+
+    <!-- Top bar actions -->
+    <string name="action_ai_analyze">AI分析</string>
+    <string name="action_store_map">店舗マップ</string>
+    <string name="action_scanned_sections">スキャン済みセクション</string>
+
+    <!-- Dashboard -->
+    <string name="monthly_balance">月間収支</string>
+    <string name="show_balance">残高を表示</string>
+    <string name="hide_balance">残高を非表示</string>
+    <string name="income">収入</string>
+    <string name="expenses">支出</string>
+    <string name="today">今日</string>
+    <string name="this_week">今週</string>
+    <string name="transactions">取引</string>
+    <string name="ai_insights">AIインサイト</string>
+    <string name="spending_by_category">カテゴリ別支出</string>
+    <string name="recent_transactions">最近の取引</string>
+    <string name="no_transactions_yet">取引はまだありません</string>
+    <string name="no_transactions_hint">手動で追加、レシートをスキャン、またはSMS/通知の追跡を有効にしてください</string>
+    <string name="save_per_month">月 %s 節約</string>
+    <string name="priority_high">高</string>
+    <string name="priority_medium">中</string>
+    <string name="priority_low">低</string>
+    <string name="dismiss">閉じる</string>
+    <string name="currency_converted">通貨換算済み</string>
+
+    <!-- Add Transaction -->
+    <string name="add_transaction">取引を追加</string>
+    <string name="amount">金額</string>
+    <string name="description">説明</string>
+    <string name="category">カテゴリ</string>
+    <string name="expense">支出</string>
+    <string name="type_income">収入</string>
+    <string name="merchant_name">店舗名</string>
+    <string name="notes">メモ</string>
+    <string name="save">保存</string>
+    <string name="cancel">キャンセル</string>
+    <string name="scan_receipt">レシートをスキャン</string>
+    <string name="from_ocr_scan">OCRスキャンから</string>
+    <string name="select_category">カテゴリを選択</string>
+    <string name="enter_amount">金額を入力</string>
+    <string name="enter_description">説明を入力</string>
+
+    <!-- Receipt Scanner -->
+    <string name="scan_receipt_title">レシートをスキャン</string>
+    <string name="take_photo">写真を撮る</string>
+    <string name="choose_from_gallery">ギャラリーから選択</string>
+    <string name="processing_ocr">処理中…</string>
+    <string name="no_text_detected">テキストが検出されませんでした</string>
+    <string name="save_as_section">セクションとして保存</string>
+    <string name="edit_as_transaction">取引として編集</string>
+    <string name="view_sections">セクションを表示</string>
+    <string name="camera_permission_required">レシートのスキャンにはカメラの許可が必要です</string>
+
+    <!-- OCR Sections -->
+    <string name="ocr_sections_title">スキャン済みセクション</string>
+    <string name="clear_all">すべてクリア</string>
+    <string name="no_sections_yet">スキャン済みセクションはまだありません</string>
+    <string name="goods_report">商品レポート</string>
+    <string name="items_total">商品合計</string>
+
+    <!-- Reports -->
+    <string name="reports_title">レポート</string>
+    <string name="daily">日次</string>
+    <string name="weekly">週次</string>
+    <string name="monthly">月次</string>
+    <string name="custom">カスタム</string>
+    <string name="total_expenses">合計支出</string>
+    <string name="total_income">合計収入</string>
+    <string name="net_balance">純残高</string>
+    <string name="avg_daily_spend">平均日次支出</string>
+    <string name="top_expenses">上位の支出</string>
+    <string name="top_merchants">主な店舗</string>
+    <string name="comparison_with_previous">前期間との比較</string>
+    <string name="ai_expense_tips">AI節約アドバイス</string>
+    <string name="generate_ai_tips">AIアドバイスを生成</string>
+
+    <!-- Settings -->
+    <string name="settings_title">設定</string>
+    <string name="appearance">外観</string>
+    <string name="theme">テーマ</string>
+    <string name="theme_system">システム</string>
+    <string name="theme_light">ライト</string>
+    <string name="theme_dark">ダーク</string>
+    <string name="currency">通貨</string>
+    <string name="exchange_rates">為替レート</string>
+    <string name="fetch_rates">レートを取得</string>
+    <string name="currency_converter">通貨換算</string>
+    <string name="data_sources">データソース</string>
+    <string name="sms_parsing">SMS解析</string>
+    <string name="notification_listener">通知リスナー</string>
+    <string name="scan_sms_inbox">SMS受信箱をスキャン</string>
+    <string name="banking_apps">銀行アプリ</string>
+    <string name="scan_for_apps">アプリを検索</string>
+    <string name="connected_apps">接続済みアプリ</string>
+    <string name="budget_alerts">予算 &amp; アラート</string>
+    <string name="monthly_expense_limit">月間支出上限</string>
+    <string name="salary_scheduler">給与スケジューラー</string>
+    <string name="scheduled_expenses">予定された支出</string>
+    <string name="categories">カテゴリ</string>
+    <string name="add_category">カテゴリを追加</string>
+    <string name="ai_engine">AIエンジン</string>
+    <string name="import_export">インポート / エクスポート</string>
+    <string name="export_data">データをエクスポート</string>
+    <string name="import_data">データをインポート</string>
+    <string name="clear_all_data">すべてのデータを消去</string>
+    <string name="storage">ストレージ</string>
+    <string name="battery">バッテリー</string>
+    <string name="permissions">権限</string>
+    <string name="about">アプリについて</string>
+    <string name="version">バージョン %s</string>
+    <string name="subscription">サブスクリプション</string>
+    <string name="restore_purchases">購入を復元</string>
+    <string name="premium">プレミアム</string>
+
+    <!-- Language / i18n -->
+    <string name="language">言語</string>
+    <string name="language_system">システムのデフォルト</string>
+    <string name="language_changed">言語が変更されました。完全に適用するにはアプリを再起動してください。</string>
+
+    <!-- AI -->
+    <string name="ai_analyze_title">AI分析</string>
+    <string name="ai_chat_history">チャット履歴</string>
+    <string name="analyze">分析</string>
+    <string name="analyzing">分析中…</string>
+    <string name="ai_mode_auto">自動（推奨）</string>
+    <string name="ai_mode_system">システムAI</string>
+    <string name="ai_mode_local">ローカルモデル</string>
+    <string name="ai_mode_cloud">クラウドAI</string>
+    <string name="ai_setup_wizard">AIセットアップウィザード</string>
+
+    <!-- SMS Scan -->
+    <string name="sms_scan_title">SMSスキャン</string>
+    <string name="start_scan">スキャン開始</string>
+    <string name="confirm_all">すべて確認</string>
+    <string name="discard">破棄</string>
+    <string name="sms_found">%d件の取引が見つかりました</string>
+
+    <!-- Store Map -->
+    <string name="store_map_title">店舗マップ</string>
+    <string name="add_store">店舗を追加</string>
+    <string name="delete_store">店舗を削除</string>
+    <string name="store_name">店舗名</string>
+    <string name="address">住所</string>
+
+    <!-- Transaction Detail -->
+    <string name="transaction_detail">取引詳細</string>
+    <string name="delete_transaction">取引を削除</string>
+    <string name="source">ソース</string>
+    <string name="date">日付</string>
+    <string name="tags">タグ</string>
+    <string name="location">場所</string>
+
+    <!-- Notifications -->
+    <string name="notifications">通知</string>
+    <string name="mark_all_read">すべて既読にする</string>
+    <string name="no_notifications">通知はありません</string>
+    <string name="transaction_detected">取引を検出</string>
+    <string name="budget_alert">予算アラート</string>
+
+    <!-- Onboarding / Splash -->
+    <string name="onboarding_title">FlowSense</string>
+    <string name="key_features">主な機能</string>
+    <string name="feature_ai_title">AIによる自動分類</string>
+    <string name="feature_ai_desc">デバイス上のAIまたはクラウドモデルを使用して支出を自動分類</string>
+    <string name="feature_reports_title">レポート &amp; インサイト</string>
+    <string name="feature_reports_desc">AIが生成する財務分析付きの詳細な支出レポート</string>
+    <string name="feature_ocr_title">レシートスキャナー</string>
+    <string name="feature_ocr_desc">OCRでレシートをスキャンし、金額や店舗情報を抽出</string>
+    <string name="feature_sms_title">SMS解析</string>
+    <string name="feature_sms_desc">銀行のSMSメッセージから取引を自動検出</string>
+    <string name="feature_map_title">店舗マップ</string>
+    <string name="feature_map_desc">位置情報付きの取引で支出場所を可視化</string>
+    <string name="feature_currency_title">マルチ通貨</string>
+    <string name="feature_currency_desc">リアルタイムの為替レートで複数通貨の支出を管理</string>
+    <string name="onboarding_permissions">権限</string>
+    <string name="onboarding_permissions_desc">すべての機能を利用するには権限を付与してください。\n権限がなくてもアプリは動作します。</string>
+    <string name="permission_camera">カメラ</string>
+    <string name="permission_camera_desc">レシートのスキャンや支出書類の撮影</string>
+    <string name="permission_sms">SMS</string>
+    <string name="permission_sms_desc">銀行メッセージを読み取り取引を自動検出</string>
+    <string name="permission_notifications">通知</string>
+    <string name="permission_notifications_desc">予算アラート、上限警告、リマインダー</string>
+    <string name="permission_location">位置情報</string>
+    <string name="permission_location_desc">取引に位置情報を付与し支出をマップに表示</string>
+    <string name="permission_granted">許可済み</string>
+    <string name="permission_not_available">利用不可</string>
+    <string name="grant">許可する</string>
+    <string name="ai_engine_title">AIエンジン</string>
+    <string name="ai_on_device_title">オンデバイスAI</string>
+    <string name="ai_on_device_subtitle">推奨</string>
+    <string name="ai_on_device_badge">プライベート</string>
+    <string name="ai_on_device_desc">小型AIモデル（500 MB〜2 GB）をダウンロードし、デバイス上で完全に動作します。データがスマホから外に出ることはありません。</string>
+    <string name="ai_system_title">システムAI</string>
+    <string name="ai_system_desc">デバイス内蔵のAIランタイムを使用（PixelのGoogle AICore、Samsung Galaxy AIなど）。対応デバイスならダウンロード不要です。</string>
+    <string name="ai_cloud_title">クラウドAI</string>
+    <string name="ai_cloud_desc">最高品質の分析にはClaude AI APIを使用します。APIキーが必要です。データはAnthropicのサーバーに送信されます。</string>
+    <string name="ai_change_anytime">設定 > AIエンジンからいつでも変更できます。</string>
+    <string name="ai_uses_info">FlowSenseはAIを使って取引の分類、\nインサイトの生成、支出の分析を行います。</string>
+    <string name="ready_title">準備完了！</string>
+    <string name="ready_subtitle">支出の記録を始めましょう。\nあとはAIにお任せください。</string>
+    <string name="tip_add">+ボタンをタップして最初の支出を追加</string>
+    <string name="tip_scan">レシートスキャナーでハンズフリー入力</string>
+    <string name="tip_ai">AIが取引を自動的に分類します</string>
+    <string name="tip_settings">設定でAIモデルやSMS解析を構成できます</string>
+    <string name="data_privacy_note">データはデバイスに保存されます。\nアカウント登録は不要です。</string>
+    <string name="skip">スキップ</string>
+    <string name="back">戻る</string>
+    <string name="next">次へ</string>
+    <string name="get_started">はじめる</string>
+
+    <!-- Paywall -->
+    <string name="paywall_title">%sをアンロック</string>
+    <string name="start_free_trial">無料トライアルを開始</string>
+    <string name="subscribe">登録する</string>
+
+    <!-- Accessibility -->
+    <string name="accessibility_settings">アクセシビリティ</string>
+    <string name="voice_input">音声入力</string>
+    <string name="voice_input_desc">音声で取引を追加やナビゲーション</string>
+    <string name="dynamic_font_scaling">動的フォントスケーリング</string>
+    <string name="dynamic_font_scaling_desc">読みやすさのためにテキストサイズを調整</string>
+    <string name="high_contrast">ハイコントラストモード</string>
+    <string name="high_contrast_desc">視認性向上のためコントラストを強化</string>
+    <string name="screen_reader_optimized">スクリーンリーダー最適化</string>
+    <string name="font_scale">フォントサイズ</string>
+    <string name="font_scale_small">小</string>
+    <string name="font_scale_normal">標準</string>
+    <string name="font_scale_large">大</string>
+    <string name="font_scale_extra_large">特大</string>
+    <string name="tap_to_speak">タップして話す</string>
+    <string name="listening">聞いています…</string>
+    <string name="voice_not_available">音声入力は利用できません</string>
+
+    <!-- Engagement / Reminders -->
+    <string name="daily_reminder">毎日のリマインダー</string>
+    <string name="daily_reminder_desc">支出を記録するための毎日のリマインダーを受け取る</string>
+    <string name="weekly_summary_notification">週間サマリー</string>
+    <string name="weekly_summary_desc">週間支出サマリーの通知を受け取る</string>
+    <string name="reminder_time">リマインダーの時刻</string>
+    <string name="widget_balance_title">FlowSense 残高</string>
+    <string name="widget_description">今月の残高を一目で表示</string>
+    <string name="widget_monthly_balance">月間収支</string>
+    <string name="widget_income_label">収入</string>
+    <string name="widget_expense_label">支出</string>
+
+    <!-- Price Tracking / Store Integration -->
+    <string name="price_tracking">価格追跡</string>
+    <string name="price_tracking_desc">カメラで商品の価格を時系列で追跡</string>
+    <string name="scan_price">価格をスキャン</string>
+    <string name="price_history">価格履歴</string>
+    <string name="item_name">商品名</string>
+    <string name="current_price">現在の価格</string>
+    <string name="lowest_price">最安値</string>
+    <string name="highest_price">最高値</string>
+    <string name="price_trend">価格動向</string>
+    <string name="add_price_entry">価格エントリを追加</string>
+    <string name="tracked_items">追跡中の商品</string>
+    <string name="no_tracked_items">追跡中の商品はまだありません</string>
+    <string name="no_tracked_items_hint">商品の写真を撮って価格追跡を開始</string>
+    <string name="price_alert">価格アラート</string>
+    <string name="price_dropped">価格が下がりました！</string>
+    <string name="price_drop_message">%1$sが%2$sになりました（以前は%3$s）</string>
+    <string name="deal_found">お得情報発見</string>
+    <string name="scan_item_price">商品価格をスキャン</string>
+    <string name="enter_item_name">商品名を入力</string>
+    <string name="enter_price">価格を入力</string>
+    <string name="store_location_label">店舗 / 場所</string>
+    <string name="price_saved">価格を保存しました</string>
+    <string name="delete_item">商品を削除</string>
+
+    <!-- Common -->
+    <string name="ok">OK</string>
+    <string name="yes">はい</string>
+    <string name="no">いいえ</string>
+    <string name="delete">削除</string>
+    <string name="edit">編集</string>
+    <string name="close">閉じる</string>
+    <string name="search">検索</string>
+    <string name="loading">読み込み中…</string>
+    <string name="error">エラー</string>
+    <string name="retry">再試行</string>
+    <string name="confirm">確認</string>
+    <string name="are_you_sure">よろしいですか？</string>
+    <string name="no_data">データがありません</string>
+</resources>

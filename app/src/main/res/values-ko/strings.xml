@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FlowSense</string>
+    <string name="app_tagline">스마트 지출 관리</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">홈</string>
+    <string name="nav_reports">보고서</string>
+    <string name="nav_add">추가</string>
+    <string name="nav_history">내역</string>
+    <string name="nav_settings">설정</string>
+    <string name="nav_transactions">거래</string>
+
+    <!-- Top bar actions -->
+    <string name="action_ai_analyze">AI 분석</string>
+    <string name="action_store_map">매장 지도</string>
+    <string name="action_scanned_sections">스캔된 섹션</string>
+
+    <!-- Dashboard -->
+    <string name="monthly_balance">월간 잔액</string>
+    <string name="show_balance">잔액 표시</string>
+    <string name="hide_balance">잔액 숨기기</string>
+    <string name="income">수입</string>
+    <string name="expenses">지출</string>
+    <string name="today">오늘</string>
+    <string name="this_week">이번 주</string>
+    <string name="transactions">거래</string>
+    <string name="ai_insights">AI 인사이트</string>
+    <string name="spending_by_category">카테고리별 지출</string>
+    <string name="recent_transactions">최근 거래</string>
+    <string name="no_transactions_yet">아직 거래가 없습니다</string>
+    <string name="no_transactions_hint">수동으로 추가하거나, 영수증을 스캔하거나, SMS/알림 추적을 활성화하세요</string>
+    <string name="save_per_month">월 %s 절약</string>
+    <string name="priority_high">높음</string>
+    <string name="priority_medium">중간</string>
+    <string name="priority_low">낮음</string>
+    <string name="dismiss">닫기</string>
+    <string name="currency_converted">통화 변환됨</string>
+
+    <!-- Add Transaction -->
+    <string name="add_transaction">거래 추가</string>
+    <string name="amount">금액</string>
+    <string name="description">설명</string>
+    <string name="category">카테고리</string>
+    <string name="expense">지출</string>
+    <string name="type_income">수입</string>
+    <string name="merchant_name">가맹점 이름</string>
+    <string name="notes">메모</string>
+    <string name="save">저장</string>
+    <string name="cancel">취소</string>
+    <string name="scan_receipt">영수증 스캔</string>
+    <string name="from_ocr_scan">OCR 스캔에서</string>
+    <string name="select_category">카테고리 선택</string>
+    <string name="enter_amount">금액 입력</string>
+    <string name="enter_description">설명 입력</string>
+
+    <!-- Receipt Scanner -->
+    <string name="scan_receipt_title">영수증 스캔</string>
+    <string name="take_photo">사진 촬영</string>
+    <string name="choose_from_gallery">갤러리에서 선택</string>
+    <string name="processing_ocr">처리 중…</string>
+    <string name="no_text_detected">텍스트가 감지되지 않았습니다</string>
+    <string name="save_as_section">섹션으로 저장</string>
+    <string name="edit_as_transaction">거래로 편집</string>
+    <string name="view_sections">섹션 보기</string>
+    <string name="camera_permission_required">영수증 스캔을 위해 카메라 권한이 필요합니다</string>
+
+    <!-- OCR Sections -->
+    <string name="ocr_sections_title">스캔된 섹션</string>
+    <string name="clear_all">모두 지우기</string>
+    <string name="no_sections_yet">스캔된 섹션이 아직 없습니다</string>
+    <string name="goods_report">상품 보고서</string>
+    <string name="items_total">상품 합계</string>
+
+    <!-- Reports -->
+    <string name="reports_title">보고서</string>
+    <string name="daily">일별</string>
+    <string name="weekly">주별</string>
+    <string name="monthly">월별</string>
+    <string name="custom">사용자 지정</string>
+    <string name="total_expenses">총 지출</string>
+    <string name="total_income">총 수입</string>
+    <string name="net_balance">순 잔액</string>
+    <string name="avg_daily_spend">일 평균 지출</string>
+    <string name="top_expenses">주요 지출</string>
+    <string name="top_merchants">주요 가맹점</string>
+    <string name="comparison_with_previous">이전 기간 대비</string>
+    <string name="ai_expense_tips">AI 절약 팁</string>
+    <string name="generate_ai_tips">AI 팁 생성</string>
+
+    <!-- Settings -->
+    <string name="settings_title">설정</string>
+    <string name="appearance">외관</string>
+    <string name="theme">테마</string>
+    <string name="theme_system">시스템</string>
+    <string name="theme_light">라이트</string>
+    <string name="theme_dark">다크</string>
+    <string name="currency">통화</string>
+    <string name="exchange_rates">환율</string>
+    <string name="fetch_rates">환율 가져오기</string>
+    <string name="currency_converter">통화 변환기</string>
+    <string name="data_sources">데이터 소스</string>
+    <string name="sms_parsing">SMS 분석</string>
+    <string name="notification_listener">알림 리스너</string>
+    <string name="scan_sms_inbox">SMS 수신함 스캔</string>
+    <string name="banking_apps">은행 앱</string>
+    <string name="scan_for_apps">앱 검색</string>
+    <string name="connected_apps">연결된 앱</string>
+    <string name="budget_alerts">예산 &amp; 알림</string>
+    <string name="monthly_expense_limit">월간 지출 한도</string>
+    <string name="salary_scheduler">급여 스케줄러</string>
+    <string name="scheduled_expenses">예정된 지출</string>
+    <string name="categories">카테고리</string>
+    <string name="add_category">카테고리 추가</string>
+    <string name="ai_engine">AI 엔진</string>
+    <string name="import_export">가져오기 / 내보내기</string>
+    <string name="export_data">데이터 내보내기</string>
+    <string name="import_data">데이터 가져오기</string>
+    <string name="clear_all_data">모든 데이터 삭제</string>
+    <string name="storage">저장소</string>
+    <string name="battery">배터리</string>
+    <string name="permissions">권한</string>
+    <string name="about">앱 정보</string>
+    <string name="version">버전 %s</string>
+    <string name="subscription">구독</string>
+    <string name="restore_purchases">구매 복원</string>
+    <string name="premium">프리미엄</string>
+
+    <!-- Language / i18n -->
+    <string name="language">언어</string>
+    <string name="language_system">시스템 기본값</string>
+    <string name="language_changed">언어가 변경되었습니다. 완전히 적용하려면 앱을 다시 시작하세요.</string>
+
+    <!-- AI -->
+    <string name="ai_analyze_title">AI 분석</string>
+    <string name="ai_chat_history">채팅 기록</string>
+    <string name="analyze">분석</string>
+    <string name="analyzing">분석 중…</string>
+    <string name="ai_mode_auto">자동 (권장)</string>
+    <string name="ai_mode_system">시스템 AI</string>
+    <string name="ai_mode_local">로컬 모델</string>
+    <string name="ai_mode_cloud">클라우드 AI</string>
+    <string name="ai_setup_wizard">AI 설정 마법사</string>
+
+    <!-- SMS Scan -->
+    <string name="sms_scan_title">SMS 스캔</string>
+    <string name="start_scan">스캔 시작</string>
+    <string name="confirm_all">모두 확인</string>
+    <string name="discard">버리기</string>
+    <string name="sms_found">%d건의 거래 발견</string>
+
+    <!-- Store Map -->
+    <string name="store_map_title">매장 지도</string>
+    <string name="add_store">매장 추가</string>
+    <string name="delete_store">매장 삭제</string>
+    <string name="store_name">매장 이름</string>
+    <string name="address">주소</string>
+
+    <!-- Transaction Detail -->
+    <string name="transaction_detail">거래 상세</string>
+    <string name="delete_transaction">거래 삭제</string>
+    <string name="source">출처</string>
+    <string name="date">날짜</string>
+    <string name="tags">태그</string>
+    <string name="location">위치</string>
+
+    <!-- Notifications -->
+    <string name="notifications">알림</string>
+    <string name="mark_all_read">모두 읽음으로 표시</string>
+    <string name="no_notifications">알림 없음</string>
+    <string name="transaction_detected">거래 감지됨</string>
+    <string name="budget_alert">예산 알림</string>
+
+    <!-- Onboarding / Splash -->
+    <string name="onboarding_title">FlowSense</string>
+    <string name="key_features">주요 기능</string>
+    <string name="feature_ai_title">AI 자동 분류</string>
+    <string name="feature_ai_desc">기기 내 AI 또는 클라우드 모델을 사용하여 지출을 자동 분류</string>
+    <string name="feature_reports_title">보고서 &amp; 인사이트</string>
+    <string name="feature_reports_desc">AI가 생성한 재무 분석이 포함된 상세 지출 보고서</string>
+    <string name="feature_ocr_title">영수증 스캐너</string>
+    <string name="feature_ocr_desc">OCR로 영수증을 스캔하여 금액 및 가맹점 정보 추출</string>
+    <string name="feature_sms_title">SMS 분석</string>
+    <string name="feature_sms_desc">은행 SMS 메시지에서 거래를 자동 감지</string>
+    <string name="feature_map_title">매장 지도</string>
+    <string name="feature_map_desc">위치 태그된 거래로 지출 장소를 시각화</string>
+    <string name="feature_currency_title">다중 통화</string>
+    <string name="feature_currency_desc">실시간 환율로 여러 통화의 지출을 관리</string>
+    <string name="onboarding_permissions">권한</string>
+    <string name="onboarding_permissions_desc">모든 기능을 잠금 해제하려면 권한을 부여하세요.\n권한 없이도 앱은 작동합니다.</string>
+    <string name="permission_camera">카메라</string>
+    <string name="permission_camera_desc">영수증 스캔 및 지출 문서 촬영</string>
+    <string name="permission_sms">SMS</string>
+    <string name="permission_sms_desc">은행 메시지를 읽어 거래를 자동 감지</string>
+    <string name="permission_notifications">알림</string>
+    <string name="permission_notifications_desc">예산 알림, 한도 경고 및 리마인더</string>
+    <string name="permission_location">위치</string>
+    <string name="permission_location_desc">거래에 위치 태그를 추가하고 지도에 지출 표시</string>
+    <string name="permission_granted">허용됨</string>
+    <string name="permission_not_available">해당 없음</string>
+    <string name="grant">허용</string>
+    <string name="ai_engine_title">AI 엔진</string>
+    <string name="ai_on_device_title">기기 내 AI</string>
+    <string name="ai_on_device_subtitle">권장</string>
+    <string name="ai_on_device_badge">프라이빗</string>
+    <string name="ai_on_device_desc">소형 AI 모델(500 MB – 2 GB)을 다운로드하여 기기에서 완전히 실행됩니다. 데이터가 휴대폰 밖으로 나가지 않습니다.</string>
+    <string name="ai_system_title">시스템 AI</string>
+    <string name="ai_system_desc">기기 내장 AI 런타임 사용 (Pixel의 Google AICore, Samsung Galaxy AI). 기기가 지원하면 다운로드 불필요.</string>
+    <string name="ai_cloud_title">클라우드 AI</string>
+    <string name="ai_cloud_desc">최고 품질의 분석을 위해 API를 통해 Claude AI를 사용합니다. API 키가 필요합니다. 데이터가 Anthropic 서버로 전송됩니다.</string>
+    <string name="ai_change_anytime">설정 > AI 엔진에서 언제든지 변경할 수 있습니다.</string>
+    <string name="ai_uses_info">FlowSense는 AI를 사용하여 거래를 분류하고,\n인사이트를 생성하고, 지출을 분석합니다.</string>
+    <string name="ready_title">준비 완료!</string>
+    <string name="ready_subtitle">지출 기록을 시작하세요.\nAI가 나머지를 처리합니다.</string>
+    <string name="tip_add">+ 버튼을 눌러 첫 번째 지출을 추가하세요</string>
+    <string name="tip_scan">영수증 스캐너로 핸즈프리 입력</string>
+    <string name="tip_ai">AI가 거래를 자동으로 분류합니다</string>
+    <string name="tip_settings">설정에서 AI 모델과 SMS 분석을 구성하세요</string>
+    <string name="data_privacy_note">데이터는 기기에 저장됩니다.\n계정 등록이 필요 없습니다.</string>
+    <string name="skip">건너뛰기</string>
+    <string name="back">뒤로</string>
+    <string name="next">다음</string>
+    <string name="get_started">시작하기</string>
+
+    <!-- Paywall -->
+    <string name="paywall_title">%s 잠금 해제</string>
+    <string name="start_free_trial">무료 체험 시작</string>
+    <string name="subscribe">구독하기</string>
+
+    <!-- Accessibility -->
+    <string name="accessibility_settings">접근성</string>
+    <string name="voice_input">음성 입력</string>
+    <string name="voice_input_desc">음성으로 거래를 추가하고 탐색</string>
+    <string name="dynamic_font_scaling">동적 글꼴 크기 조정</string>
+    <string name="dynamic_font_scaling_desc">가독성을 위해 텍스트 크기 조정</string>
+    <string name="high_contrast">고대비 모드</string>
+    <string name="high_contrast_desc">가시성 향상을 위해 대비 증가</string>
+    <string name="screen_reader_optimized">화면 리더 최적화</string>
+    <string name="font_scale">글꼴 크기</string>
+    <string name="font_scale_small">작게</string>
+    <string name="font_scale_normal">보통</string>
+    <string name="font_scale_large">크게</string>
+    <string name="font_scale_extra_large">매우 크게</string>
+    <string name="tap_to_speak">탭하여 말하기</string>
+    <string name="listening">듣고 있습니다…</string>
+    <string name="voice_not_available">음성 입력을 사용할 수 없습니다</string>
+
+    <!-- Engagement / Reminders -->
+    <string name="daily_reminder">일일 리마인더</string>
+    <string name="daily_reminder_desc">지출을 기록하라는 일일 리마인더 받기</string>
+    <string name="weekly_summary_notification">주간 요약</string>
+    <string name="weekly_summary_desc">주간 지출 요약 알림 받기</string>
+    <string name="reminder_time">리마인더 시간</string>
+    <string name="widget_balance_title">FlowSense 잔액</string>
+    <string name="widget_description">현재 월간 잔액을 한눈에 표시</string>
+    <string name="widget_monthly_balance">월간 잔액</string>
+    <string name="widget_income_label">수입</string>
+    <string name="widget_expense_label">지출</string>
+
+    <!-- Price Tracking / Store Integration -->
+    <string name="price_tracking">가격 추적</string>
+    <string name="price_tracking_desc">카메라로 상품 가격 변동 추적</string>
+    <string name="scan_price">가격 스캔</string>
+    <string name="price_history">가격 이력</string>
+    <string name="item_name">상품명</string>
+    <string name="current_price">현재 가격</string>
+    <string name="lowest_price">최저가</string>
+    <string name="highest_price">최고가</string>
+    <string name="price_trend">가격 동향</string>
+    <string name="add_price_entry">가격 항목 추가</string>
+    <string name="tracked_items">추적 중인 상품</string>
+    <string name="no_tracked_items">추적 중인 상품이 없습니다</string>
+    <string name="no_tracked_items_hint">상품 사진을 찍어 가격 추적을 시작하세요</string>
+    <string name="price_alert">가격 알림</string>
+    <string name="price_dropped">가격이 내렸습니다!</string>
+    <string name="price_drop_message">%1$s이(가) 이제 %2$s입니다 (이전 %3$s)</string>
+    <string name="deal_found">특가 발견</string>
+    <string name="scan_item_price">상품 가격 스캔</string>
+    <string name="enter_item_name">상품명 입력</string>
+    <string name="enter_price">가격 입력</string>
+    <string name="store_location_label">매장 / 위치</string>
+    <string name="price_saved">가격 저장됨</string>
+    <string name="delete_item">상품 삭제</string>
+
+    <!-- Common -->
+    <string name="ok">확인</string>
+    <string name="yes">예</string>
+    <string name="no">아니오</string>
+    <string name="delete">삭제</string>
+    <string name="edit">편집</string>
+    <string name="close">닫기</string>
+    <string name="search">검색</string>
+    <string name="loading">로딩 중…</string>
+    <string name="error">오류</string>
+    <string name="retry">다시 시도</string>
+    <string name="confirm">확인</string>
+    <string name="are_you_sure">확실합니까?</string>
+    <string name="no_data">데이터 없음</string>
+</resources>

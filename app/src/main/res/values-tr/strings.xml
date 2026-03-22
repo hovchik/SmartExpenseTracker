@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FlowSense</string>
+    <string name="app_tagline">Akıllı Harcama Takibi</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Ana Sayfa</string>
+    <string name="nav_reports">Raporlar</string>
+    <string name="nav_add">Ekle</string>
+    <string name="nav_history">Geçmiş</string>
+    <string name="nav_settings">Ayarlar</string>
+    <string name="nav_transactions">İşlemler</string>
+
+    <!-- Top bar actions -->
+    <string name="action_ai_analyze">AI Analizi</string>
+    <string name="action_store_map">Mağaza Haritası</string>
+    <string name="action_scanned_sections">Taranan Bölümler</string>
+
+    <!-- Dashboard -->
+    <string name="monthly_balance">Aylık Bakiye</string>
+    <string name="show_balance">Bakiyeyi göster</string>
+    <string name="hide_balance">Bakiyeyi gizle</string>
+    <string name="income">Gelir</string>
+    <string name="expenses">Giderler</string>
+    <string name="today">Bugün</string>
+    <string name="this_week">Bu Hafta</string>
+    <string name="transactions">İşlemler</string>
+    <string name="ai_insights">AI Analizleri</string>
+    <string name="spending_by_category">Kategoriye Göre Harcamalar</string>
+    <string name="recent_transactions">Son İşlemler</string>
+    <string name="no_transactions_yet">Henüz işlem yok</string>
+    <string name="no_transactions_hint">Manuel olarak ekleyin, bir fiş tarayın veya SMS/bildirim takibini etkinleştirin</string>
+    <string name="save_per_month">%s/ay tasarruf et</string>
+    <string name="priority_high">Yüksek</string>
+    <string name="priority_medium">Orta</string>
+    <string name="priority_low">Düşük</string>
+    <string name="dismiss">Kapat</string>
+    <string name="currency_converted">Para birimi dönüştürüldü</string>
+
+    <!-- Add Transaction -->
+    <string name="add_transaction">İşlem Ekle</string>
+    <string name="amount">Tutar</string>
+    <string name="description">Açıklama</string>
+    <string name="category">Kategori</string>
+    <string name="expense">Gider</string>
+    <string name="type_income">Gelir</string>
+    <string name="merchant_name">İşyeri Adı</string>
+    <string name="notes">Notlar</string>
+    <string name="save">Kaydet</string>
+    <string name="cancel">İptal</string>
+    <string name="scan_receipt">Fiş Tara</string>
+    <string name="from_ocr_scan">OCR Taramasından</string>
+    <string name="select_category">Kategori Seç</string>
+    <string name="enter_amount">Tutar girin</string>
+    <string name="enter_description">Açıklama girin</string>
+
+    <!-- Receipt Scanner -->
+    <string name="scan_receipt_title">Fiş Tara</string>
+    <string name="take_photo">Fotoğraf Çek</string>
+    <string name="choose_from_gallery">Galeriden Seç</string>
+    <string name="processing_ocr">İşleniyor\u2026</string>
+    <string name="no_text_detected">Metin algılanmadı</string>
+    <string name="save_as_section">Bölüm Olarak Kaydet</string>
+    <string name="edit_as_transaction">İşlem Olarak Düzenle</string>
+    <string name="view_sections">Bölümleri Görüntüle</string>
+    <string name="camera_permission_required">Fişleri taramak için kamera izni gereklidir</string>
+
+    <!-- OCR Sections -->
+    <string name="ocr_sections_title">Taranan Bölümler</string>
+    <string name="clear_all">Tümünü Temizle</string>
+    <string name="no_sections_yet">Henüz taranan bölüm yok</string>
+    <string name="goods_report">Ürün Raporu</string>
+    <string name="items_total">Toplam Ürün</string>
+
+    <!-- Reports -->
+    <string name="reports_title">Raporlar</string>
+    <string name="daily">Günlük</string>
+    <string name="weekly">Haftalık</string>
+    <string name="monthly">Aylık</string>
+    <string name="custom">Özel</string>
+    <string name="total_expenses">Toplam Giderler</string>
+    <string name="total_income">Toplam Gelir</string>
+    <string name="net_balance">Net Bakiye</string>
+    <string name="avg_daily_spend">Ort. Günlük Harcama</string>
+    <string name="top_expenses">En Büyük Giderler</string>
+    <string name="top_merchants">En Çok Harcanan İşyerleri</string>
+    <string name="comparison_with_previous">Önceki Döneme Göre</string>
+    <string name="ai_expense_tips">AI Harcama Azaltma İpuçları</string>
+    <string name="generate_ai_tips">AI İpuçları Oluştur</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Ayarlar</string>
+    <string name="appearance">Görünüm</string>
+    <string name="theme">Tema</string>
+    <string name="theme_system">Sistem</string>
+    <string name="theme_light">Açık</string>
+    <string name="theme_dark">Koyu</string>
+    <string name="currency">Para Birimi</string>
+    <string name="exchange_rates">Döviz Kurları</string>
+    <string name="fetch_rates">Kurları Getir</string>
+    <string name="currency_converter">Döviz Çevirici</string>
+    <string name="data_sources">Veri Kaynakları</string>
+    <string name="sms_parsing">SMS Ayrıştırma</string>
+    <string name="notification_listener">Bildirim Dinleyici</string>
+    <string name="scan_sms_inbox">SMS Gelen Kutusunu Tara</string>
+    <string name="banking_apps">Banka Uygulamaları</string>
+    <string name="scan_for_apps">Uygulama Ara</string>
+    <string name="connected_apps">Bağlı Uygulamalar</string>
+    <string name="budget_alerts">Bütçe &amp; Uyarılar</string>
+    <string name="monthly_expense_limit">Aylık Harcama Limiti</string>
+    <string name="salary_scheduler">Maaş Zamanlayıcı</string>
+    <string name="scheduled_expenses">Zamanlanmış Giderler</string>
+    <string name="categories">Kategoriler</string>
+    <string name="add_category">Kategori Ekle</string>
+    <string name="ai_engine">AI Motoru</string>
+    <string name="import_export">İçe Aktar / Dışa Aktar</string>
+    <string name="export_data">Verileri Dışa Aktar</string>
+    <string name="import_data">Verileri İçe Aktar</string>
+    <string name="clear_all_data">Tüm Verileri Sil</string>
+    <string name="storage">Depolama</string>
+    <string name="battery">Pil</string>
+    <string name="permissions">İzinler</string>
+    <string name="about">Hakkında</string>
+    <string name="version">Sürüm %s</string>
+    <string name="subscription">Abonelik</string>
+    <string name="restore_purchases">Satın Alımları Geri Yükle</string>
+    <string name="premium">Premium</string>
+
+    <!-- Language / i18n -->
+    <string name="language">Dil</string>
+    <string name="language_system">Sistem Varsayılanı</string>
+    <string name="language_changed">Dil değiştirildi. Tam etki için uygulamayı yeniden başlatın.</string>
+
+    <!-- AI -->
+    <string name="ai_analyze_title">AI Analizi</string>
+    <string name="ai_chat_history">Sohbet Geçmişi</string>
+    <string name="analyze">Analiz Et</string>
+    <string name="analyzing">Analiz ediliyor\u2026</string>
+    <string name="ai_mode_auto">Otomatik (önerilen)</string>
+    <string name="ai_mode_system">Sistem AI</string>
+    <string name="ai_mode_local">Yerel model</string>
+    <string name="ai_mode_cloud">Bulut AI</string>
+    <string name="ai_setup_wizard">AI Kurulum Sihirbazı</string>
+
+    <!-- SMS Scan -->
+    <string name="sms_scan_title">SMS Tarama</string>
+    <string name="start_scan">Taramayı Başlat</string>
+    <string name="confirm_all">Tümünü Onayla</string>
+    <string name="discard">Sil</string>
+    <string name="sms_found">%d işlem bulundu</string>
+
+    <!-- Store Map -->
+    <string name="store_map_title">Mağaza Haritası</string>
+    <string name="add_store">Mağaza Ekle</string>
+    <string name="delete_store">Mağazayı Sil</string>
+    <string name="store_name">Mağaza Adı</string>
+    <string name="address">Adres</string>
+
+    <!-- Transaction Detail -->
+    <string name="transaction_detail">İşlem Detayı</string>
+    <string name="delete_transaction">İşlemi Sil</string>
+    <string name="source">Kaynak</string>
+    <string name="date">Tarih</string>
+    <string name="tags">Etiketler</string>
+    <string name="location">Konum</string>
+
+    <!-- Notifications -->
+    <string name="notifications">Bildirimler</string>
+    <string name="mark_all_read">Tümünü Okundu Olarak İşaretle</string>
+    <string name="no_notifications">Bildirim yok</string>
+    <string name="transaction_detected">İşlem Algılandı</string>
+    <string name="budget_alert">Bütçe Uyarısı</string>
+
+    <!-- Onboarding / Splash -->
+    <string name="onboarding_title">FlowSense</string>
+    <string name="key_features">Temel Özellikler</string>
+    <string name="feature_ai_title">AI Destekli Kategorizasyon</string>
+    <string name="feature_ai_desc">Cihaz üzerinde AI veya bulut modelleri kullanarak harcamaları otomatik kategorize edin</string>
+    <string name="feature_reports_title">Raporlar &amp; Analizler</string>
+    <string name="feature_reports_desc">AI tarafından oluşturulan finansal analizlerle detaylı harcama raporları</string>
+    <string name="feature_ocr_title">Fiş Tarayıcı</string>
+    <string name="feature_ocr_desc">Tutarları ve işyeri bilgilerini çıkarmak için fişleri OCR ile tarayın</string>
+    <string name="feature_sms_title">SMS Ayrıştırma</string>
+    <string name="feature_sms_desc">Banka SMS mesajlarından işlemleri otomatik olarak algılayın</string>
+    <string name="feature_map_title">Mağaza Haritası</string>
+    <string name="feature_map_desc">Coğrafi etiketli işlemlerle nerede harcama yaptığınızı görselleştirin</string>
+    <string name="feature_currency_title">Çoklu Para Birimi</string>
+    <string name="feature_currency_desc">Canlı döviz kurlarıyla birden fazla para biriminde harcamaları takip edin</string>
+    <string name="onboarding_permissions">İzinler</string>
+    <string name="onboarding_permissions_desc">Tüm işlevselliği açmak için izinleri verin.\nUygulama onlarsız da çalışır.</string>
+    <string name="permission_camera">Kamera</string>
+    <string name="permission_camera_desc">Fişleri tarayın ve harcama belgelerini çekin</string>
+    <string name="permission_sms">SMS</string>
+    <string name="permission_sms_desc">İşlemleri otomatik algılamak için banka mesajlarını okuyun</string>
+    <string name="permission_notifications">Bildirimler</string>
+    <string name="permission_notifications_desc">Bütçe uyarıları, eşik uyarıları ve hatırlatıcılar</string>
+    <string name="permission_location">Konum</string>
+    <string name="permission_location_desc">İşlemleri coğrafi etiketleyin ve harcamaları haritada gösterin</string>
+    <string name="permission_granted">Verildi</string>
+    <string name="permission_not_available">Mevcut değil</string>
+    <string name="grant">İzin Ver</string>
+    <string name="ai_engine_title">AI Motoru</string>
+    <string name="ai_on_device_title">Cihaz Üzerinde AI</string>
+    <string name="ai_on_device_subtitle">Önerilen</string>
+    <string name="ai_on_device_badge">Gizli</string>
+    <string name="ai_on_device_desc">Tamamen cihazınızda çalışan küçük bir AI modeli (500 MB – 2 GB) indirin. Verileriniz telefonunuzdan asla çıkmaz.</string>
+    <string name="ai_system_title">Sistem AI</string>
+    <string name="ai_system_desc">Cihazınızın yerleşik AI çalışma zamanını kullanın (Pixel\'da Google AICore, Samsung Galaxy AI). Cihazınız destekliyorsa indirme gerekmez.</string>
+    <string name="ai_cloud_title">Bulut AI</string>
+    <string name="ai_cloud_desc">En yüksek kaliteli analiz için Claude AI\'yı API üzerinden kullanın. Bir API anahtarı gerektirir. Veriler Anthropic sunucularına gönderilir.</string>
+    <string name="ai_change_anytime">Bunu istediğiniz zaman Ayarlar > AI Motoru\'ndan değiştirebilirsiniz.</string>
+    <string name="ai_uses_info">FlowSense, işlemleri kategorize etmek,\nanalizler oluşturmak ve harcamaları analiz etmek için AI kullanır.</string>
+    <string name="ready_title">Her Şey Hazır!</string>
+    <string name="ready_subtitle">Harcamalarınızı takip etmeye başlayın ve\ngerisini AI\'ya bırakın.</string>
+    <string name="tip_add">İlk harcamanızı eklemek için + düğmesine dokunun</string>
+    <string name="tip_scan">Eller serbest giriş için fiş tarayıcıyı kullanın</string>
+    <string name="tip_ai">AI işlemlerinizi otomatik olarak kategorize edecek</string>
+    <string name="tip_settings">AI modellerini ve SMS ayrıştırmayı yapılandırmak için Ayarlar\'ı ziyaret edin</string>
+    <string name="data_privacy_note">Verileriniz cihazınızda kalır.\nHesap gerekli değildir.</string>
+    <string name="skip">Atla</string>
+    <string name="back">Geri</string>
+    <string name="next">İleri</string>
+    <string name="get_started">Başlayın</string>
+
+    <!-- Paywall -->
+    <string name="paywall_title">%s Kilidini Aç</string>
+    <string name="start_free_trial">Ücretsiz Denemeyi Başlat</string>
+    <string name="subscribe">Abone Ol</string>
+
+    <!-- Accessibility -->
+    <string name="accessibility_settings">Erişilebilirlik</string>
+    <string name="voice_input">Sesli Giriş</string>
+    <string name="voice_input_desc">İşlem eklemek ve gezinmek için sesinizi kullanın</string>
+    <string name="dynamic_font_scaling">Dinamik Yazı Tipi Ölçekleme</string>
+    <string name="dynamic_font_scaling_desc">Daha iyi okunabilirlik için metin boyutunu ayarlayın</string>
+    <string name="high_contrast">Yüksek Kontrast Modu</string>
+    <string name="high_contrast_desc">Daha iyi görünürlük için kontrastı artırın</string>
+    <string name="screen_reader_optimized">Ekran Okuyucu için Optimize Edilmiş</string>
+    <string name="font_scale">Yazı Tipi Ölçeği</string>
+    <string name="font_scale_small">Küçük</string>
+    <string name="font_scale_normal">Normal</string>
+    <string name="font_scale_large">Büyük</string>
+    <string name="font_scale_extra_large">Çok Büyük</string>
+    <string name="tap_to_speak">Konuşmak için dokunun</string>
+    <string name="listening">Dinleniyor\u2026</string>
+    <string name="voice_not_available">Sesli giriş kullanılamıyor</string>
+
+    <!-- Engagement / Reminders -->
+    <string name="daily_reminder">Günlük Hatırlatıcı</string>
+    <string name="daily_reminder_desc">Harcamalarınızı kaydetmeniz için günlük bir hatırlatıcı alın</string>
+    <string name="weekly_summary_notification">Haftalık Özet</string>
+    <string name="weekly_summary_desc">Haftalık harcama özeti bildirimi alın</string>
+    <string name="reminder_time">Hatırlatma Zamanı</string>
+    <string name="widget_balance_title">FlowSense Bakiye</string>
+    <string name="widget_description">Mevcut aylık bakiyenizi bir bakışta gösterir</string>
+    <string name="widget_monthly_balance">Aylık Bakiye</string>
+    <string name="widget_income_label">Gelir</string>
+    <string name="widget_expense_label">Giderler</string>
+
+    <!-- Price Tracking / Store Integration -->
+    <string name="price_tracking">Fiyat Takibi</string>
+    <string name="price_tracking_desc">Kamerayla zaman içinde ürün fiyatlarını takip edin</string>
+    <string name="scan_price">Fiyat Tara</string>
+    <string name="price_history">Fiyat Geçmişi</string>
+    <string name="item_name">Ürün Adı</string>
+    <string name="current_price">Mevcut Fiyat</string>
+    <string name="lowest_price">En Düşük Fiyat</string>
+    <string name="highest_price">En Yüksek Fiyat</string>
+    <string name="price_trend">Fiyat Trendi</string>
+    <string name="add_price_entry">Fiyat Girişi Ekle</string>
+    <string name="tracked_items">Takip Edilen Ürünler</string>
+    <string name="no_tracked_items">Henüz takip edilen ürün yok</string>
+    <string name="no_tracked_items_hint">Fiyatını takip etmeye başlamak için herhangi bir ürünün fotoğrafını çekin</string>
+    <string name="price_alert">Fiyat Uyarısı</string>
+    <string name="price_dropped">Fiyat düştü!</string>
+    <string name="price_drop_message">%1$s şimdi %2$s (önceki %3$s)</string>
+    <string name="deal_found">Fırsat Bulundu</string>
+    <string name="scan_item_price">Ürün Fiyatı Tara</string>
+    <string name="enter_item_name">Ürün adı girin</string>
+    <string name="enter_price">Fiyat girin</string>
+    <string name="store_location_label">Mağaza / Konum</string>
+    <string name="price_saved">Fiyat kaydedildi</string>
+    <string name="delete_item">Ürünü Sil</string>
+
+    <!-- Common -->
+    <string name="ok">Tamam</string>
+    <string name="yes">Evet</string>
+    <string name="no">Hayır</string>
+    <string name="delete">Sil</string>
+    <string name="edit">Düzenle</string>
+    <string name="close">Kapat</string>
+    <string name="search">Ara</string>
+    <string name="loading">Yükleniyor\u2026</string>
+    <string name="error">Hata</string>
+    <string name="retry">Tekrar Dene</string>
+    <string name="confirm">Onayla</string>
+    <string name="are_you_sure">Emin misiniz?</string>
+    <string name="no_data">Veri mevcut değil</string>
+</resources>

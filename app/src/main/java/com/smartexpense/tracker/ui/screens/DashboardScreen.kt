@@ -26,6 +26,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import com.smartexpense.tracker.R
 import com.smartexpense.tracker.data.model.*
 import com.smartexpense.tracker.ui.components.dragDropItem
 import com.smartexpense.tracker.ui.components.rememberDragDropListState
@@ -126,7 +131,7 @@ private fun AiInsightsSection(
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                "AI Insights",
+                stringResource(R.string.ai_insights),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f)
@@ -149,7 +154,7 @@ private fun CategoryBreakdownSection(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
-            "Spending by Category",
+            stringResource(R.string.spending_by_category),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold
         )
@@ -165,7 +170,7 @@ private fun RecentTransactionsSection(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
-            "Recent Transactions",
+            stringResource(R.string.recent_transactions),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold
         )
@@ -182,10 +187,10 @@ private fun RecentTransactionsSection(
                         modifier = Modifier.size(48.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text("No transactions yet", style = MaterialTheme.typography.bodyLarge,
+                    Text(stringResource(R.string.no_transactions_yet), style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
-                        "Add one manually, scan a receipt, or enable SMS/notification tracking",
+                        stringResource(R.string.no_transactions_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -228,7 +233,7 @@ fun BalanceSummaryCard(uiState: UiState, currencyCode: String = "USD") {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Monthly Balance", color = Color.White.copy(alpha = 0.8f),
+                    Text(stringResource(R.string.monthly_balance), color = Color.White.copy(alpha = 0.8f),
                         style = MaterialTheme.typography.bodyMedium)
                     IconButton(
                         onClick = { balanceHidden = !balanceHidden },
@@ -236,7 +241,7 @@ fun BalanceSummaryCard(uiState: UiState, currencyCode: String = "USD") {
                     ) {
                         Icon(
                             if (balanceHidden) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                            contentDescription = if (balanceHidden) "Show balance" else "Hide balance",
+                            contentDescription = if (balanceHidden) stringResource(R.string.show_balance) else stringResource(R.string.hide_balance),
                             tint = Color.White.copy(alpha = 0.8f),
                             modifier = Modifier.size(20.dp)
                         )
@@ -255,7 +260,7 @@ fun BalanceSummaryCard(uiState: UiState, currencyCode: String = "USD") {
                             Icon(Icons.Filled.ArrowDownward, contentDescription = null,
                                 tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Income", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+                            Text(stringResource(R.string.income), color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
                         }
                         Text(
                             if (balanceHidden) mask else CurrencyUtils.format(uiState.monthlyIncome, currencyCode),
@@ -267,7 +272,7 @@ fun BalanceSummaryCard(uiState: UiState, currencyCode: String = "USD") {
                             Icon(Icons.Filled.ArrowUpward, contentDescription = null,
                                 tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Expenses", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+                            Text(stringResource(R.string.expenses), color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
                         }
                         Text(
                             if (balanceHidden) mask else CurrencyUtils.format(uiState.monthlyExpenses, currencyCode),
@@ -283,11 +288,11 @@ fun BalanceSummaryCard(uiState: UiState, currencyCode: String = "USD") {
 @Composable
 fun QuickStatsRow(uiState: UiState, currencyCode: String = "USD") {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        StatCard("Today", CurrencyUtils.formatCompact(uiState.todayExpenses, currencyCode),
+        StatCard(stringResource(R.string.today), CurrencyUtils.formatCompact(uiState.todayExpenses, currencyCode),
             Icons.Filled.Today, BluePrimary, Modifier.weight(1f))
-        StatCard("This Week", CurrencyUtils.formatCompact(uiState.weeklyExpenses, currencyCode),
+        StatCard(stringResource(R.string.this_week), CurrencyUtils.formatCompact(uiState.weeklyExpenses, currencyCode),
             Icons.Filled.DateRange, PurpleAccent, Modifier.weight(1f))
-        StatCard("Transactions", "${uiState.transactionCount}",
+        StatCard(stringResource(R.string.transactions), "${uiState.transactionCount}",
             Icons.Filled.Receipt, OrangeWarning, Modifier.weight(1f))
     }
 }
@@ -317,7 +322,7 @@ fun WeeklySpendingChart(data: List<Pair<String, Double>>, currencyCode: String =
     val todayLabel = remember { DateUtils.formatDay(System.currentTimeMillis()) }
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("This Week", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.this_week), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Spacer(modifier = Modifier.height(12.dp))
             val maxValue = data.maxOfOrNull { it.second } ?: 1.0
             Row(

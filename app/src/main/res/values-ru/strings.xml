@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FlowSense</string>
+    <string name="app_tagline">Умный Учёт Расходов</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Главная</string>
+    <string name="nav_reports">Отчёты</string>
+    <string name="nav_add">Добавить</string>
+    <string name="nav_history">История</string>
+    <string name="nav_settings">Настройки</string>
+    <string name="nav_transactions">Транзакции</string>
+
+    <!-- Top bar actions -->
+    <string name="action_ai_analyze">ИИ-анализ</string>
+    <string name="action_store_map">Карта Магазинов</string>
+    <string name="action_scanned_sections">Отсканированные Разделы</string>
+
+    <!-- Dashboard -->
+    <string name="monthly_balance">Баланс за Месяц</string>
+    <string name="show_balance">Показать баланс</string>
+    <string name="hide_balance">Скрыть баланс</string>
+    <string name="income">Доходы</string>
+    <string name="expenses">Расходы</string>
+    <string name="today">Сегодня</string>
+    <string name="this_week">Эта Неделя</string>
+    <string name="transactions">Транзакции</string>
+    <string name="ai_insights">ИИ-аналитика</string>
+    <string name="spending_by_category">Расходы по Категориям</string>
+    <string name="recent_transactions">Последние Транзакции</string>
+    <string name="no_transactions_yet">Транзакций пока нет</string>
+    <string name="no_transactions_hint">Добавьте вручную, отсканируйте чек или включите отслеживание SMS/уведомлений</string>
+    <string name="save_per_month">Экономьте %s/мес</string>
+    <string name="priority_high">Высокий</string>
+    <string name="priority_medium">Средний</string>
+    <string name="priority_low">Низкий</string>
+    <string name="dismiss">Отклонить</string>
+    <string name="currency_converted">Валюта конвертирована</string>
+
+    <!-- Add Transaction -->
+    <string name="add_transaction">Добавить Транзакцию</string>
+    <string name="amount">Сумма</string>
+    <string name="description">Описание</string>
+    <string name="category">Категория</string>
+    <string name="expense">Расход</string>
+    <string name="type_income">Доход</string>
+    <string name="merchant_name">Название Продавца</string>
+    <string name="notes">Заметки</string>
+    <string name="save">Сохранить</string>
+    <string name="cancel">Отмена</string>
+    <string name="scan_receipt">Сканировать Чек</string>
+    <string name="from_ocr_scan">Из OCR-сканирования</string>
+    <string name="select_category">Выбрать Категорию</string>
+    <string name="enter_amount">Введите сумму</string>
+    <string name="enter_description">Введите описание</string>
+
+    <!-- Receipt Scanner -->
+    <string name="scan_receipt_title">Сканировать Чек</string>
+    <string name="take_photo">Сделать Фото</string>
+    <string name="choose_from_gallery">Выбрать из Галереи</string>
+    <string name="processing_ocr">Обработка…</string>
+    <string name="no_text_detected">Текст не обнаружен</string>
+    <string name="save_as_section">Сохранить как Раздел</string>
+    <string name="edit_as_transaction">Редактировать как Транзакцию</string>
+    <string name="view_sections">Просмотреть Разделы</string>
+    <string name="camera_permission_required">Для сканирования чеков требуется разрешение камеры</string>
+
+    <!-- OCR Sections -->
+    <string name="ocr_sections_title">Отсканированные Разделы</string>
+    <string name="clear_all">Очистить Всё</string>
+    <string name="no_sections_yet">Отсканированных разделов пока нет</string>
+    <string name="goods_report">Отчёт о Товарах</string>
+    <string name="items_total">Итого по Товарам</string>
+
+    <!-- Reports -->
+    <string name="reports_title">Отчёты</string>
+    <string name="daily">Дневной</string>
+    <string name="weekly">Недельный</string>
+    <string name="monthly">Месячный</string>
+    <string name="custom">Произвольный</string>
+    <string name="total_expenses">Общие Расходы</string>
+    <string name="total_income">Общий Доход</string>
+    <string name="net_balance">Чистый Баланс</string>
+    <string name="avg_daily_spend">Ср. Дневные Расходы</string>
+    <string name="top_expenses">Основные Расходы</string>
+    <string name="top_merchants">Основные Продавцы</string>
+    <string name="comparison_with_previous">vs Предыдущий Период</string>
+    <string name="ai_expense_tips">ИИ-советы по Сокращению Расходов</string>
+    <string name="generate_ai_tips">Сгенерировать ИИ-советы</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Настройки</string>
+    <string name="appearance">Оформление</string>
+    <string name="theme">Тема</string>
+    <string name="theme_system">Системная</string>
+    <string name="theme_light">Светлая</string>
+    <string name="theme_dark">Тёмная</string>
+    <string name="currency">Валюта</string>
+    <string name="exchange_rates">Курсы Валют</string>
+    <string name="fetch_rates">Получить Курсы</string>
+    <string name="currency_converter">Конвертер Валют</string>
+    <string name="data_sources">Источники Данных</string>
+    <string name="sms_parsing">Анализ SMS</string>
+    <string name="notification_listener">Слушатель Уведомлений</string>
+    <string name="scan_sms_inbox">Сканировать SMS</string>
+    <string name="banking_apps">Банковские Приложения</string>
+    <string name="scan_for_apps">Поиск Приложений</string>
+    <string name="connected_apps">Подключённые Приложения</string>
+    <string name="budget_alerts">Бюджет &amp; Оповещения</string>
+    <string name="monthly_expense_limit">Месячный Лимит Расходов</string>
+    <string name="salary_scheduler">Планировщик Зарплаты</string>
+    <string name="scheduled_expenses">Запланированные Расходы</string>
+    <string name="categories">Категории</string>
+    <string name="add_category">Добавить Категорию</string>
+    <string name="ai_engine">ИИ-движок</string>
+    <string name="import_export">Импорт / Экспорт</string>
+    <string name="export_data">Экспорт Данных</string>
+    <string name="import_data">Импорт Данных</string>
+    <string name="clear_all_data">Удалить Все Данные</string>
+    <string name="storage">Хранилище</string>
+    <string name="battery">Батарея</string>
+    <string name="permissions">Разрешения</string>
+    <string name="about">О приложении</string>
+    <string name="version">Версия %s</string>
+    <string name="subscription">Подписка</string>
+    <string name="restore_purchases">Восстановить Покупки</string>
+    <string name="premium">Премиум</string>
+
+    <!-- Language / i18n -->
+    <string name="language">Язык</string>
+    <string name="language_system">По умолчанию системы</string>
+    <string name="language_changed">Язык изменён. Перезапустите приложение для полного применения.</string>
+
+    <!-- AI -->
+    <string name="ai_analyze_title">ИИ-анализ</string>
+    <string name="ai_chat_history">История Чата</string>
+    <string name="analyze">Анализировать</string>
+    <string name="analyzing">Анализ…</string>
+    <string name="ai_mode_auto">Авто (рекомендуется)</string>
+    <string name="ai_mode_system">Системный ИИ</string>
+    <string name="ai_mode_local">Локальная модель</string>
+    <string name="ai_mode_cloud">Облачный ИИ</string>
+    <string name="ai_setup_wizard">Мастер Настройки ИИ</string>
+
+    <!-- SMS Scan -->
+    <string name="sms_scan_title">Сканирование SMS</string>
+    <string name="start_scan">Начать Сканирование</string>
+    <string name="confirm_all">Подтвердить Всё</string>
+    <string name="discard">Отбросить</string>
+    <string name="sms_found">Найдено транзакций: %d</string>
+
+    <!-- Store Map -->
+    <string name="store_map_title">Карта Магазинов</string>
+    <string name="add_store">Добавить Магазин</string>
+    <string name="delete_store">Удалить Магазин</string>
+    <string name="store_name">Название Магазина</string>
+    <string name="address">Адрес</string>
+
+    <!-- Transaction Detail -->
+    <string name="transaction_detail">Детали Транзакции</string>
+    <string name="delete_transaction">Удалить Транзакцию</string>
+    <string name="source">Источник</string>
+    <string name="date">Дата</string>
+    <string name="tags">Теги</string>
+    <string name="location">Местоположение</string>
+
+    <!-- Notifications -->
+    <string name="notifications">Уведомления</string>
+    <string name="mark_all_read">Отметить Всё Прочитанным</string>
+    <string name="no_notifications">Нет уведомлений</string>
+    <string name="transaction_detected">Транзакция Обнаружена</string>
+    <string name="budget_alert">Оповещение о Бюджете</string>
+
+    <!-- Onboarding / Splash -->
+    <string name="onboarding_title">FlowSense</string>
+    <string name="key_features">Основные Функции</string>
+    <string name="feature_ai_title">Категоризация с ИИ</string>
+    <string name="feature_ai_desc">Автоматическая категоризация расходов с помощью ИИ на устройстве или облачных моделей</string>
+    <string name="feature_reports_title">Отчёты &amp; Аналитика</string>
+    <string name="feature_reports_desc">Подробные отчёты о расходах с финансовой аналитикой от ИИ</string>
+    <string name="feature_ocr_title">Сканер Чеков</string>
+    <string name="feature_ocr_desc">Сканируйте чеки с OCR для извлечения сумм и данных продавца</string>
+    <string name="feature_sms_title">Анализ SMS</string>
+    <string name="feature_sms_desc">Автоматическое обнаружение транзакций из банковских SMS-сообщений</string>
+    <string name="feature_map_title">Карта Магазинов</string>
+    <string name="feature_map_desc">Визуализируйте места трат с геолокационными транзакциями</string>
+    <string name="feature_currency_title">Мультивалютность</string>
+    <string name="feature_currency_desc">Отслеживайте расходы в нескольких валютах с актуальными курсами</string>
+    <string name="onboarding_permissions">Разрешения</string>
+    <string name="onboarding_permissions_desc">Предоставьте разрешения для полной функциональности.\nПриложение работает и без них.</string>
+    <string name="permission_camera">Камера</string>
+    <string name="permission_camera_desc">Сканируйте чеки и фотографируйте документы о расходах</string>
+    <string name="permission_sms">SMS</string>
+    <string name="permission_sms_desc">Читайте банковские сообщения для автоматического обнаружения транзакций</string>
+    <string name="permission_notifications">Уведомления</string>
+    <string name="permission_notifications_desc">Оповещения о бюджете, предупреждения о лимитах и напоминания</string>
+    <string name="permission_location">Местоположение</string>
+    <string name="permission_location_desc">Геолокация транзакций и отображение расходов на карте</string>
+    <string name="permission_granted">Предоставлено</string>
+    <string name="permission_not_available">Н/Д</string>
+    <string name="grant">Предоставить</string>
+    <string name="ai_engine_title">ИИ-движок</string>
+    <string name="ai_on_device_title">ИИ на Устройстве</string>
+    <string name="ai_on_device_subtitle">Рекомендуется</string>
+    <string name="ai_on_device_badge">Приватный</string>
+    <string name="ai_on_device_desc">Загрузите небольшую модель ИИ (500 МБ – 2 ГБ), которая работает полностью на вашем устройстве. Ваши данные никогда не покидают телефон.</string>
+    <string name="ai_system_title">Системный ИИ</string>
+    <string name="ai_system_desc">Используйте встроенную среду ИИ вашего устройства (Google AICore на Pixel, Samsung Galaxy AI). Загрузка не требуется, если устройство поддерживает.</string>
+    <string name="ai_cloud_title">Облачный ИИ</string>
+    <string name="ai_cloud_desc">Используйте Claude AI через API для анализа наивысшего качества. Требуется ключ API. Данные отправляются на серверы Anthropic.</string>
+    <string name="ai_change_anytime">Вы можете изменить это в любое время в Настройки > ИИ-движок.</string>
+    <string name="ai_uses_info">FlowSense использует ИИ для категоризации транзакций,\nгенерации аналитики и анализа расходов.</string>
+    <string name="ready_title">Всё Готово!</string>
+    <string name="ready_subtitle">Начните отслеживать расходы и\nпозвольте ИИ сделать остальное.</string>
+    <string name="tip_add">Нажмите кнопку +, чтобы добавить первый расход</string>
+    <string name="tip_scan">Используйте сканер чеков для ввода без рук</string>
+    <string name="tip_ai">ИИ автоматически категоризирует ваши транзакции</string>
+    <string name="tip_settings">Посетите Настройки для настройки моделей ИИ и анализа SMS</string>
+    <string name="data_privacy_note">Ваши данные остаются на устройстве.\nУчётная запись не требуется.</string>
+    <string name="skip">Пропустить</string>
+    <string name="back">Назад</string>
+    <string name="next">Далее</string>
+    <string name="get_started">Начать</string>
+
+    <!-- Paywall -->
+    <string name="paywall_title">Разблокировать %s</string>
+    <string name="start_free_trial">Бесплатная Пробная Версия</string>
+    <string name="subscribe">Подписаться</string>
+
+    <!-- Accessibility -->
+    <string name="accessibility_settings">Специальные Возможности</string>
+    <string name="voice_input">Голосовой Ввод</string>
+    <string name="voice_input_desc">Используйте голос для добавления транзакций и навигации</string>
+    <string name="dynamic_font_scaling">Динамическое Масштабирование Шрифта</string>
+    <string name="dynamic_font_scaling_desc">Настройте размер текста для лучшей читаемости</string>
+    <string name="high_contrast">Режим Высокой Контрастности</string>
+    <string name="high_contrast_desc">Повышенная контрастность для лучшей видимости</string>
+    <string name="screen_reader_optimized">Оптимизировано для Чтения с Экрана</string>
+    <string name="font_scale">Масштаб Шрифта</string>
+    <string name="font_scale_small">Мелкий</string>
+    <string name="font_scale_normal">Обычный</string>
+    <string name="font_scale_large">Крупный</string>
+    <string name="font_scale_extra_large">Очень Крупный</string>
+    <string name="tap_to_speak">Нажмите для голосового ввода</string>
+    <string name="listening">Слушаю…</string>
+    <string name="voice_not_available">Голосовой ввод недоступен</string>
+
+    <!-- Engagement / Reminders -->
+    <string name="daily_reminder">Ежедневное Напоминание</string>
+    <string name="daily_reminder_desc">Получайте ежедневное напоминание о записи расходов</string>
+    <string name="weekly_summary_notification">Еженедельная Сводка</string>
+    <string name="weekly_summary_desc">Получайте еженедельную сводку расходов</string>
+    <string name="reminder_time">Время Напоминания</string>
+    <string name="widget_balance_title">Баланс FlowSense</string>
+    <string name="widget_description">Показывает текущий месячный баланс одним взглядом</string>
+    <string name="widget_monthly_balance">Баланс за Месяц</string>
+    <string name="widget_income_label">Доходы</string>
+    <string name="widget_expense_label">Расходы</string>
+
+    <!-- Price Tracking / Store Integration -->
+    <string name="price_tracking">Отслеживание Цен</string>
+    <string name="price_tracking_desc">Отслеживайте цены товаров с помощью камеры</string>
+    <string name="scan_price">Сканировать Цену</string>
+    <string name="price_history">История Цен</string>
+    <string name="item_name">Название Товара</string>
+    <string name="current_price">Текущая Цена</string>
+    <string name="lowest_price">Самая Низкая Цена</string>
+    <string name="highest_price">Самая Высокая Цена</string>
+    <string name="price_trend">Динамика Цен</string>
+    <string name="add_price_entry">Добавить Запись о Цене</string>
+    <string name="tracked_items">Отслеживаемые Товары</string>
+    <string name="no_tracked_items">Отслеживаемых товаров пока нет</string>
+    <string name="no_tracked_items_hint">Сфотографируйте любой товар, чтобы начать отслеживать его цену</string>
+    <string name="price_alert">Оповещение о Цене</string>
+    <string name="price_dropped">Цена снизилась!</string>
+    <string name="price_drop_message">%1$s теперь стоит %2$s (было %3$s)</string>
+    <string name="deal_found">Найдена Выгодная Цена</string>
+    <string name="scan_item_price">Сканировать Цену Товара</string>
+    <string name="enter_item_name">Введите название товара</string>
+    <string name="enter_price">Введите цену</string>
+    <string name="store_location_label">Магазин / Местоположение</string>
+    <string name="price_saved">Цена сохранена</string>
+    <string name="delete_item">Удалить Товар</string>
+
+    <!-- Common -->
+    <string name="ok">ОК</string>
+    <string name="yes">Да</string>
+    <string name="no">Нет</string>
+    <string name="delete">Удалить</string>
+    <string name="edit">Редактировать</string>
+    <string name="close">Закрыть</string>
+    <string name="search">Поиск</string>
+    <string name="loading">Загрузка…</string>
+    <string name="error">Ошибка</string>
+    <string name="retry">Повторить</string>
+    <string name="confirm">Подтвердить</string>
+    <string name="are_you_sure">Вы уверены?</string>
+    <string name="no_data">Нет доступных данных</string>
+</resources>
