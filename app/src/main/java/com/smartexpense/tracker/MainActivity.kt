@@ -142,6 +142,9 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         )
                     },
                     actions = {
+                        IconButton(onClick = { currentScreen = "ai_analyze" }) {
+                            Icon(Icons.Filled.AutoAwesome, contentDescription = "AI Analyze")
+                        }
                         IconButton(onClick = {
                             if (isSubscribed) {
                                 currentScreen = "store_map"
@@ -226,8 +229,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         onDeleteTransaction = { viewModel.deleteTransaction(it) },
                         sectionOrder = dashboardSectionOrder,
                         onMoveSections = { from, to -> viewModel.moveDashboardSection(from, to) },
-                        currencyCode = currencyCode,
-                        onNavigateToAnalyze = { currentScreen = "ai_analyze" }
+                        currencyCode = currencyCode
                     )
                     "reports" -> ReportsScreen(
                         generateReport = { viewModel.generateReport(it) },
