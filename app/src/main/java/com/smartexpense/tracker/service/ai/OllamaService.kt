@@ -188,7 +188,9 @@ class OllamaService {
             conn.disconnect()
 
             val json = JSONObject(body)
-            json.optString("response", "").trim().takeIf { it.isNotEmpty() }
+            json.optString("response", "").trim()
+                .let { stripThinkTags(it) }
+                .takeIf { it.isNotEmpty() }
         } catch (e: Exception) {
             Log.e(TAG, "generateResponse failed: ${e.message}")
             null
@@ -247,6 +249,98 @@ Reply with ONLY the category name, nothing else."""
 Keep it concise and helpful."""
 
         return generateResponse(prompt)
+    }
+
+    /**
+     * Strips DeepSeek R1 thinking tags from the response.
+     * DeepSeek R1 models wrap chain-of-thought in <think>...</think> blocks.
+     */
+    private fun stripThinkTags(text: String): String {
+        return text
+            .replace(Regex("<think>[\\s\\S]*?</think>"), "")
+            .replace(Regex("</?think>"), "")
+            .trim()
+    }
+
+    /**
+     * Analyzes a list of transactions using the Ollama LLM.
+     * Sends a structured prompt with the transaction data so the model can produce analysis.
+     * Returns null if the LLM is unavailable or fails (caller should fall back to rule-based).
+     */
+    suspend fun analyzeTransactions(
+        transactionLines: List<String>,
+        rangeLabel: String,
+        currencyCode: String,
+        category: String?
+    ): String? {
+        if (!isReady || transactionLines.isEmpty()) return null
+
+        val dataBlock = transactionLines.joinToString("\n")
+        val categoryNote = if (category != null) " in category \"$category\"" else ""
+
+        val prompt = """You are a personal finance analyst. Analyze the following transactions$categoryNote for the period $rangeLabel.
+Currency: $currencyCode
+
+Transactions (Date | Type | Amount | Category | Description):
+$dataBlock
+
+Provide a concise analysis with:
+1. OVERVIEW: total expenses, total income, net balance
+2. SPENDING BY CATEGORY: breakdown with percentages
+3. LARGEST EXPENSES: top 3-5 biggest expenses
+4. RECOMMENDATIONS: 2-3 actionable tips
+
+Be concise and use the $currencyCode currency. Do not ask for more data."""
+
+        return generateResponseWithHigherLimit(prompt)
+    }
+
+    /**
+     * Like [generateResponse] but with a higher token limit for analysis output.
+     */
+    private suspend fun generateResponseWithHigherLimit(prompt: String): String? = withContext(Dispatchers.IO) {
+        if (modelName.isEmpty()) return@withContext null
+        try {
+            val conn = (URL("${host.trimEnd('/')}/api/generate").openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = CONNECT_TIMEOUT
+                readTimeout = READ_TIMEOUT
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "application/json")
+            }
+
+            val requestBody = JSONObject().apply {
+                put("model", modelName)
+                put("prompt", prompt)
+                put("stream", false)
+                put("options", JSONObject().apply {
+                    put("temperature", 0.3)
+                    put("top_k", 40)
+                    put("num_predict", 1024)
+                })
+            }
+
+            conn.outputStream.bufferedWriter().use { it.write(requestBody.toString()) }
+
+            if (conn.responseCode != HttpURLConnection.HTTP_OK) {
+                val errBody = try { conn.errorStream?.bufferedReader()?.readText() } catch (_: Exception) { null }
+                Log.w(TAG, "Generate (analysis) failed: HTTP ${conn.responseCode} — $errBody")
+                conn.disconnect()
+                return@withContext null
+            }
+
+            val body = conn.inputStream.bufferedReader().readText()
+            conn.disconnect()
+
+            val json = JSONObject(body)
+            json.optString("response", "").trim()
+                .let { stripThinkTags(it) }
+                .takeIf { it.isNotEmpty() }
+        } catch (e: Exception) {
+            Log.e(TAG, "generateResponseWithHigherLimit failed: ${e.message}")
+            null
+        }
     }
 
     fun statusMessage(): String = when {

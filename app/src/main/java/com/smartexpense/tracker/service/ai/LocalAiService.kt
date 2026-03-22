@@ -297,6 +297,29 @@ class LocalAiService(private val appContext: Context) {
         }
     }
 
+    /**
+     * Analyzes transactions using the Ollama LLM when available.
+     * Returns null if LLM is not available — caller should fall back to rule-based analysis.
+     */
+    suspend fun analyzeTransactions(
+        transactionLines: List<String>,
+        rangeLabel: String,
+        currencyCode: String,
+        category: String?
+    ): String? = withContext(Dispatchers.Default) {
+        try {
+            if (backend == AiBackend.OLLAMA && ollamaService.isReady) {
+                return@withContext ollamaService.analyzeTransactions(
+                    transactionLines, rangeLabel, currencyCode, category
+                )
+            }
+            null
+        } catch (e: Exception) {
+            Log.w(TAG, "AI analyzeTransactions failed: ${e.message}")
+            null
+        }
+    }
+
     // ── Private helpers ──────────────────────────────────────────────────
 
     private fun isPackageInstalled(packageName: String): Boolean = try {

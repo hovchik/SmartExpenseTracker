@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.smartexpense.tracker.data.model.Category
 import com.smartexpense.tracker.ui.theme.*
 import com.smartexpense.tracker.util.CurrencyUtils
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -34,6 +35,7 @@ fun AiAnalyzeScreen(
     categories: List<Category>,
     currencyCode: String,
     onAnalyze: (startMillis: Long, endMillis: Long, category: String?) -> String,
+    onAnalyzeSuspend: (suspend (startMillis: Long, endMillis: Long, category: String?) -> String)? = null,
     onNavigateBack: () -> Unit
 ) {
     val cal = remember { Calendar.getInstance() }
@@ -218,11 +220,19 @@ fun AiAnalyzeScreen(
             }
 
             // ── Analyze Button ───────────────────────────────────
+            val scope = rememberCoroutineScope()
             Button(
                 onClick = {
                     isAnalyzing = true
-                    analysisResult = onAnalyze(startMillis, endMillis, selectedCategory)
-                    isAnalyzing = false
+                    if (onAnalyzeSuspend != null) {
+                        scope.launch {
+                            analysisResult = onAnalyzeSuspend.invoke(startMillis, endMillis, selectedCategory)
+                            isAnalyzing = false
+                        }
+                    } else {
+                        analysisResult = onAnalyze(startMillis, endMillis, selectedCategory)
+                        isAnalyzing = false
+                    }
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 shape = RoundedCornerShape(12.dp),
