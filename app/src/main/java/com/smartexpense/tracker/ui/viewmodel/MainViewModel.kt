@@ -1137,6 +1137,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return CategorizationResult(providerCategory, byAi = true)
         }
 
+        // Cloud AI fallback — when user selected Cloud AI as their active mode
+        if (settings.aiModePreference == AiModePreference.CLOUD_AI &&
+            aiProviderSelector.cloudProvider.isAvailable()
+        ) {
+            val cloudCategory = categorizeWithCloudAi(description, isExpense, merchantName, amount)
+            if (cloudCategory != null) {
+                repository.ensureCategoryExists(cloudCategory)
+                return CategorizationResult(cloudCategory, byAi = true)
+            }
+        }
+
         // Fall back to existing local AI service
         if (settings.localAiEnabled) {
             val categoryNames = repository.appData.value.categories.map { it.name }
@@ -1150,6 +1161,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val category = aiEngine.categorize(description, isExpense, userCatNames)
         repository.ensureCategoryExists(category)
         return CategorizationResult(category, byAi = false)
+    }
+
+    /**
+     * Direct cloud AI categorization fallback. Uses the cloud provider directly
+     * with a focused categorization prompt, independent of the active provider selector.
+     */
+    private suspend fun categorizeWithCloudAi(
+        description: String,
+        isExpense: Boolean,
+        merchantName: String,
+        amount: Double
+    ): String? {
+        return try {
+            val data = repository.appData.value
+            val categories = data.categories.map { it.name }
+            val currencyCode = data.settings.currencyCode
+            val prompt = promptAdapter.createCategorizationPrompt(
+                description, categories, isExpense, merchantName, amount, currencyCode
+            )
+            val result = withContext(Dispatchers.IO) {
+                aiProviderSelector.cloudProvider.generateAnalysis(
+                    com.smartexpense.tracker.ai.provider.AnalysisInput(
+                        prompt = prompt,
+                        availableCategories = categories,
+                        isExpense = isExpense,
+                        type = com.smartexpense.tracker.ai.provider.AnalysisType.CATEGORIZE
+                    )
+                )
+            }
+            if (result.success && result.text.isNotBlank()) {
+                val parsed = promptAdapter.parseCategorization(result.text, categories)
+                if (parsed.isNewCategory && parsed.category != null) {
+                    repository.ensureCategoryExists(parsed.category)
+                }
+                parsed.category
+            } else null
+        } catch (e: Exception) {
+            Log.w("SmartCategorize", "Cloud AI categorization fallback failed: ${e.message}")
+            null
+        }
     }
 
     fun addTransaction(
