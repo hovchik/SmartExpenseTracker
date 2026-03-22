@@ -183,12 +183,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // Restore dashboard section order from settings
             _dashboardSectionOrder.value = restoreSectionOrder(settings.dashboardSectionOrder)
 
-            // Auto-load saved MediaPipe model if configured
-            if (settings.localAiEnabled && settings.mediapipeModelPath.isNotEmpty()) {
-                withContext(Dispatchers.IO) {
-                    localAiService.mediaPipeLlm.loadModel(settings.mediapipeModelPath)
-                }
-            }
+            // Skip loading MediaPipe model into the OLD localAiService — the new
+            // tri-mode AI provider selector (initAiProviderSelector) handles model
+            // loading. Loading the same model twice causes resource conflicts (OOM,
+            // GPU contention) and prevents Gemma from being used in the new system.
+            // The old localAiService is only used for Ollama and status display now.
+
             // Restore Ollama settings if configured
             if (settings.ollamaHost.isNotEmpty()) {
                 localAiService.ollamaService.host = settings.ollamaHost
@@ -531,21 +531,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isLoadingModel.value = true
             _localAiStatus.value = "Loading model…"
-            val success = localAiService.mediaPipeLlm.loadModel(modelPath)
+
+            // Load into the NEW tri-mode AI provider (not the old localAiService)
+            // so that Gemma is actually used for categorization & insights.
+            val syntheticModel = com.smartexpense.tracker.ai.modelmanager.LocalAiModel(
+                modelId = "legacy-mediapipe",
+                displayName = java.io.File(modelPath).nameWithoutExtension
+                    .replaceFirstChar { it.uppercase() },
+                runtimeType = com.smartexpense.tracker.ai.modelmanager.RuntimeType.MEDIAPIPE,
+                fileFormat = "task",
+                quantization = "unknown",
+                requiredRamMb = 2048,
+                recommendedRamMb = 4096,
+                sizeMb = (java.io.File(modelPath).length() / 1024 / 1024).toInt(),
+                localPath = modelPath,
+                installState = com.smartexpense.tracker.ai.modelmanager.InstallState.INSTALLED
+            )
+            val success = withContext(Dispatchers.IO) {
+                aiProviderSelector.customLocalProvider.loadModel(syntheticModel)
+            }
             _isLoadingModel.value = false
 
             if (success) {
-                // Save the model path and switch engine
+                // Save the model path and switch to LOCAL_MODEL mode
                 val settings = repository.appData.value.settings
                 repository.updateSettings(settings.copy(
                     mediapipeModelPath = modelPath,
                     aiEnginePreference = AiEnginePreference.MEDIAPIPE_LLM,
-                    localAiEnabled = true
+                    localAiEnabled = true,
+                    aiModePreference = AiModePreference.LOCAL_MODEL
                 ))
                 withContext(Dispatchers.IO) {
-                    localAiService.recheckAvailability(AiEnginePreference.MEDIAPIPE_LLM)
+                    aiProviderSelector.selectProvider(AiModePreference.LOCAL_MODEL)
                 }
+                // Update shared reference for background receivers
+                (getApplication<SmartExpenseApp>()).aiProviderSelector = aiProviderSelector
             }
+            _aiModeStatus.value = aiProviderSelector.statusMessage()
+            _aiPrivacyMessage.value = aiProviderSelector.privacyMessage()
             _localAiStatus.value = localAiService.statusMessage()
             _localAiSuggestion.value = localAiService.alternativeSuggestion()
             _engineDescriptions.value = localAiService.engineDescriptions()
@@ -839,11 +862,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
             }
+            // Bridge: if the user loaded a model via the old MediaPipe path but
+            // never activated it in the new catalog system, create a synthetic
+            // LocalAiModel so the new provider selector can use it.
+            if (settings.activeLocalModelId.isBlank() &&
+                settings.mediapipeModelPath.isNotBlank() &&
+                java.io.File(settings.mediapipeModelPath).exists()
+            ) {
+                val syntheticModel = com.smartexpense.tracker.ai.modelmanager.LocalAiModel(
+                    modelId = "legacy-mediapipe",
+                    displayName = java.io.File(settings.mediapipeModelPath).nameWithoutExtension
+                        .replaceFirstChar { it.uppercase() },
+                    runtimeType = com.smartexpense.tracker.ai.modelmanager.RuntimeType.MEDIAPIPE,
+                    fileFormat = "task",
+                    quantization = "unknown",
+                    requiredRamMb = 2048,
+                    recommendedRamMb = 4096,
+                    sizeMb = (java.io.File(settings.mediapipeModelPath).length() / 1024 / 1024).toInt(),
+                    localPath = settings.mediapipeModelPath,
+                    installState = com.smartexpense.tracker.ai.modelmanager.InstallState.INSTALLED
+                )
+                withContext(Dispatchers.IO) {
+                    aiProviderSelector.customLocalProvider.loadModel(syntheticModel)
+                }
+                Log.i("MainViewModel", "Bridged legacy MediaPipe model to new provider: ${syntheticModel.displayName}")
+            }
+
             // If the user has an active local model but preference is still AUTO,
             // override to LOCAL_MODEL so the downloaded model is actually used.
+            // Also override when a legacy mediapipe model was bridged above.
+            val hasLocalModel = settings.activeLocalModelId.isNotBlank() ||
+                (settings.mediapipeModelPath.isNotBlank() && java.io.File(settings.mediapipeModelPath).exists())
             val effectivePreference = if (
-                settings.aiModePreference == AiModePreference.AUTO &&
-                settings.activeLocalModelId.isNotBlank()
+                settings.aiModePreference == AiModePreference.AUTO && hasLocalModel
             ) {
                 AiModePreference.LOCAL_MODEL
             } else {
@@ -852,6 +903,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             withContext(Dispatchers.IO) {
                 aiProviderSelector.selectProvider(effectivePreference)
             }
+            // Share the provider selector with the Application so background receivers
+            // (SMS, notifications) can use the AI model for categorization.
+            (getApplication<SmartExpenseApp>()).aiProviderSelector = aiProviderSelector
             _aiModeStatus.value = aiProviderSelector.statusMessage()
             _aiPrivacyMessage.value = aiProviderSelector.privacyMessage()
             refreshModelInfo()
@@ -1153,15 +1207,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Fall back to existing local AI service
-        if (settings.localAiEnabled) {
-            val categoryNames = repository.appData.value.categories.map { it.name }
-            val aiCategory = localAiService.categorize(description, categoryNames, isExpense, userCatNames)
-            if (aiCategory != null) {
-                repository.ensureCategoryExists(aiCategory)
-                return CategorizationResult(aiCategory, byAi = true)
-            }
-        }
+        // Log why the AI provider didn't return a category so we can debug
+        val activeProvider = aiProviderSelector.getActiveProvider()
+        Log.d("SmartCategorize", "AI provider '${activeProvider.displayName()}' " +
+            "(available=${activeProvider.isAvailable()}) did not categorize '$description', using rule-based")
+
         // Rule-based fallback — not AI
         val category = aiEngine.categorize(description, isExpense, userCatNames)
         repository.ensureCategoryExists(category)
@@ -1498,23 +1548,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val sourceNote = if (fromQr) "Parsed from QR code" else ""
 
                 val aiNote: String = run {
-                    // Try new AI provider first
+                    // Use the AI provider for insight generation
                     val providerInsight = withContext(Dispatchers.IO) {
                         generateInsightWithProvider(amount, 0.0, category, amount, 1, currencyCode)
                     }
-                    if (providerInsight != null) return@run "\nAI: $providerInsight"
-
-                    // Fall back to existing local AI
-                    if (settings.localAiEnabled) {
-                        val insight = withContext(Dispatchers.IO) {
-                            localAiService.generateInsight(
-                                totalExpenses = amount, totalIncome = 0.0,
-                                topCategory = category, topCategoryAmount = amount,
-                                transactionCount = 1, currencyCode = currencyCode
-                            )
-                        }
-                        if (insight != null) "\nAI: $insight" else ""
-                    } else ""
+                    if (providerInsight != null) "\nAI: $providerInsight" else ""
                 }
 
                 repository.ensureCategoryExists(category)
