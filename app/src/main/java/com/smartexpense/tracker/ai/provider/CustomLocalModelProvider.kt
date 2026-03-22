@@ -107,8 +107,14 @@ class CustomLocalModelProvider(
             supportsStructuredJson = runtime.supportsStructuredJson()
         )
 
-        val response = runtime.runPrompt(adaptedPrompt)
+        val rawResponse = runtime.runPrompt(adaptedPrompt)
         val latency = System.currentTimeMillis() - startTime
+
+        // DeepSeek R1 models emit <think>…</think> reasoning blocks — strip them
+        val response = rawResponse
+            .replace(Regex("<think>[\\s\\S]*?</think>"), "")
+            .replace(Regex("</think>"), "") // Handle unclosed/partial tags
+            .trim()
 
         return AnalysisResult(
             text = response,

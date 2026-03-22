@@ -328,6 +328,9 @@ class PromptAdapter {
      */
     fun parseInsight(response: String): String {
         return response.trim()
+            .replace(Regex("<think>[\\s\\S]*?</think>"), "") // Strip DeepSeek R1 reasoning blocks
+            .replace(Regex("</think>"), "")                  // Handle unclosed/partial tags
+            .trim()
             .removePrefix("Here are")
             .removePrefix("Here's")
             .removePrefix("Based on")
