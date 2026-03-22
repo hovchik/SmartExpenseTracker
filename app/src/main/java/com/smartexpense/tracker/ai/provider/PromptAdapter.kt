@@ -328,6 +328,9 @@ class PromptAdapter {
      */
     fun parseInsight(response: String): String {
         return response.trim()
+            .replace(Regex("<think>[\\s\\S]*?</think>"), "") // Strip DeepSeek R1 reasoning blocks
+            .replace(Regex("</think>"), "")                  // Handle unclosed/partial tags
+            .trim()
             .removePrefix("Here are")
             .removePrefix("Here's")
             .removePrefix("Based on")
@@ -335,6 +338,164 @@ class PromptAdapter {
             .lines()
             .filter { it.isNotBlank() }
             .joinToString("\n")
+    }
+
+    /**
+     * Condenses a full analysis prompt to fit within the tight token budget
+     * of small local models (e.g. 1280-token KV cache, ~1200 char input).
+     * Keeps the essential financial data and extracts sections by priority.
+     *
+     * @param isReasoningModel true for reasoning models (e.g. DeepSeek R1) that
+     *        work best with direct tasks and no role-play/system instructions.
+     */
+    fun condenseForLocalModel(
+        prompt: String,
+        maxChars: Int = 1100,
+        isReasoningModel: Boolean = false
+    ): String {
+        if (prompt.length <= maxChars) return prompt
+
+        val lines = prompt.lines()
+
+        // Extract the currency code and symbol from the original prompt.
+        // The full prompt contains: "sym" (CODE)  e.g. "֏" (AMD)
+        val currencyCode = Regex("""\(([A-Z]{3})\)""").find(prompt)?.groupValues?.get(1) ?: ""
+        val currencySymbol = Regex(""""([^"]{1,4})"\s*\([A-Z]{3}\)""").find(prompt)?.groupValues?.get(1) ?: ""
+
+        val sb = StringBuilder()
+        if (isReasoningModel) {
+            // Reasoning models: direct task, no persona, data-first approach
+            sb.appendLine("Given the financial data below, reason step by step and produce:")
+            sb.appendLine("1) A spending overview 2) Key problems 3) Saving recommendations")
+            if (currencyCode.isNotBlank()) {
+                sb.appendLine("All amounts are in $currencyCode. Reply using $currencyCode only.")
+            }
+        } else {
+            sb.appendLine("Analyze this financial data. Provide a detailed analysis with insights and recommendations.")
+            if (currencyCode.isNotBlank()) {
+                sb.appendLine("IMPORTANT: Currency is $currencyCode. Use ONLY \"$currencyCode\" for all amounts. Do NOT use any other currency code or symbol.")
+            }
+        }
+        sb.appendLine()
+
+        var charsLeft = maxChars - sb.length
+
+        // Phase 1: Core financial summary lines
+        val corePrefixes = listOf(
+            "=== Period:", "Filtered to category:",
+            "Total transactions:", "Total expenses:", "Total income:",
+            "Net balance:", "Average daily", "Savings rate:", "Expense-to-income"
+        )
+
+        // Phase 2: Extremes and key data points
+        val detailPrefixes = listOf(
+            "Highest single", "Lowest single", "Median expense:",
+            "Peak spending day:", "Lowest spending day:"
+        )
+
+        // Replace rare currency symbols (e.g. ֏, ₾, ₿) with the ISO code
+        // so small models don't misidentify the currency.
+        val normalize: (String) -> String = if (currencySymbol.isNotBlank() && currencySymbol != currencyCode) {
+            { line -> line.replace(currencySymbol, "$currencyCode ") }
+        } else {
+            { line -> line }
+        }
+
+        // Collect categorized lines from the prompt
+        val categoryLines = mutableListOf<String>()
+        val merchantLines = mutableListOf<String>()
+        val budgetLines = mutableListOf<String>()
+        var currentSection = ""
+
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (trimmed.startsWith("===")) {
+                currentSection = trimmed
+                continue
+            }
+            when {
+                currentSection.contains("Spending by Category") && trimmed.startsWith("- ") ->
+                    categoryLines.add(normalize(trimmed))
+                currentSection.contains("Top Merchants") && trimmed.startsWith("- ") ->
+                    merchantLines.add(normalize(trimmed))
+                currentSection.contains("Budget Status") && trimmed.startsWith("- ") ->
+                    budgetLines.add(normalize(trimmed))
+            }
+        }
+
+        // Append core summary
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (corePrefixes.any { trimmed.startsWith(it, ignoreCase = true) }) {
+                val entry = normalize(trimmed) + "\n"
+                if (entry.length <= charsLeft) {
+                    sb.append(entry)
+                    charsLeft -= entry.length
+                }
+            }
+        }
+
+        // Append detail lines
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (detailPrefixes.any { trimmed.startsWith(it, ignoreCase = true) }) {
+                val entry = normalize(trimmed) + "\n"
+                if (entry.length <= charsLeft) {
+                    sb.append(entry)
+                    charsLeft -= entry.length
+                }
+            }
+        }
+
+        // Append category breakdown
+        if (categoryLines.isNotEmpty() && charsLeft > 50) {
+            val header = "Categories:\n"
+            sb.append(header)
+            charsLeft -= header.length
+            for (catLine in categoryLines.take(5)) {
+                val entry = catLine + "\n"
+                if (entry.length <= charsLeft) {
+                    sb.append(entry)
+                    charsLeft -= entry.length
+                } else break
+            }
+        }
+
+        // Append top merchants
+        if (merchantLines.isNotEmpty() && charsLeft > 50) {
+            val header = "Top merchants:\n"
+            sb.append(header)
+            charsLeft -= header.length
+            for (mLine in merchantLines.take(3)) {
+                val entry = mLine + "\n"
+                if (entry.length <= charsLeft) {
+                    sb.append(entry)
+                    charsLeft -= entry.length
+                } else break
+            }
+        }
+
+        // Append budget status
+        if (budgetLines.isNotEmpty() && charsLeft > 50) {
+            val header = "Budget:\n"
+            sb.append(header)
+            charsLeft -= header.length
+            for (bLine in budgetLines.take(3)) {
+                val entry = bLine + "\n"
+                if (entry.length <= charsLeft) {
+                    sb.append(entry)
+                    charsLeft -= entry.length
+                } else break
+            }
+        }
+
+        sb.appendLine()
+        if (isReasoningModel) {
+            sb.append("Think carefully, then give your analysis in $currencyCode.")
+        } else {
+            sb.append("Give spending analysis, saving tips, and alerts. Use only $currencyCode.")
+        }
+        return sb.toString()
     }
 
     // ── OCR Receipt Parsing with AI ─────────────────────────────────

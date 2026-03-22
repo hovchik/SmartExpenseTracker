@@ -344,6 +344,11 @@ class CloudAiProvider : AiProvider {
         val json = JSONObject(body)
         val choices = json.optJSONArray("choices")
         val message = choices?.optJSONObject(0)?.optJSONObject("message")
-        return message?.optString("content", "") ?: ""
+        val content = message?.optString("content", "") ?: ""
+        // DeepSeek R1 / reasoner models emit <think>…</think> reasoning blocks — strip them
+        return content
+            .replace(Regex("<think>[\\s\\S]*?</think>"), "")
+            .replace(Regex("</think>"), "") // Handle unclosed/partial tags
+            .trim()
     }
 }
