@@ -123,7 +123,7 @@ class SmsInboxScanner(private val context: Context) {
         return false
     }
 
-    private fun doScan(
+    private suspend fun doScan(
         uri: Uri, aiEngine: AiExpenseEngine, maxMessages: Int,
         existingNotes: Set<String>, isInboxUri: Boolean,
         userCategoryNames: List<String> = emptyList(),
