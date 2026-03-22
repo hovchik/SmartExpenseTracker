@@ -321,6 +321,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val transactionsByDate: Map<String, List<Transaction>> = recentTransactions
             .groupBy { dateFormatter.format(Date(it.timestamp)) }
 
+        // Compute weekly chart data (daily expense totals for the current week)
+        val weeklyChartData = DateUtils.getDaysInRange(startOfWeek, endOfWeek).map { dayStart ->
+            val dayEnd = DateUtils.getEndOfDay(dayStart)
+            val total = data.transactions
+                .filter { it.type == TransactionType.EXPENSE && it.timestamp in dayStart..dayEnd }
+                .sumOf { convertAmount(it, appCurrency) }
+            DateUtils.formatDay(dayStart) to total
+        }
+
         _uiState.value = UiState(
             isLoading = false,
             monthlyExpenses = monthlyExpenses, monthlyIncome = monthlyIncome,
@@ -331,7 +340,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             categories = data.categories,
             suggestions = data.suggestions.filter { !it.isDismissed },
             transactionCount = data.transactions.size, settings = data.settings,
-            transactionsByDate = transactionsByDate
+            transactionsByDate = transactionsByDate,
+            weeklyChartData = weeklyChartData
         )
 
         // ── Monthly expense threshold check ───────────────────────
@@ -1127,6 +1137,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return CategorizationResult(providerCategory, byAi = true)
         }
 
+        // Cloud AI fallback — when user selected Cloud AI as their active mode
+        if (settings.aiModePreference == AiModePreference.CLOUD_AI &&
+            aiProviderSelector.cloudProvider.isAvailable()
+        ) {
+            val cloudCategory = categorizeWithCloudAi(description, isExpense, merchantName, amount)
+            if (cloudCategory != null) {
+                repository.ensureCategoryExists(cloudCategory)
+                return CategorizationResult(cloudCategory, byAi = true)
+            }
+        }
+
         // Fall back to existing local AI service
         if (settings.localAiEnabled) {
             val categoryNames = repository.appData.value.categories.map { it.name }
@@ -1140,6 +1161,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val category = aiEngine.categorize(description, isExpense, userCatNames)
         repository.ensureCategoryExists(category)
         return CategorizationResult(category, byAi = false)
+    }
+
+    /**
+     * Direct cloud AI categorization fallback. Uses the cloud provider directly
+     * with a focused categorization prompt, independent of the active provider selector.
+     */
+    private suspend fun categorizeWithCloudAi(
+        description: String,
+        isExpense: Boolean,
+        merchantName: String,
+        amount: Double
+    ): String? {
+        return try {
+            val data = repository.appData.value
+            val categories = data.categories.map { it.name }
+            val currencyCode = data.settings.currencyCode
+            val prompt = promptAdapter.createCategorizationPrompt(
+                description, categories, isExpense, merchantName, amount, currencyCode
+            )
+            val result = withContext(Dispatchers.IO) {
+                aiProviderSelector.cloudProvider.generateAnalysis(
+                    com.smartexpense.tracker.ai.provider.AnalysisInput(
+                        prompt = prompt,
+                        availableCategories = categories,
+                        isExpense = isExpense,
+                        type = com.smartexpense.tracker.ai.provider.AnalysisType.CATEGORIZE
+                    )
+                )
+            }
+            if (result.success && result.text.isNotBlank()) {
+                val parsed = promptAdapter.parseCategorization(result.text, categories)
+                if (parsed.isNewCategory && parsed.category != null) {
+                    repository.ensureCategoryExists(parsed.category)
+                }
+                parsed.category
+            } else null
+        } catch (e: Exception) {
+            Log.w("SmartCategorize", "Cloud AI categorization fallback failed: ${e.message}")
+            null
+        }
     }
 
     fun addTransaction(
@@ -2108,18 +2169,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.clearAllAiConversations() }
     }
 
-    fun getWeeklyChartData(): List<Pair<String, Double>> {
-        val data = repository.appData.value
-        val appCurrency = data.settings.currencyCode
-        return DateUtils.getDaysInRange(DateUtils.getStartOfWeek(), DateUtils.getEndOfWeek()).map { dayStart ->
-            val dayEnd = DateUtils.getEndOfDay(dayStart)
-            val total = data.transactions
-                .filter { it.type == TransactionType.EXPENSE && it.timestamp in dayStart..dayEnd }
-                .sumOf { convertAmount(it, appCurrency) }
-            DateUtils.formatDay(dayStart) to total
-        }
-    }
-
     fun addCategory(name: String) { viewModelScope.launch { repository.addCategory(Category(name = name)) } }
     fun deleteCategory(id: String) { viewModelScope.launch { repository.deleteCategory(id) } }
 
@@ -2758,5 +2807,7 @@ data class UiState(
     val lastOcrResult: String? = null,
     val settings: AppSettings = AppSettings(),
     /** Latest AI-generated insight from report enrichment. */
-    val latestAiInsight: String = ""
+    val latestAiInsight: String = "",
+    /** Weekly spending chart data: day label to expense total for each day of the current week. */
+    val weeklyChartData: List<Pair<String, Double>> = emptyList()
 )

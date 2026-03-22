@@ -495,7 +495,7 @@ fun AddTransactionScreen(
                     onAdd(
                         amountVal,
                         description,
-                        selectedCategory.ifEmpty { "Other" },
+                        selectedCategory,
                         if (isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                         source,
                         merchantName,
