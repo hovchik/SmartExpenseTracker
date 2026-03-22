@@ -343,45 +343,75 @@ class PromptAdapter {
     /**
      * Condenses a full analysis prompt to fit within the tight token budget
      * of small local models (e.g. 1280-token KV cache, ~1200 char input).
-     * Keeps only the essential financial summary and a short instruction.
+     * Keeps the essential financial data and extracts sections by priority.
      */
     fun condenseForLocalModel(prompt: String, maxChars: Int = 1100): String {
         if (prompt.length <= maxChars) return prompt
 
-        // Extract key data sections from the structured prompt
         val lines = prompt.lines()
+
+        // Extract the currency code and symbol from the original prompt.
+        // The full prompt contains: "sym" (CODE)  e.g. "֏" (AMD)
+        val currencyCode = Regex("""\(([A-Z]{3})\)""").find(prompt)?.groupValues?.get(1) ?: ""
+        val currencySymbol = Regex(""""([^"]{1,4})"\s*\([A-Z]{3}\)""").find(prompt)?.groupValues?.get(1) ?: ""
+
         val sb = StringBuilder()
-        sb.appendLine("Analyze this financial data. Give 2-3 brief insights.")
+        sb.appendLine("Analyze this financial data. Provide a detailed analysis with insights and recommendations.")
+        if (currencyCode.isNotBlank()) {
+            sb.appendLine("IMPORTANT: Currency is $currencyCode. Use ONLY \"$currencyCode\" for all amounts. Do NOT use any other currency code or symbol.")
+        }
         sb.appendLine()
 
         var charsLeft = maxChars - sb.length
-        // Prioritized section prefixes — keep the most important data
-        val keepPrefixes = listOf(
-            "Total expenses:", "Total income:", "Net balance:",
-            "Average daily", "Savings rate:", "Expense-to-income",
-            "Total transactions:",
-            "Highest single", "Lowest single",
-            "=== Period:", "Filtered to category:"
+
+        // Phase 1: Core financial summary lines
+        val corePrefixes = listOf(
+            "=== Period:", "Filtered to category:",
+            "Total transactions:", "Total expenses:", "Total income:",
+            "Net balance:", "Average daily", "Savings rate:", "Expense-to-income"
         )
-        // Extract category breakdown lines (start with "- ")
+
+        // Phase 2: Extremes and key data points
+        val detailPrefixes = listOf(
+            "Highest single", "Lowest single", "Median expense:",
+            "Peak spending day:", "Lowest spending day:"
+        )
+
+        // Replace rare currency symbols (e.g. ֏, ₾, ₿) with the ISO code
+        // so small models don't misidentify the currency.
+        val normalize: (String) -> String = if (currencySymbol.isNotBlank() && currencySymbol != currencyCode) {
+            { line -> line.replace(currencySymbol, "$currencyCode ") }
+        } else {
+            { line -> line }
+        }
+
+        // Collect categorized lines from the prompt
         val categoryLines = mutableListOf<String>()
-        var inCategorySection = false
+        val merchantLines = mutableListOf<String>()
+        val budgetLines = mutableListOf<String>()
+        var currentSection = ""
 
         for (line in lines) {
             val trimmed = line.trim()
-            if (trimmed.contains("Spending by Category") || trimmed.contains("Category Breakdown")) {
-                inCategorySection = true
+            if (trimmed.startsWith("===")) {
+                currentSection = trimmed
                 continue
             }
-            if (trimmed.startsWith("===") && inCategorySection) {
-                inCategorySection = false
+            when {
+                currentSection.contains("Spending by Category") && trimmed.startsWith("- ") ->
+                    categoryLines.add(normalize(trimmed))
+                currentSection.contains("Top Merchants") && trimmed.startsWith("- ") ->
+                    merchantLines.add(normalize(trimmed))
+                currentSection.contains("Budget Status") && trimmed.startsWith("- ") ->
+                    budgetLines.add(normalize(trimmed))
             }
-            if (inCategorySection && trimmed.startsWith("- ")) {
-                categoryLines.add(trimmed)
-                continue
-            }
-            if (keepPrefixes.any { trimmed.startsWith(it, ignoreCase = true) }) {
-                val entry = trimmed + "\n"
+        }
+
+        // Append core summary
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (corePrefixes.any { trimmed.startsWith(it, ignoreCase = true) }) {
+                val entry = normalize(trimmed) + "\n"
                 if (entry.length <= charsLeft) {
                     sb.append(entry)
                     charsLeft -= entry.length
@@ -389,9 +419,23 @@ class PromptAdapter {
             }
         }
 
-        // Append top categories if space allows
-        if (categoryLines.isNotEmpty() && charsLeft > 40) {
-            sb.appendLine("Top categories:")
+        // Append detail lines
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (detailPrefixes.any { trimmed.startsWith(it, ignoreCase = true) }) {
+                val entry = normalize(trimmed) + "\n"
+                if (entry.length <= charsLeft) {
+                    sb.append(entry)
+                    charsLeft -= entry.length
+                }
+            }
+        }
+
+        // Append category breakdown
+        if (categoryLines.isNotEmpty() && charsLeft > 50) {
+            val header = "Categories:\n"
+            sb.append(header)
+            charsLeft -= header.length
             for (catLine in categoryLines.take(5)) {
                 val entry = catLine + "\n"
                 if (entry.length <= charsLeft) {
@@ -401,8 +445,36 @@ class PromptAdapter {
             }
         }
 
+        // Append top merchants
+        if (merchantLines.isNotEmpty() && charsLeft > 50) {
+            val header = "Top merchants:\n"
+            sb.append(header)
+            charsLeft -= header.length
+            for (mLine in merchantLines.take(3)) {
+                val entry = mLine + "\n"
+                if (entry.length <= charsLeft) {
+                    sb.append(entry)
+                    charsLeft -= entry.length
+                } else break
+            }
+        }
+
+        // Append budget status
+        if (budgetLines.isNotEmpty() && charsLeft > 50) {
+            val header = "Budget:\n"
+            sb.append(header)
+            charsLeft -= header.length
+            for (bLine in budgetLines.take(3)) {
+                val entry = bLine + "\n"
+                if (entry.length <= charsLeft) {
+                    sb.append(entry)
+                    charsLeft -= entry.length
+                } else break
+            }
+        }
+
         sb.appendLine()
-        sb.append("Be specific. Use the same currency shown above.")
+        sb.append("Give spending analysis, saving tips, and alerts. Use only $currencyCode.")
         return sb.toString()
     }
 
