@@ -115,23 +115,9 @@ object ModelCatalog {
             description = "Small but capable 0.5B model. Good quality-to-size ratio."
         ),
 
-        LocalAiModel(
-            modelId = "gemma3-1b-it-int4",
-            displayName = "Gemma 3 1B IT (int4)",
-            runtimeType = RuntimeType.MEDIAPIPE,
-            fileFormat = ".task",
-            quantization = "int4",
-            requiredRamMb = 1536,
-            recommendedRamMb = 3072,
-            sizeMb = 529,
-            supportsTextGeneration = true,
-            supportsStructuredJson = false,
-            supportsStreaming = true,
-            version = "3.0",
-            downloadUrl = "https://huggingface.co/AfiOne/gemma3-1b-it-int4.task/resolve/main/gemma3-1b-it-int4.task",
-            description = "Smallest Gemma model. Fast inference, good for categorization.",
-            maxTokens = 1024 // Community mirror — KV cache size unknown
-        ),
+        // NOTE: AfiOne/gemma3-1b-it-int4.task was removed — community export with
+        // incompatible model signature ("Unsupported model signature" error).
+        // Use the official gated Gemma 3 1B below instead.
 
         // ── Small models (1–1.5 GB) — phones with 4 GB RAM ─────────────
 
@@ -152,23 +138,8 @@ object ModelCatalog {
             description = "Fast 1.1B chat model. Good balance of speed and quality."
         ),
 
-        LocalAiModel(
-            modelId = "gemma-2b-gpu-int4",
-            displayName = "Gemma 2B IT GPU (int4)",
-            runtimeType = RuntimeType.MEDIAPIPE,
-            fileFormat = ".bin",
-            quantization = "int4",
-            requiredRamMb = 2048,
-            recommendedRamMb = 4096,
-            sizeMb = 1291,
-            supportsTextGeneration = true,
-            supportsStructuredJson = false,
-            supportsStreaming = true,
-            version = "1.0",
-            downloadUrl = "https://huggingface.co/autoocrat0413/gemma-2b-it-gpu-int4-mediapipe/resolve/main/gemma-2b-it-gpu-int4.bin",
-            description = "GPU-optimized Gemma 2B. Fast inference with hardware acceleration.",
-            maxTokens = 1024 // Community mirror — KV cache size unknown
-        ),
+        // NOTE: autoocrat0413/gemma-2b-it-gpu-int4.bin was removed — old .bin format
+        // is incompatible with tasks-genai 0.10.x ("Unsupported model signature").
 
         // ── Medium models (1.5–2 GB) — phones with 6 GB RAM ────────────
 
@@ -209,41 +180,11 @@ object ModelCatalog {
 
         // ── Large models (2.5–4 GB) — phones/tablets with 8 GB RAM ──────
 
-        LocalAiModel(
-            modelId = "gemma2-2b-cpu-int8",
-            displayName = "Gemma 2 2B IT (int8)",
-            runtimeType = RuntimeType.MEDIAPIPE,
-            fileFormat = ".task",
-            quantization = "int8",
-            requiredRamMb = 3072,
-            recommendedRamMb = 6144,
-            sizeMb = 3053,
-            supportsTextGeneration = true,
-            supportsStructuredJson = false,
-            supportsStreaming = true,
-            version = "2.0",
-            downloadUrl = "https://huggingface.co/CarlosJefte/Gemma-2-2b-mediapipe/resolve/main/gemma2-2b-it-cpu-int8.task",
-            description = "Gemma 2 2B with int8 precision. Great accuracy for financial analysis.",
-            maxTokens = 1024 // Community mirror — KV cache size unknown, use safe default
-        ),
+        // NOTE: CarlosJefte/Gemma-2-2b-mediapipe was removed — community export with
+        // incompatible model signature. Use the official gated Gemma 2 2B below instead.
 
-        LocalAiModel(
-            modelId = "gemma-3n-e2b-int4",
-            displayName = "Gemma 3n E2B IT (int4)",
-            runtimeType = RuntimeType.MEDIAPIPE,
-            fileFormat = ".task",
-            quantization = "int4",
-            requiredRamMb = 3072,
-            recommendedRamMb = 6144,
-            sizeMb = 2990,
-            supportsTextGeneration = true,
-            supportsStructuredJson = false,
-            supportsStreaming = true,
-            version = "3.0",
-            downloadUrl = "https://huggingface.co/realbyte/gemma-3n-E2B-it-int4-mediapipe/resolve/main/gemma-3n-E2B-it-int4.task",
-            description = "Latest Gemma 3n architecture with selective parameter activation.",
-            maxTokens = 1024 // Community mirror — KV cache size unknown
-        ),
+        // NOTE: realbyte/gemma-3n-E2B-it-int4 was removed — community export with
+        // potentially incompatible model signature. Use official gated models instead.
 
         LocalAiModel(
             modelId = "phi4-mini-q8",

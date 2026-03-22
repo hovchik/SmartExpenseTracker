@@ -44,6 +44,11 @@ class MediaPipeLlmRuntimeAdapter(private val context: Context) : LocalModelRunti
     var modelName: String = ""
         private set
 
+    /** Last error message from model loading — surfaced to the UI. */
+    @Volatile
+    var lastLoadError: String? = null
+        private set
+
     override suspend fun runPrompt(prompt: String): String = withContext(Dispatchers.IO) {
         var inference = llmInference ?: return@withContext ""
         try {
@@ -101,10 +106,12 @@ class MediaPipeLlmRuntimeAdapter(private val context: Context) : LocalModelRunti
     override suspend fun loadModel(modelPath: String, maxTokens: Int): Boolean = withContext(Dispatchers.IO) {
         try {
             releaseModel()
+            lastLoadError = null
 
             val file = File(modelPath)
             if (!file.exists()) {
-                Log.e(TAG, "Model file not found: $modelPath")
+                lastLoadError = "Model file not found: $modelPath"
+                Log.e(TAG, lastLoadError!!)
                 return@withContext false
             }
 
@@ -124,7 +131,17 @@ class MediaPipeLlmRuntimeAdapter(private val context: Context) : LocalModelRunti
             true
         } catch (e: Exception) {
             val cause = e.cause ?: e
-            Log.e(TAG, "Failed to load MediaPipe model: ${cause.message}", e)
+            val msg = cause.message ?: "Unknown error"
+            lastLoadError = when {
+                msg.contains("Unsupported model signature", ignoreCase = true) ->
+                    "Incompatible model format. This model was not exported for MediaPipe tasks-genai 0.10.x. " +
+                    "Try an official litert-community model (e.g. Gemma 3 1B, Qwen 2.5, or DeepSeek R1)."
+                msg.contains("Out of memory", ignoreCase = true) ||
+                msg.contains("OOM", ignoreCase = true) ->
+                    "Not enough memory to load this model. Try a smaller model."
+                else -> "Failed to load model: $msg"
+            }
+            Log.e(TAG, "Failed to load MediaPipe model: $msg", e)
             ready = false
             false
         }

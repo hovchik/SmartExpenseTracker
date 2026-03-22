@@ -35,6 +35,11 @@ class CustomLocalModelProvider(
     @Volatile
     private var activeModel: LocalAiModel? = null
 
+    /** Set to true when load fails with a permanent error (e.g. incompatible format).
+     *  Prevents endless retry loops during inference. Cleared on loadModel(). */
+    @Volatile
+    private var permanentLoadFailure: Boolean = false
+
     /**
      * Loads the currently active model (if any).
      * Always stores the model metadata so displayName() is correct.
@@ -55,6 +60,7 @@ class CustomLocalModelProvider(
 
         // Always store the model metadata — the user explicitly selected it
         activeModel = model
+        permanentLoadFailure = false
 
         val runtime = getRuntimeForModel(model)
         val success = runtime.loadModel(model.localPath, model.maxTokens)
@@ -65,7 +71,14 @@ class CustomLocalModelProvider(
         } else {
             // Store the runtime reference for lazy retry during inference
             activeRuntime = runtime
-            android.util.Log.w(TAG, "Runtime load failed for ${model.displayName}, will retry on inference")
+            // Check if this is a permanent failure (incompatible format, etc.)
+            val error = (runtime as? com.smartexpense.tracker.ai.runtime.MediaPipeLlmRuntimeAdapter)?.lastLoadError
+            if (error != null && (error.contains("Incompatible") || error.contains("Unsupported"))) {
+                permanentLoadFailure = true
+                android.util.Log.e(TAG, "Permanent load failure for ${model.displayName}: $error")
+            } else {
+                android.util.Log.w(TAG, "Runtime load failed for ${model.displayName}, will retry on inference")
+            }
         }
 
         return success
@@ -85,6 +98,13 @@ class CustomLocalModelProvider(
             text = "", success = false, providerName = displayName(), isLocal = true
         )
 
+        // Don't retry if the model has a permanent incompatibility (e.g. unsupported signature)
+        if (permanentLoadFailure) {
+            return AnalysisResult(
+                text = "", success = false, providerName = displayName(), isLocal = true
+            )
+        }
+
         var runtime = activeRuntime
 
         // Lazy retry: if the runtime isn't ready, attempt to reload the model
@@ -95,6 +115,11 @@ class CustomLocalModelProvider(
             if (reloaded) {
                 activeRuntime = runtime
             } else {
+                // Check if this is a permanent failure
+                val error = (runtime as? com.smartexpense.tracker.ai.runtime.MediaPipeLlmRuntimeAdapter)?.lastLoadError
+                if (error != null && (error.contains("Incompatible") || error.contains("Unsupported"))) {
+                    permanentLoadFailure = true
+                }
                 return AnalysisResult(
                     text = "", success = false, providerName = displayName(), isLocal = true
                 )
@@ -156,8 +181,11 @@ class CustomLocalModelProvider(
         return when {
             model != null && runtime?.isReady() == true ->
                 "${model.displayName} via ${runtime.runtimeName()}"
-            model != null && model.localPath.isNotBlank() ->
-                "${model.displayName} — ready (will load on first use)"
+            model != null && model.localPath.isNotBlank() -> {
+                val error = (runtime as? com.smartexpense.tracker.ai.runtime.MediaPipeLlmRuntimeAdapter)?.lastLoadError
+                if (error != null) "${model.displayName} — error: $error"
+                else "${model.displayName} — ready (will load on first use)"
+            }
             model != null -> "${model.displayName} — not loaded"
             else -> "No model installed"
         }
@@ -170,6 +198,10 @@ class CustomLocalModelProvider(
 
     /** Returns the active runtime name. */
     fun activeRuntimeName(): String = activeRuntime?.runtimeName() ?: ""
+
+    /** Returns the last model load error, or null if no error. */
+    fun lastLoadError(): String? =
+        (activeRuntime as? com.smartexpense.tracker.ai.runtime.MediaPipeLlmRuntimeAdapter)?.lastLoadError
 
     private fun getRuntimeForModel(model: LocalAiModel): LocalModelRuntime {
         return when (model.runtimeType) {
