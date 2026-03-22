@@ -102,8 +102,10 @@ class CustomLocalModelProvider(
         }
 
         val startTime = System.currentTimeMillis()
+        // Local models have tight token budgets — condense the prompt first
+        val condensed = promptAdapter.condenseForLocalModel(input.prompt)
         val adaptedPrompt = promptAdapter.adaptPrompt(
-            input.prompt,
+            condensed,
             supportsStructuredJson = runtime.supportsStructuredJson()
         )
 

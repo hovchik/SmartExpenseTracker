@@ -340,6 +340,72 @@ class PromptAdapter {
             .joinToString("\n")
     }
 
+    /**
+     * Condenses a full analysis prompt to fit within the tight token budget
+     * of small local models (e.g. 1280-token KV cache, ~1200 char input).
+     * Keeps only the essential financial summary and a short instruction.
+     */
+    fun condenseForLocalModel(prompt: String, maxChars: Int = 1100): String {
+        if (prompt.length <= maxChars) return prompt
+
+        // Extract key data sections from the structured prompt
+        val lines = prompt.lines()
+        val sb = StringBuilder()
+        sb.appendLine("Analyze this financial data. Give 2-3 brief insights.")
+        sb.appendLine()
+
+        var charsLeft = maxChars - sb.length
+        // Prioritized section prefixes — keep the most important data
+        val keepPrefixes = listOf(
+            "Total expenses:", "Total income:", "Net balance:",
+            "Average daily", "Savings rate:", "Expense-to-income",
+            "Total transactions:",
+            "Highest single", "Lowest single",
+            "=== Period:", "Filtered to category:"
+        )
+        // Extract category breakdown lines (start with "- ")
+        val categoryLines = mutableListOf<String>()
+        var inCategorySection = false
+
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (trimmed.contains("Spending by Category") || trimmed.contains("Category Breakdown")) {
+                inCategorySection = true
+                continue
+            }
+            if (trimmed.startsWith("===") && inCategorySection) {
+                inCategorySection = false
+            }
+            if (inCategorySection && trimmed.startsWith("- ")) {
+                categoryLines.add(trimmed)
+                continue
+            }
+            if (keepPrefixes.any { trimmed.startsWith(it, ignoreCase = true) }) {
+                val entry = trimmed + "\n"
+                if (entry.length <= charsLeft) {
+                    sb.append(entry)
+                    charsLeft -= entry.length
+                }
+            }
+        }
+
+        // Append top categories if space allows
+        if (categoryLines.isNotEmpty() && charsLeft > 40) {
+            sb.appendLine("Top categories:")
+            for (catLine in categoryLines.take(5)) {
+                val entry = catLine + "\n"
+                if (entry.length <= charsLeft) {
+                    sb.append(entry)
+                    charsLeft -= entry.length
+                } else break
+            }
+        }
+
+        sb.appendLine()
+        sb.append("Be specific. Use the same currency shown above.")
+        return sb.toString()
+    }
+
     // ── OCR Receipt Parsing with AI ─────────────────────────────────
 
     /**
