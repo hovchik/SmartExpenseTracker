@@ -659,6 +659,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val settings = repository.appData.value.settings
             repository.updateSettings(settings.copy(aiModePreference = mode))
             _aiModeStatus.value = "Switching AI mode..."
+            // Ensure cloud provider has latest keys/model before selecting it
+            aiProviderSelector.configureCloud(
+                providerType = settings.cloudAiProvider,
+                claudeKey = settings.claudeApiKey,
+                geminiKey = settings.geminiApiKey,
+                openaiKey = settings.openaiApiKey,
+                deepseekKey = settings.deepseekApiKey,
+                modelId = settings.cloudAiModel
+            )
             withContext(Dispatchers.IO) { aiProviderSelector.selectProvider(mode) }
             _aiModeStatus.value = aiProviderSelector.statusMessage()
             _aiPrivacyMessage.value = aiProviderSelector.privacyMessage()
@@ -787,7 +796,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 claudeKey = settings.claudeApiKey,
                 geminiKey = settings.geminiApiKey,
                 openaiKey = settings.openaiApiKey,
-                deepseekKey = settings.deepseekApiKey
+                deepseekKey = settings.deepseekApiKey,
+                modelId = settings.cloudAiModel
             )
             // Pass HuggingFace token for gated model downloads
             if (settings.huggingFaceToken.isNotBlank()) {
@@ -2047,9 +2057,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 return analysisText
             }
+
+            // When the user explicitly selected Cloud AI, report the failure
+            // instead of silently falling back to the rule-based engine.
+            val settings = repository.appData.value.settings
+            if (settings.aiModePreference == AiModePreference.CLOUD_AI) {
+                val errorMsg = buildString {
+                    appendLine("Cloud AI analysis failed.")
+                    if (!provider.isAvailable()) {
+                        appendLine("Please check that your ${settings.cloudAiProvider.label} API key is configured in Settings > AI Engine.")
+                    } else if (result.text.isNotBlank()) {
+                        // Show the actual API error message returned by the provider
+                        appendLine("${settings.cloudAiProvider.label}: ${result.text}")
+                    } else {
+                        appendLine("The ${settings.cloudAiProvider.label} API returned no result. Please verify your API key and selected model, then try again.")
+                    }
+                }
+                viewModelScope.launch {
+                    repository.addAiConversation(AiConversation(
+                        prompt = userPrompt,
+                        response = errorMsg,
+                        aiModelName = provider.displayName()
+                    ))
+                }
+                return errorMsg
+            }
         }
 
-        // Fallback to rule-based engine only if the AI provider returned no result
+        // Fallback to rule-based engine only in AUTO / System / Local modes
         val baseAnalysis = aiEngine.generateAnalysis(
             transactions, startMillis, endMillis, currencyCode, category
         )
@@ -2096,7 +2131,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateSettings(settings: AppSettings) {
         viewModelScope.launch {
-            val oldCurrency = repository.appData.value.settings.currencyCode
+            val old = repository.appData.value.settings
             val newCurrency = settings.currencyCode
             repository.updateSettings(settings)
             CurrencyConverterService.invalidateCache()
@@ -2107,12 +2142,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 claudeKey = settings.claudeApiKey,
                 geminiKey = settings.geminiApiKey,
                 openaiKey = settings.openaiApiKey,
-                deepseekKey = settings.deepseekApiKey
+                deepseekKey = settings.deepseekApiKey,
+                modelId = settings.cloudAiModel
             )
+
+            // Re-select the active provider whenever any AI-related setting changes
+            // (mode, provider, model, or API keys) to keep the active provider in sync
+            val aiSettingsChanged = settings.aiModePreference != old.aiModePreference ||
+                settings.cloudAiProvider != old.cloudAiProvider ||
+                settings.cloudAiModel != old.cloudAiModel ||
+                settings.claudeApiKey != old.claudeApiKey ||
+                settings.geminiApiKey != old.geminiApiKey ||
+                settings.openaiApiKey != old.openaiApiKey ||
+                settings.deepseekApiKey != old.deepseekApiKey
+            if (aiSettingsChanged) {
+                withContext(Dispatchers.IO) {
+                    aiProviderSelector.selectProvider(settings.aiModePreference)
+                }
+                _aiModeStatus.value = aiProviderSelector.statusMessage()
+                _aiPrivacyMessage.value = aiProviderSelector.privacyMessage()
+            }
 
             // When currency changes, re-convert all transaction amounts and budget limits.
             // Transactions with original foreign-currency metadata are converted directly
             // from the original currency, avoiding compounded rounding errors.
+            val oldCurrency = old.currencyCode
             if (oldCurrency != newCurrency) {
                 val fallbackRate = withContext(Dispatchers.IO) {
                     CurrencyConverterService.convert(1.0, oldCurrency, newCurrency)

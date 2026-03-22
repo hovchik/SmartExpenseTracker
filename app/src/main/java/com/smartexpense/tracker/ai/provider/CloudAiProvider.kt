@@ -29,7 +29,7 @@ class CloudAiProvider : AiProvider {
 
         // ── Gemini (Google) ─────────────────────────────────────
         private const val GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models"
-        private const val GEMINI_DEFAULT_MODEL = "gemini-2.0-flash"
+        private const val GEMINI_DEFAULT_MODEL = "gemini-2.5-flash-lite"
 
         // ── ChatGPT (OpenAI) ────────────────────────────────────
         private const val OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
@@ -93,6 +93,7 @@ class CloudAiProvider : AiProvider {
     override suspend fun generateAnalysis(input: AnalysisInput): AnalysisResult {
         val key = activeApiKey()
         if (key.isBlank()) {
+            Log.w(TAG, "No API key set for ${activeProviderType.label} — cannot call cloud AI")
             return AnalysisResult(
                 text = "",
                 success = false,
@@ -101,6 +102,14 @@ class CloudAiProvider : AiProvider {
             )
         }
 
+        val activeModel = when (activeProviderType) {
+            CloudAiProviderType.CLAUDE -> claudeModel
+            CloudAiProviderType.GEMINI -> geminiModel
+            CloudAiProviderType.CHATGPT -> openaiModel
+            CloudAiProviderType.DEEPSEEK -> deepseekModel
+        }
+        Log.i(TAG, "Calling ${activeProviderType.label} API with model=$activeModel")
+
         val startTime = System.currentTimeMillis()
 
         return withContext(Dispatchers.IO) {
@@ -108,10 +117,15 @@ class CloudAiProvider : AiProvider {
                 val result = when (activeProviderType) {
                     CloudAiProviderType.CLAUDE -> callClaude(input.prompt, key)
                     CloudAiProviderType.GEMINI -> callGemini(input.prompt, key)
-                    CloudAiProviderType.CHATGPT -> callOpenAi(input.prompt, key, OPENAI_API_URL, openaiModel)
-                    CloudAiProviderType.DEEPSEEK -> callOpenAi(input.prompt, key, DEEPSEEK_API_URL, deepseekModel)
+                    CloudAiProviderType.CHATGPT -> callOpenAi(input.prompt, key, OPENAI_API_URL, openaiModel, isOpenAi = true)
+                    CloudAiProviderType.DEEPSEEK -> callOpenAi(input.prompt, key, DEEPSEEK_API_URL, deepseekModel, isOpenAi = false)
                 }
                 val latency = System.currentTimeMillis() - startTime
+                if (result.isBlank()) {
+                    Log.w(TAG, "${activeProviderType.label} returned empty response (model=$activeModel, latency=${latency}ms)")
+                } else {
+                    Log.i(TAG, "${activeProviderType.label} returned ${result.length} chars (model=$activeModel, latency=${latency}ms)")
+                }
                 AnalysisResult(
                     text = result.trim(),
                     success = result.isNotBlank(),
@@ -119,8 +133,18 @@ class CloudAiProvider : AiProvider {
                     latencyMs = latency,
                     isLocal = false
                 )
+            } catch (e: ApiException) {
+                val latency = System.currentTimeMillis() - startTime
+                Log.e(TAG, "${activeProviderType.label} API error (model=$activeModel, HTTP ${e.httpCode}): ${e.message}", e)
+                AnalysisResult(
+                    text = e.userMessage,
+                    success = false,
+                    providerName = displayName(),
+                    latencyMs = latency,
+                    isLocal = false
+                )
             } catch (e: Exception) {
-                Log.e(TAG, "${activeProviderType.label} API call failed: ${e.message}")
+                Log.e(TAG, "${activeProviderType.label} API call failed (model=$activeModel): ${e.message}", e)
                 AnalysisResult(
                     text = "",
                     success = false,
@@ -134,7 +158,15 @@ class CloudAiProvider : AiProvider {
 
     override fun isAvailable(): Boolean = activeApiKey().isNotBlank()
 
-    override fun displayName(): String = "Cloud AI (${activeProviderType.label})"
+    override fun displayName(): String {
+        val model = when (activeProviderType) {
+            CloudAiProviderType.CLAUDE -> claudeModel
+            CloudAiProviderType.GEMINI -> geminiModel
+            CloudAiProviderType.CHATGPT -> openaiModel
+            CloudAiProviderType.DEEPSEEK -> deepseekModel
+        }
+        return "Cloud AI (${activeProviderType.label} · $model)"
+    }
 
     override fun description(): String = when {
         activeApiKey().isBlank() -> "${activeProviderType.label} — API key required"
@@ -142,6 +174,30 @@ class CloudAiProvider : AiProvider {
     }
 
     override fun isLocal(): Boolean = false
+
+    // ── Exception for API errors with user-visible messages ─────
+
+    private class ApiException(
+        val httpCode: Int,
+        val userMessage: String,
+        cause: Throwable? = null
+    ) : Exception(userMessage, cause)
+
+    /** Extracts a short, user-friendly message from an API error body. */
+    private fun extractErrorMessage(errorBody: String?, httpCode: Int, provider: String): String {
+        if (errorBody.isNullOrBlank()) return "$provider API returned HTTP $httpCode"
+        return try {
+            val json = JSONObject(errorBody)
+            // Anthropic: { "error": { "message": "..." } }
+            json.optJSONObject("error")?.optString("message")
+            // OpenAI / DeepSeek: { "error": { "message": "..." } }
+                ?: json.optString("message", "").ifBlank { null }
+                // Gemini: { "error": { "message": "..." } }
+                ?: "$provider API returned HTTP $httpCode"
+        } catch (_: Exception) {
+            "$provider: $errorBody".take(200)
+        }
+    }
 
     // ── Provider-specific API calls ─────────────────────────────
 
@@ -177,9 +233,10 @@ class CloudAiProvider : AiProvider {
     private fun parseClaude(conn: HttpURLConnection): String {
         if (conn.responseCode != HttpURLConnection.HTTP_OK) {
             val err = try { conn.errorStream?.bufferedReader()?.readText() } catch (_: Exception) { null }
+            val msg = extractErrorMessage(err, conn.responseCode, "Claude")
             Log.w(TAG, "Claude API error: HTTP ${conn.responseCode} — $err")
             conn.disconnect()
-            return ""
+            throw ApiException(conn.responseCode, msg)
         }
         val body = conn.inputStream.bufferedReader().readText()
         conn.disconnect()
@@ -211,7 +268,7 @@ class CloudAiProvider : AiProvider {
                 })
             })
             put("generationConfig", JSONObject().apply {
-                put("maxOutputTokens", 2048)
+                put("maxOutputTokens", 8192)
             })
         }
 
@@ -222,9 +279,10 @@ class CloudAiProvider : AiProvider {
     private fun parseGemini(conn: HttpURLConnection): String {
         if (conn.responseCode != HttpURLConnection.HTTP_OK) {
             val err = try { conn.errorStream?.bufferedReader()?.readText() } catch (_: Exception) { null }
+            val msg = extractErrorMessage(err, conn.responseCode, "Gemini")
             Log.w(TAG, "Gemini API error: HTTP ${conn.responseCode} — $err")
             conn.disconnect()
-            return ""
+            throw ApiException(conn.responseCode, msg)
         }
         val body = conn.inputStream.bufferedReader().readText()
         conn.disconnect()
@@ -238,8 +296,11 @@ class CloudAiProvider : AiProvider {
     /**
      * Calls an OpenAI-compatible chat completions API.
      * Works for both OpenAI (ChatGPT) and DeepSeek (same API format).
+     *
+     * @param isOpenAi true for OpenAI (uses max_completion_tokens), false for
+     *                 DeepSeek and other OpenAI-compatible APIs (uses max_tokens).
      */
-    private fun callOpenAi(prompt: String, apiKey: String, apiUrl: String, model: String): String {
+    private fun callOpenAi(prompt: String, apiKey: String, apiUrl: String, model: String, isOpenAi: Boolean = false): String {
         val conn = (URL(apiUrl).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = CONNECT_TIMEOUT
@@ -251,7 +312,13 @@ class CloudAiProvider : AiProvider {
 
         val requestBody = JSONObject().apply {
             put("model", model)
-            put("max_tokens", 2048)
+            // OpenAI's newer models (gpt-4.1-*) require max_completion_tokens;
+            // DeepSeek and older OpenAI models use max_tokens.
+            if (isOpenAi) {
+                put("max_completion_tokens", 2048)
+            } else {
+                put("max_tokens", 2048)
+            }
             put("messages", JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "user")
@@ -267,9 +334,10 @@ class CloudAiProvider : AiProvider {
     private fun parseOpenAi(conn: HttpURLConnection): String {
         if (conn.responseCode != HttpURLConnection.HTTP_OK) {
             val err = try { conn.errorStream?.bufferedReader()?.readText() } catch (_: Exception) { null }
+            val msg = extractErrorMessage(err, conn.responseCode, "OpenAI")
             Log.w(TAG, "OpenAI-compat API error: HTTP ${conn.responseCode} — $err")
             conn.disconnect()
-            return ""
+            throw ApiException(conn.responseCode, msg)
         }
         val body = conn.inputStream.bufferedReader().readText()
         conn.disconnect()

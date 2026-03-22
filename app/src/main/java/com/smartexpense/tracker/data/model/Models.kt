@@ -278,6 +278,43 @@ enum class CloudAiProviderType(val label: String, val placeholder: String) {
 }
 
 /**
+ * A selectable cloud AI model: display [label] shown in the UI and [modelId] sent to the API.
+ */
+data class CloudAiModel(val label: String, val modelId: String)
+
+/** Available models for each cloud AI provider. */
+val CLOUD_AI_MODELS: Map<CloudAiProviderType, List<CloudAiModel>> = mapOf(
+    CloudAiProviderType.CLAUDE to listOf(
+        CloudAiModel("Claude Haiku 4.5", "claude-haiku-4-5-20251001"),
+        CloudAiModel("Claude Sonnet 4.5", "claude-sonnet-4-5-20250514"),
+        CloudAiModel("Claude Opus 4", "claude-opus-4-20250514")
+    ),
+    CloudAiProviderType.GEMINI to listOf(
+        CloudAiModel("Gemini 3.1 Pro", "gemini-3.1-pro-preview"),
+        CloudAiModel("Gemini 3 Flash", "gemini-3-flash-preview"),
+        CloudAiModel("Gemini 3.1 Flash Lite", "gemini-3.1-flash-lite-preview"),
+        CloudAiModel("Gemini 2.5 Pro", "gemini-2.5-pro"),
+        CloudAiModel("Gemini 2.5 Flash", "gemini-2.5-flash"),
+        CloudAiModel("Gemini 2.5 Flash Lite", "gemini-2.5-flash-lite")
+    ),
+    CloudAiProviderType.CHATGPT to listOf(
+        CloudAiModel("GPT-4o mini", "gpt-4o-mini"),
+        CloudAiModel("GPT-4o", "gpt-4o"),
+        CloudAiModel("GPT-4.1 nano", "gpt-4.1-nano"),
+        CloudAiModel("GPT-4.1 mini", "gpt-4.1-mini"),
+        CloudAiModel("GPT-4.1", "gpt-4.1")
+    ),
+    CloudAiProviderType.DEEPSEEK to listOf(
+        CloudAiModel("DeepSeek Chat", "deepseek-chat"),
+        CloudAiModel("DeepSeek Reasoner", "deepseek-reasoner")
+    )
+)
+
+/** Returns the default model ID for a given provider. */
+fun defaultModelIdFor(provider: CloudAiProviderType): String =
+    CLOUD_AI_MODELS[provider]?.firstOrNull()?.modelId ?: ""
+
+/**
  * Source for fetching currency exchange rates.
  */
 enum class RateSource {
@@ -438,6 +475,8 @@ data class AppSettings(
     val aiModePreference: AiModePreference = AiModePreference.AUTO,
     /** Which cloud AI provider to use (Claude, Gemini, ChatGPT, DeepSeek). */
     val cloudAiProvider: CloudAiProviderType = CloudAiProviderType.CLAUDE,
+    /** Selected model ID for the active cloud AI provider. Empty = provider default. */
+    val cloudAiModel: String = "",
     /** Claude API key for Cloud AI mode. */
     val claudeApiKey: String = "",
     /** Google Gemini API key. */
