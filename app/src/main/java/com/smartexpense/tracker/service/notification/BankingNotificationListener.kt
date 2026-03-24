@@ -46,6 +46,24 @@ class BankingNotificationListener : NotificationListenerService() {
         )
     }
 
+    @Volatile
+    private var isConnected = false
+
+    override fun onListenerConnected() {
+        isConnected = true
+        Log.d(TAG, "Notification listener connected")
+    }
+
+    override fun onListenerDisconnected() {
+        isConnected = false
+        Log.d(TAG, "Notification listener disconnected, requesting rebind")
+        try {
+            requestRebind(android.content.ComponentName(this, BankingNotificationListener::class.java))
+        } catch (e: Exception) {
+            Log.w(TAG, "requestRebind failed (expected on older APIs): ${e.message}")
+        }
+    }
+
     // Explicit banking/payment app package whitelist
     private val monitoredPackages = setOf(
         // US Banks
@@ -124,6 +142,7 @@ class BankingNotificationListener : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
+        if (!isConnected) return
         try {
             val packageName = sbn.packageName ?: return
             if (!isBankingSource(packageName)) return
