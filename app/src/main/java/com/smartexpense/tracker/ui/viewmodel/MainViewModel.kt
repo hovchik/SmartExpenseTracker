@@ -168,6 +168,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _engineDescriptions = MutableStateFlow<Map<AiEnginePreference, String>>(emptyMap())
     val engineDescriptions: StateFlow<Map<AiEnginePreference, String>> = _engineDescriptions.asStateFlow()
 
+    // ── Fields used in init (must be declared before init block) ──────
+    /** Last deleted transaction, kept for undo support. */
+    private val _lastDeletedTransaction = MutableStateFlow<Transaction?>(null)
+    val lastDeletedTransaction: StateFlow<Transaction?> = _lastDeletedTransaction.asStateFlow()
+
+    private val _recurringPatterns = MutableStateFlow<List<RecurringPattern>>(emptyList())
+    val recurringPatterns: StateFlow<List<RecurringPattern>> = _recurringPatterns.asStateFlow()
+
     init {
         // Start battery monitoring immediately
         batteryMonitor.startMonitoring()
@@ -214,6 +222,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             refreshSuggestions()
             scheduleRateRefresh()
+            // Detect recurring patterns on startup
+            detectRecurringPatterns()
             // Warm up the location cache so background receivers (SMS, notifications)
             // can fall back to a recent foreground fix.
             currentLocation()
@@ -294,25 +304,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val startOfDay = DateUtils.getStartOfDay(now)
         val endOfDay = DateUtils.getEndOfDay(now)
 
-        // Pre-fetch rates for cross-currency transactions (async; first render uses raw amounts)
-        preloadConversionRates(data.transactions, appCurrency)
+        // Filter out soft-deleted transactions for all UI computations
+        val activeTransactions = data.transactions.filter { !it.isDeleted }
 
-        val monthlyExpenses = data.transactions
+        // Pre-fetch rates for cross-currency transactions (async; first render uses raw amounts)
+        preloadConversionRates(activeTransactions, appCurrency)
+
+        // Purge old deleted transactions in background
+        viewModelScope.launch { repository.purgeDeletedTransactions(data.settings.trashRetentionDays) }
+
+        // Cache exchange rates for offline use
+        if (_exchangeRates.value.isNotEmpty()) {
+            viewModelScope.launch {
+                val settings = data.settings
+                if (settings.cachedExchangeRates != _exchangeRates.value) {
+                    repository.updateSettings(settings.copy(
+                        cachedExchangeRates = _exchangeRates.value,
+                        cachedRatesTimestamp = System.currentTimeMillis()
+                    ))
+                }
+            }
+        }
+
+        val monthlyExpenses = activeTransactions
             .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfMonth..endOfMonth }
             .sumOf { convertAmount(it, appCurrency) }
-        val monthlyIncome = data.transactions
+        val monthlyIncome = activeTransactions
             .filter { it.type == TransactionType.INCOME && it.timestamp in startOfMonth..endOfMonth }
             .sumOf { convertAmount(it, appCurrency) }
-        val todayExpenses = data.transactions
+        val todayExpenses = activeTransactions
             .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfDay..endOfDay }
             .sumOf { convertAmount(it, appCurrency) }
-        val weeklyExpenses = data.transactions
+        val weeklyExpenses = activeTransactions
             .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfWeek..endOfWeek }
             .sumOf { convertAmount(it, appCurrency) }
 
-        val allTransactionsSorted = data.transactions.sortedByDescending { it.timestamp }
+        val allTransactionsSorted = activeTransactions.sortedByDescending { it.timestamp }
         val recentTransactions = allTransactionsSorted.take(20)
-        val categoryBreakdown = data.transactions
+        val categoryBreakdown = activeTransactions
             .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfMonth..endOfMonth }
             .groupBy { it.category }
             .mapValues { it.value.sumOf { t -> convertAmount(t, appCurrency) } }
@@ -327,7 +356,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Compute weekly chart data (daily expense totals for the current week)
         val weeklyChartData = DateUtils.getDaysInRange(startOfWeek, endOfWeek).map { dayStart ->
             val dayEnd = DateUtils.getEndOfDay(dayStart)
-            val total = data.transactions
+            val total = activeTransactions
                 .filter { it.type == TransactionType.EXPENSE && it.timestamp in dayStart..dayEnd }
                 .sumOf { convertAmount(it, appCurrency) }
             DateUtils.formatDay(dayStart) to total
@@ -342,7 +371,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             allTransactions = allTransactionsSorted,
             categories = data.categories,
             suggestions = data.suggestions.filter { !it.isDismissed },
-            transactionCount = data.transactions.size, settings = data.settings,
+            transactionCount = activeTransactions.size, settings = data.settings,
             transactionsByDate = transactionsByDate,
             weeklyChartData = weeklyChartData
         )
@@ -1291,11 +1320,256 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (added) {
                 autoCreateStoreIfNeeded(merchantName, geoLoc)
                 refreshSuggestions()
+                // Update spending streak
+                repository.updateSpendingStreak()
             }
         }
     }
 
-    fun deleteTransaction(id: String) { viewModelScope.launch { repository.deleteTransaction(id) } }
+    fun deleteTransaction(id: String) {
+        viewModelScope.launch {
+            val deleted = repository.deleteTransaction(id)
+            _lastDeletedTransaction.value = deleted
+        }
+    }
+
+    /** Restores the last soft-deleted transaction (undo). */
+    fun undoDeleteTransaction() {
+        val tx = _lastDeletedTransaction.value ?: return
+        viewModelScope.launch {
+            repository.restoreTransactionFromCopy(tx)
+            _lastDeletedTransaction.value = null
+        }
+    }
+
+    /** Returns all soft-deleted transactions. */
+    fun getDeletedTransactions(): List<Transaction> = repository.getDeletedTransactions()
+
+    /** Permanently deletes a transaction from trash. */
+    fun permanentlyDeleteTransaction(id: String) {
+        viewModelScope.launch { repository.permanentlyDeleteTransaction(id) }
+    }
+
+    /** Restores a transaction from trash. */
+    fun restoreTransaction(id: String) {
+        viewModelScope.launch { repository.restoreTransaction(id) }
+    }
+
+    /** Empties the trash (permanently deletes all soft-deleted transactions). */
+    fun emptyTrash() {
+        viewModelScope.launch {
+            val deleted = repository.getDeletedTransactions()
+            for (tx in deleted) {
+                repository.permanentlyDeleteTransaction(tx.id)
+            }
+        }
+    }
+
+    // ─── Batch Operations ────────────────────────────────────────
+
+    fun batchRecategorize(ids: Set<String>, newCategory: String) {
+        viewModelScope.launch { repository.batchRecategorize(ids, newCategory) }
+    }
+
+    fun batchDelete(ids: Set<String>) {
+        viewModelScope.launch { repository.batchDelete(ids) }
+    }
+
+    fun batchUpdateTags(ids: Set<String>, addTags: List<String> = emptyList(), removeTags: List<String> = emptyList()) {
+        viewModelScope.launch { repository.batchUpdateTags(ids, addTags, removeTags) }
+    }
+
+    // ─── Natural Language Entry ──────────────────────────────────
+
+    /**
+     * Parses natural language input and creates a transaction.
+     * Returns a user-friendly confirmation message, or null on parse failure.
+     */
+    fun addTransactionFromNaturalLanguage(input: String): String? {
+        val categories = repository.appData.value.categories.map { it.name }
+        val parsed = com.smartexpense.tracker.util.NaturalLanguageParser.parse(input, categories)
+            ?: return null
+
+        addTransaction(
+            amount = parsed.amount,
+            description = parsed.description,
+            category = parsed.category,
+            type = parsed.type,
+            timestamp = parsed.timestamp
+        )
+
+        val typeLabel = if (parsed.type == TransactionType.INCOME) "income" else "expense"
+        val sym = com.smartexpense.tracker.data.model.currencyInfoFor(
+            repository.appData.value.settings.currencyCode
+        ).symbol
+        return "${parsed.description}: $sym${String.format("%.2f", parsed.amount)} ($typeLabel)"
+    }
+
+    // ─── Budget Pace Indicator ───────────────────────────────────
+
+    /**
+     * Computes budget pace for all categories that have budgets set.
+     */
+    fun computeBudgetPaces(): List<BudgetPace> {
+        val data = repository.appData.value
+        val now = System.currentTimeMillis()
+        val cal = java.util.Calendar.getInstance()
+        val dayOfMonth = cal.get(java.util.Calendar.DAY_OF_MONTH)
+        val daysInMonth = cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+        val startOfMonth = DateUtils.getStartOfMonth(now)
+        val appCurrency = data.settings.currencyCode
+
+        return data.budgets.mapNotNull { budget ->
+            val category = data.categories.find { it.id == budget.categoryId } ?: return@mapNotNull null
+            val spent = data.transactions
+                .filter {
+                    !it.isDeleted &&
+                    it.type == TransactionType.EXPENSE &&
+                    it.timestamp >= startOfMonth &&
+                    it.category.equals(category.name, ignoreCase = true)
+                }
+                .sumOf { convertAmount(it, appCurrency) }
+
+            val linearPace = budget.monthlyLimit * dayOfMonth / daysInMonth
+            val projectedSpend = if (dayOfMonth > 0) spent * daysInMonth / dayOfMonth else spent
+
+            val status = when {
+                spent > budget.monthlyLimit -> PaceStatus.OVER
+                spent > linearPace * 1.1 -> PaceStatus.OVER
+                spent > linearPace * 0.9 -> PaceStatus.ON_TRACK
+                else -> PaceStatus.UNDER
+            }
+
+            BudgetPace(
+                categoryName = category.name,
+                monthlyLimit = budget.monthlyLimit,
+                spent = spent,
+                dayOfMonth = dayOfMonth,
+                daysInMonth = daysInMonth,
+                projectedSpend = projectedSpend,
+                status = status
+            )
+        }
+    }
+
+    // ─── Smart Recurring Detection ───────────────────────────────
+
+    fun detectRecurringPatterns() {
+        viewModelScope.launch {
+            val patterns = repository.detectRecurringPatterns()
+            _recurringPatterns.value = patterns.filter { !it.dismissed }
+        }
+    }
+
+    fun confirmRecurringPattern(id: String) {
+        viewModelScope.launch {
+            repository.confirmRecurringPattern(id)
+            _recurringPatterns.value = _recurringPatterns.value.filter { it.id != id }
+        }
+    }
+
+    fun dismissRecurringPattern(id: String) {
+        viewModelScope.launch {
+            repository.dismissRecurringPattern(id)
+            _recurringPatterns.value = _recurringPatterns.value.filter { it.id != id }
+        }
+    }
+
+    // ─── Spending Streaks ────────────────────────────────────────
+
+    val spendingStreak: StateFlow<SpendingStreak> = repository.appData
+        .map { it.spendingStreak ?: SpendingStreak() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, SpendingStreak())
+
+    // ─── CSV Export ──────────────────────────────────────────────
+
+    fun exportTransactionsCsv(startMillis: Long? = null, endMillis: Long? = null): String {
+        return repository.exportTransactionsCsv(startMillis, endMillis)
+    }
+
+    fun exportCsvToUri(uri: Uri, startMillis: Long? = null, endMillis: Long? = null) {
+        viewModelScope.launch {
+            try {
+                val csv = exportTransactionsCsv(startMillis, endMillis)
+                getApplication<Application>().contentResolver.openOutputStream(uri)?.use {
+                    it.write(csv.toByteArray(Charsets.UTF_8))
+                }
+                _importExportMessage.value = "CSV exported successfully"
+            } catch (e: Exception) {
+                _importExportMessage.value = "CSV export failed: ${e.message}"
+            }
+        }
+    }
+
+    // ─── Tag Suggestions ─────────────────────────────────────────
+
+    fun suggestTags(description: String, category: String): List<String> {
+        return repository.suggestTags(description, category)
+    }
+
+    fun updateRecentTags(tags: List<String>) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            val updated = (tags + settings.recentTags.orEmpty()).distinct().take(20)
+            repository.updateSettings(settings.copy(recentTags = updated))
+        }
+    }
+
+    // ─── Split Expenses ──────────────────────────────────────────
+
+    fun updateSplitExpense(transactionId: String, splitWith: List<SplitPerson>) {
+        viewModelScope.launch { repository.updateSplitExpense(transactionId, splitWith) }
+    }
+
+    fun getOutstandingDebts(): Map<String, Double> = repository.getOutstandingDebts()
+
+    // ─── Dashboard Customization ─────────────────────────────────
+
+    fun toggleDashboardSection(section: DashboardSection, visible: Boolean) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            val hidden = settings.hiddenDashboardSections.orEmpty().toMutableList()
+            if (visible) {
+                hidden.remove(section.name)
+            } else {
+                if (section.name !in hidden) hidden.add(section.name)
+            }
+            repository.updateSettings(settings.copy(hiddenDashboardSections = hidden))
+        }
+    }
+
+    fun isDashboardSectionVisible(section: DashboardSection): Boolean {
+        return section.name !in (repository.appData.value.settings.hiddenDashboardSections.orEmpty())
+    }
+
+    // ─── Photo Attachments ───────────────────────────────────────
+
+    fun attachPhoto(transactionId: String, photoUri: String) {
+        viewModelScope.launch {
+            val current = repository.appData.value
+            val tx = current.transactions.find { it.id == transactionId } ?: return@launch
+            repository.updateTransaction(tx.copy(photoUri = photoUri))
+        }
+    }
+
+    // ─── Offline Currency Cache ──────────────────────────────────
+
+    /**
+     * Gets exchange rate, using cached rates when offline.
+     */
+    fun getCachedExchangeRate(fromCurrency: String, toCurrency: String): Double? {
+        val settings = repository.appData.value.settings
+        val rates = settings.cachedExchangeRates.orEmpty()
+        if (rates.isEmpty()) return null
+
+        val fromRate = rates[fromCurrency] ?: return null
+        val toRate = rates[toCurrency] ?: return null
+        return toRate / fromRate
+    }
+
+    fun getCachedRatesAge(): Long {
+        return System.currentTimeMillis() - repository.appData.value.settings.cachedRatesTimestamp
+    }
 
     // ─── Store locations ────────────────────────────────────────
 

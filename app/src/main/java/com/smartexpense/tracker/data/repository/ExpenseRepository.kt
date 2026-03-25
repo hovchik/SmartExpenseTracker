@@ -6,6 +6,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
 
@@ -17,6 +19,9 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
 
     private val _appData = MutableStateFlow(AppData())
     val appData: StateFlow<AppData> = _appData.asStateFlow()
+
+    /** Protects addTransaction from race conditions during duplicate checking. */
+    private val transactionMutex = Mutex()
 
     private val _initialized = CompletableDeferred<Unit>()
 
@@ -47,7 +52,7 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
      *                          OR same amount + same card last-4 within 10 min
      *  - IMPORT              : never considered a duplicate (imports are intentional)
      */
-    suspend fun addTransaction(transaction: Transaction): Boolean {
+    suspend fun addTransaction(transaction: Transaction): Boolean = transactionMutex.withLock {
         val current = _appData.value
         val isDuplicate = current.transactions.any { t ->
             if (t.amount != transaction.amount) return@any false
@@ -76,13 +81,13 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
                 TransactionSource.IMPORT -> false
             }
         }
-        if (isDuplicate) return false
+        if (isDuplicate) return@withLock false
         val updated = current.copy(
             transactions = current.transactions + transaction
         )
         _appData.value = updated
         storage.saveData(updated)
-        return true
+        return@withLock true
     }
 
     suspend fun updateTransaction(transaction: Transaction) {
@@ -96,7 +101,29 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         storage.saveData(updated)
     }
 
-    suspend fun deleteTransaction(id: String) {
+    /**
+     * Soft-deletes a transaction by setting its [deletedAt] timestamp.
+     * The transaction remains in storage for [AppSettings.trashRetentionDays] days.
+     * Returns the deleted transaction for undo support.
+     */
+    suspend fun deleteTransaction(id: String): Transaction? {
+        val current = _appData.value
+        val tx = current.transactions.find { it.id == id } ?: return null
+        val softDeleted = tx.copy(deletedAt = System.currentTimeMillis())
+        val updated = current.copy(
+            transactions = current.transactions.map {
+                if (it.id == id) softDeleted else it
+            }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+        return tx
+    }
+
+    /**
+     * Permanently deletes a transaction (bypasses soft-delete).
+     */
+    suspend fun permanentlyDeleteTransaction(id: String) {
         val current = _appData.value
         val updated = current.copy(
             transactions = current.transactions.filter { it.id != id }
@@ -105,21 +132,125 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         storage.saveData(updated)
     }
 
+    /**
+     * Restores a soft-deleted transaction.
+     */
+    suspend fun restoreTransaction(id: String) {
+        val current = _appData.value
+        val updated = current.copy(
+            transactions = current.transactions.map {
+                if (it.id == id) it.copy(deletedAt = 0) else it
+            }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    /**
+     * Restores a transaction from a full copy (for undo after soft-delete).
+     */
+    suspend fun restoreTransactionFromCopy(tx: Transaction) {
+        val current = _appData.value
+        val exists = current.transactions.any { it.id == tx.id }
+        val updated = if (exists) {
+            current.copy(transactions = current.transactions.map {
+                if (it.id == tx.id) tx.copy(deletedAt = 0) else it
+            })
+        } else {
+            current.copy(transactions = current.transactions + tx.copy(deletedAt = 0))
+        }
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    /**
+     * Purges soft-deleted transactions older than [retentionDays].
+     */
+    suspend fun purgeDeletedTransactions(retentionDays: Int = 30) {
+        val cutoff = System.currentTimeMillis() - (retentionDays * 24 * 60 * 60 * 1000L)
+        val current = _appData.value
+        val updated = current.copy(
+            transactions = current.transactions.filter {
+                (it.deletedAt ?: 0) == 0L || (it.deletedAt ?: 0) > cutoff
+            }
+        )
+        if (updated.transactions.size != current.transactions.size) {
+            _appData.value = updated
+            storage.saveData(updated)
+        }
+    }
+
+    /**
+     * Returns all soft-deleted transactions (trash).
+     */
+    fun getDeletedTransactions(): List<Transaction> {
+        return _appData.value.transactions.filter { it.isDeleted }
+            .sortedByDescending { it.deletedAt ?: 0 }
+    }
+
+    // ─── Batch Operations ─────────────────────────────────────────
+
+    /**
+     * Batch re-categorize multiple transactions.
+     */
+    suspend fun batchRecategorize(ids: Set<String>, newCategory: String) {
+        val current = _appData.value
+        val updated = current.copy(
+            transactions = current.transactions.map {
+                if (it.id in ids) it.copy(category = newCategory) else it
+            }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    /**
+     * Batch delete multiple transactions (soft-delete).
+     */
+    suspend fun batchDelete(ids: Set<String>) {
+        val now = System.currentTimeMillis()
+        val current = _appData.value
+        val updated = current.copy(
+            transactions = current.transactions.map {
+                if (it.id in ids) it.copy(deletedAt = now) else it
+            }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    /**
+     * Batch add/remove tags on multiple transactions.
+     */
+    suspend fun batchUpdateTags(ids: Set<String>, addTags: List<String> = emptyList(), removeTags: List<String> = emptyList()) {
+        val current = _appData.value
+        val updated = current.copy(
+            transactions = current.transactions.map { tx ->
+                if (tx.id in ids) {
+                    val newTags = (tx.tags + addTags).filter { it !in removeTags }.distinct()
+                    tx.copy(tags = newTags)
+                } else tx
+            }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
     fun getTransactionsByDateRange(start: Long, end: Long): List<Transaction> {
         return _appData.value.transactions.filter {
-            it.timestamp in start..end
+            !it.isDeleted && it.timestamp in start..end
         }.sortedByDescending { it.timestamp }
     }
 
     fun getTransactionsByCategory(category: String): List<Transaction> {
         return _appData.value.transactions.filter {
-            it.category == category
+            !it.isDeleted && it.category == category
         }.sortedByDescending { it.timestamp }
     }
 
     fun getTransactionsByType(type: TransactionType): List<Transaction> {
         return _appData.value.transactions.filter {
-            it.type == type
+            !it.isDeleted && it.type == type
         }.sortedByDescending { it.timestamp }
     }
 
@@ -240,12 +371,15 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         fallbackRate: Double,
         rateFromOriginal: (String) -> Double?
     ) {
+        // Validate exchange rates to prevent data corruption from NaN, Infinity, or zero rates
+        if (fallbackRate <= 0 || fallbackRate.isNaN() || fallbackRate.isInfinite()) return
+
         val current = _appData.value
         val updated = current.copy(
             transactions = current.transactions.map { tx ->
                 if (tx.originalAmount > 0.0 && tx.originalCurrencyCode.orEmpty().isNotEmpty()) {
                     val rate = rateFromOriginal(tx.originalCurrencyCode.orEmpty())
-                    if (rate != null) {
+                    if (rate != null && rate > 0 && rate.isFinite()) {
                         tx.copy(
                             amount = tx.originalAmount * rate,
                             currencyCode = newCurrency,
@@ -433,6 +567,229 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         val updated = current.copy(aiConversations = emptyList())
         _appData.value = updated
         storage.saveData(updated)
+    }
+
+    // ─── Recurring Patterns ─────────────────────────────────────────
+
+    /**
+     * Detects recurring transaction patterns from history.
+     * Looks for transactions with similar amounts and descriptions
+     * that occur at regular intervals.
+     */
+    suspend fun detectRecurringPatterns(): List<RecurringPattern> {
+        val current = _appData.value
+        val activeTransactions = current.transactions.filter { !it.isDeleted && it.type == TransactionType.EXPENSE }
+
+        // Group by similar description + similar amount (within 5%)
+        val groups = activeTransactions.groupBy { tx ->
+            val normalizedDesc = tx.description.trim().lowercase()
+            val merchant = tx.merchantName.trim().lowercase()
+            "${merchant.ifEmpty { normalizedDesc }}|${(tx.amount / 5).toLong() * 5}" // bucket by ~$5 increments
+        }.filter { it.value.size >= 2 }
+
+        val patterns = mutableListOf<RecurringPattern>()
+        for ((_, txs) in groups) {
+            if (txs.size < 2) continue
+            val sorted = txs.sortedBy { it.timestamp }
+            val intervals = sorted.zipWithNext { a, b ->
+                ((b.timestamp - a.timestamp) / (24 * 60 * 60 * 1000.0)).toInt()
+            }
+            val avgInterval = intervals.average().toInt()
+            // Only consider patterns with reasonable intervals (7-45 days)
+            if (avgInterval in 7..45 && intervals.all { it in (avgInterval / 2)..(avgInterval * 2) }) {
+                val avgAmount = txs.map { it.amount }.average()
+                val existing = current.recurringPatterns.orEmpty().find {
+                    it.description.equals(sorted.last().description, ignoreCase = true) &&
+                        kotlin.math.abs(it.amount - avgAmount) < avgAmount * 0.1
+                }
+                if (existing == null || (!existing.confirmed && !existing.dismissed)) {
+                    patterns.add(RecurringPattern(
+                        description = sorted.last().description,
+                        merchantName = sorted.last().merchantName,
+                        amount = avgAmount,
+                        category = sorted.last().category,
+                        intervalDays = avgInterval,
+                        occurrenceCount = txs.size
+                    ))
+                }
+            }
+        }
+        // Save detected patterns
+        if (patterns.isNotEmpty()) {
+            val updated = current.copy(
+                recurringPatterns = (patterns + current.recurringPatterns.orEmpty().filter { it.confirmed || it.dismissed }).distinctBy { it.description.lowercase() }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
+        return patterns
+    }
+
+    suspend fun confirmRecurringPattern(id: String) {
+        val current = _appData.value
+        val updated = current.copy(
+            recurringPatterns = current.recurringPatterns.orEmpty().map {
+                if (it.id == id) it.copy(confirmed = true) else it
+            }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    suspend fun dismissRecurringPattern(id: String) {
+        val current = _appData.value
+        val updated = current.copy(
+            recurringPatterns = current.recurringPatterns.orEmpty().map {
+                if (it.id == id) it.copy(dismissed = true) else it
+            }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    // ─── Spending Streaks ─────────────────────────────────────────
+
+    /**
+     * Updates the spending streak after a new transaction is logged.
+     */
+    suspend fun updateSpendingStreak() {
+        val current = _appData.value
+        val streak = current.spendingStreak ?: SpendingStreak()
+        val today = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            .format(java.util.Date(System.currentTimeMillis()))
+
+        if (today == streak.lastLogDate) {
+            // Already logged today, just increment total
+            val updated = current.copy(
+                spendingStreak = streak.copy(
+                    totalTransactionsLogged = current.transactions.count { !it.isDeleted }
+                )
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+            return
+        }
+
+        // Check if yesterday was the last log date
+        val cal = java.util.Calendar.getInstance()
+        cal.add(java.util.Calendar.DAY_OF_YEAR, -1)
+        val yesterday = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
+
+        val newStreak = if (streak.lastLogDate == yesterday) {
+            streak.currentStreak + 1
+        } else {
+            1 // Reset streak
+        }
+
+        val totalTx = current.transactions.count { !it.isDeleted }
+
+        // Check for new achievements
+        val achievements = streak.unlockedAchievements.toMutableList()
+        if (newStreak >= 7 && "streak_7" !in achievements) achievements.add("streak_7")
+        if (newStreak >= 14 && "streak_14" !in achievements) achievements.add("streak_14")
+        if (newStreak >= 30 && "streak_30" !in achievements) achievements.add("streak_30")
+        if (newStreak >= 100 && "streak_100" !in achievements) achievements.add("streak_100")
+        if (totalTx >= 100 && "tx_100" !in achievements) achievements.add("tx_100")
+        if (totalTx >= 500 && "tx_500" !in achievements) achievements.add("tx_500")
+
+        val updated = current.copy(
+            spendingStreak = streak.copy(
+                currentStreak = newStreak,
+                longestStreak = maxOf(newStreak, streak.longestStreak),
+                lastLogDate = today,
+                totalTransactionsLogged = totalTx,
+                unlockedAchievements = achievements
+            )
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    // ─── CSV Export ───────────────────────────────────────────────
+
+    /**
+     * Exports transactions as CSV string, optionally filtered by date range.
+     */
+    fun exportTransactionsCsv(startMillis: Long? = null, endMillis: Long? = null): String {
+        val transactions = _appData.value.transactions
+            .filter { !it.isDeleted }
+            .let { txs ->
+                if (startMillis != null && endMillis != null) {
+                    txs.filter { it.timestamp in startMillis..endMillis }
+                } else txs
+            }
+            .sortedByDescending { it.timestamp }
+
+        val sb = StringBuilder()
+        sb.appendLine("Date,Description,Amount,Type,Category,Merchant,Tags,Notes,Source,Currency")
+        val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+        for (tx in transactions) {
+            val date = dateFormat.format(java.util.Date(tx.timestamp))
+            val desc = tx.description.replace("\"", "\"\"")
+            val merchant = tx.merchantName.replace("\"", "\"\"")
+            val tags = tx.tags.joinToString(";")
+            val notes = tx.notes.replace("\"", "\"\"").replace("\n", " ")
+            sb.appendLine("\"$date\",\"$desc\",${tx.amount},${tx.type},\"${tx.category}\",\"$merchant\",\"$tags\",\"$notes\",${tx.source},${tx.currencyCode.ifEmpty { "USD" }}")
+        }
+        return sb.toString()
+    }
+
+    // ─── Tag Suggestions ──────────────────────────────────────────
+
+    /**
+     * Returns auto-suggested tags based on category, description, and history.
+     */
+    fun suggestTags(description: String, category: String): List<String> {
+        val allTags = _appData.value.transactions
+            .filter { !it.isDeleted }
+            .flatMap { it.tags }
+            .groupBy { it }
+            .entries
+            .sortedByDescending { it.value.size }
+            .map { it.key }
+
+        // Tags used with this category
+        val categoryTags = _appData.value.transactions
+            .filter { !it.isDeleted && it.category.equals(category, ignoreCase = true) }
+            .flatMap { it.tags }
+            .groupBy { it }
+            .entries
+            .sortedByDescending { it.value.size }
+            .map { it.key }
+
+        return (categoryTags + allTags).distinct().take(10)
+    }
+
+    // ─── Split Expense ────────────────────────────────────────────
+
+    /**
+     * Updates the split information for a transaction.
+     */
+    suspend fun updateSplitExpense(transactionId: String, splitWith: List<SplitPerson>) {
+        val current = _appData.value
+        val updated = current.copy(
+            transactions = current.transactions.map {
+                if (it.id == transactionId) it.copy(splitWith = splitWith) else it
+            }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    /**
+     * Returns outstanding debts from split expenses.
+     */
+    fun getOutstandingDebts(): Map<String, Double> {
+        val debts = mutableMapOf<String, Double>()
+        for (tx in _appData.value.transactions.filter { !it.isDeleted && it.isSplit }) {
+            val share = tx.splitAmount
+            for (person in tx.splitWith.orEmpty()) {
+                if (!person.paid) {
+                    debts[person.name] = (debts[person.name] ?: 0.0) + share
+                }
+            }
+        }
+        return debts
     }
 
     // ─── Export/Import ─────────────────────────────────────────────

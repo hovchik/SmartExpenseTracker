@@ -20,6 +20,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartexpense.tracker.data.model.Transaction
+import com.smartexpense.tracker.data.model.TransactionSource
 import com.smartexpense.tracker.data.model.TransactionType
 import com.smartexpense.tracker.ui.theme.*
 import com.smartexpense.tracker.util.CurrencyUtils
@@ -39,19 +40,37 @@ import java.util.Locale
 fun TransactionsScreen(
     allTransactions: List<Transaction>,
     currencyCode: String = "USD",
-    onDeleteTransaction: (String) -> Unit
+    onDeleteTransaction: (String) -> Unit,
+    categories: List<String> = emptyList(),
+    onBatchDelete: (Set<String>) -> Unit = {},
+    onBatchRecategorize: (Set<String>, String) -> Unit = { _, _ -> },
+    onNavigateToTrash: () -> Unit = {},
+    trashCount: Int = 0
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    // Filter chips state
+    var filterType by remember { mutableStateOf<TransactionType?>(null) }
+    var filterCategory by remember { mutableStateOf<String?>(null) }
+    var filterSource by remember { mutableStateOf<TransactionSource?>(null) }
+    // Batch selection state
+    var batchMode by remember { mutableStateOf(false) }
+    val selectedIds = remember { mutableStateMapOf<String, Boolean>() }
+    var showBatchCategoryDialog by remember { mutableStateOf(false) }
 
-    // Filter by search query (case-insensitive, matches description/merchant/category/notes)
-    val filtered: List<Transaction> = remember(allTransactions, searchQuery) {
+    // Filter by search query and chips
+    val filtered: List<Transaction> = remember(allTransactions, searchQuery, filterType, filterCategory, filterSource) {
         val q = searchQuery.trim().lowercase()
-        if (q.isEmpty()) allTransactions
-        else allTransactions.filter { tx ->
-            tx.description.lowercase().contains(q) ||
-            tx.merchantName.lowercase().contains(q) ||
-            tx.category.lowercase().contains(q) ||
-            tx.notes.lowercase().contains(q)
+        allTransactions.filter { tx ->
+            val matchesSearch = q.isEmpty() ||
+                tx.description.lowercase().contains(q) ||
+                tx.merchantName.lowercase().contains(q) ||
+                tx.category.lowercase().contains(q) ||
+                tx.notes.lowercase().contains(q) ||
+                tx.tags.any { it.lowercase().contains(q) }
+            val matchesType = filterType == null || tx.type == filterType
+            val matchesCategory = filterCategory == null || tx.category.equals(filterCategory, ignoreCase = true)
+            val matchesSource = filterSource == null || tx.source == filterSource
+            matchesSearch && matchesType && matchesCategory && matchesSource
         }
     }
 
@@ -79,8 +98,24 @@ fun TransactionsScreen(
 
         // ── Top bar ────────────────────────────────────────────────
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Text("Transactions", style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Transactions", style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold)
+                if (trashCount > 0) {
+                    TextButton(onClick = onNavigateToTrash) {
+                        Icon(Icons.Filled.Delete, contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Trash ($trashCount)", fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(12.dp))
 
             // Search bar
@@ -104,6 +139,96 @@ fun TransactionsScreen(
 
             Spacer(modifier = Modifier.height(6.dp))
 
+            // Filter chips row
+            androidx.compose.foundation.lazy.LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Type filter
+                item {
+                    FilterChip(
+                        selected = filterType == TransactionType.EXPENSE,
+                        onClick = { filterType = if (filterType == TransactionType.EXPENSE) null else TransactionType.EXPENSE },
+                        label = { Text("Expenses", fontSize = 12.sp) },
+                        leadingIcon = if (filterType == TransactionType.EXPENSE) {{ Icon(Icons.Filled.Check, null, Modifier.size(16.dp)) }} else null
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = filterType == TransactionType.INCOME,
+                        onClick = { filterType = if (filterType == TransactionType.INCOME) null else TransactionType.INCOME },
+                        label = { Text("Income", fontSize = 12.sp) },
+                        leadingIcon = if (filterType == TransactionType.INCOME) {{ Icon(Icons.Filled.Check, null, Modifier.size(16.dp)) }} else null
+                    )
+                }
+                // Source filters
+                item {
+                    FilterChip(
+                        selected = filterSource == TransactionSource.OCR_SCAN,
+                        onClick = { filterSource = if (filterSource == TransactionSource.OCR_SCAN) null else TransactionSource.OCR_SCAN },
+                        label = { Text("OCR", fontSize = 12.sp) }
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = filterSource == TransactionSource.SMS,
+                        onClick = { filterSource = if (filterSource == TransactionSource.SMS) null else TransactionSource.SMS },
+                        label = { Text("SMS", fontSize = 12.sp) }
+                    )
+                }
+                // Batch mode toggle
+                item {
+                    FilterChip(
+                        selected = batchMode,
+                        onClick = {
+                            batchMode = !batchMode
+                            if (!batchMode) selectedIds.clear()
+                        },
+                        label = { Text("Select", fontSize = 12.sp) },
+                        leadingIcon = { Icon(Icons.Filled.CheckBox, null, Modifier.size(16.dp)) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Batch action bar
+            if (batchMode && selectedIds.isNotEmpty()) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("${selectedIds.size} selected", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = { showBatchCategoryDialog = true }) {
+                                Icon(Icons.Filled.Category, null, Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Re-categorize", fontSize = 12.sp)
+                            }
+                            TextButton(
+                                onClick = {
+                                    onBatchDelete(selectedIds.keys)
+                                    selectedIds.clear()
+                                    batchMode = false
+                                },
+                                colors = ButtonDefaults.textButtonColors(contentColor = RedExpense)
+                            ) {
+                                Icon(Icons.Filled.Delete, null, Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Delete", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(2.dp))
+
             // Summary chip
             val totalFiltered = filtered.size
             val expenseSum = filtered.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
@@ -116,6 +241,35 @@ fun TransactionsScreen(
         }
 
         HorizontalDivider()
+
+        // Batch re-categorize dialog
+        if (showBatchCategoryDialog) {
+            AlertDialog(
+                onDismissRequest = { showBatchCategoryDialog = false },
+                title = { Text("Re-categorize ${selectedIds.size} transactions") },
+                text = {
+                    Column {
+                        categories.forEach { cat ->
+                            Surface(
+                                onClick = {
+                                    onBatchRecategorize(selectedIds.keys, cat)
+                                    selectedIds.clear()
+                                    batchMode = false
+                                    showBatchCategoryDialog = false
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(cat, modifier = Modifier.padding(12.dp))
+                            }
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { showBatchCategoryDialog = false }) { Text("Cancel") }
+                }
+            )
+        }
 
         // ── Month-grouped list ─────────────────────────────────────
         if (byMonth.isEmpty()) {
@@ -210,11 +364,26 @@ fun TransactionsScreen(
                     // ── Collapsible transaction rows ───────────────
                     if (!isCollapsed) {
                         items(txList, key = { it.id }) { tx ->
-                            TransactionItem(
-                                transaction = tx,
-                                currencyCode = currencyCode,
-                                onDelete = { onDeleteTransaction(tx.id) }
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (batchMode) {
+                                    Checkbox(
+                                        checked = selectedIds.containsKey(tx.id),
+                                        onCheckedChange = { checked ->
+                                            if (checked) selectedIds[tx.id] = true
+                                            else selectedIds.remove(tx.id)
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    TransactionItem(
+                                        transaction = tx,
+                                        currencyCode = currencyCode,
+                                        onDelete = { onDeleteTransaction(tx.id) }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
