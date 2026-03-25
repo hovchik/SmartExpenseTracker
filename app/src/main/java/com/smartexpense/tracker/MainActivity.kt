@@ -82,6 +82,8 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     val tokenValidationError by viewModel.tokenValidationError.collectAsState()
     val aiConversations by viewModel.aiConversations.collectAsState()
     val dashboardSectionOrder by viewModel.dashboardSectionOrder.collectAsState()
+    val spendingStreak by viewModel.spendingStreak.collectAsState()
+    val lastDeletedTx by viewModel.lastDeletedTransaction.collectAsState()
     val batteryState by viewModel.batteryMonitor.batteryState.collectAsState()
     val aiExpenseReductionTips by viewModel.aiExpenseReductionTips.collectAsState()
     val storeLocations by viewModel.storeLocations.collectAsState()
@@ -95,6 +97,20 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
         billingError?.let { msg ->
             snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short)
             viewModel.subscriptionManager.clearBillingError()
+        }
+    }
+
+    // Undo snackbar for deleted transactions
+    LaunchedEffect(lastDeletedTx) {
+        lastDeletedTx?.let { tx ->
+            val result = snackbarHostState.showSnackbar(
+                message = "Transaction deleted: ${tx.description}",
+                actionLabel = "Undo",
+                duration = SnackbarDuration.Short
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                viewModel.undoDeleteTransaction()
+            }
         }
     }
 
@@ -229,7 +245,11 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         onDeleteTransaction = { viewModel.deleteTransaction(it) },
                         sectionOrder = dashboardSectionOrder,
                         onMoveSections = { from, to -> viewModel.moveDashboardSection(from, to) },
-                        currencyCode = currencyCode
+                        currencyCode = currencyCode,
+                        budgetPaces = viewModel.computeBudgetPaces(),
+                        spendingStreak = spendingStreak,
+                        onNaturalLanguageEntry = { viewModel.addTransactionFromNaturalLanguage(it) },
+                        hiddenSections = uiState.settings.hiddenDashboardSections.toSet()
                     )
                     "reports" -> ReportsScreen(
                         generateReport = { viewModel.generateReport(it) },
@@ -281,7 +301,10 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                     "transactions" -> TransactionsScreen(
                         allTransactions = uiState.allTransactions,
                         currencyCode = currencyCode,
-                        onDeleteTransaction = { viewModel.deleteTransaction(it) }
+                        onDeleteTransaction = { viewModel.deleteTransaction(it) },
+                        categories = uiState.categories.map { it.name },
+                        onBatchDelete = { ids -> viewModel.batchDelete(ids) },
+                        onBatchRecategorize = { ids, cat -> viewModel.batchRecategorize(ids, cat) }
                     )
                     "scan" -> ScanReceiptScreen(
                         onOcrResult = { text, qrData -> viewModel.processOcrText(text, qrData) },

@@ -55,7 +55,13 @@ data class Transaction(
     /** Exchange rate used at conversion time: 1 [originalCurrencyCode] = [exchangeRate] [currencyCode]. */
     val exchangeRate: Double = 0.0,
     /** True when this transaction's category was assigned by an AI model rather than the user or rule-based engine. */
-    val categorizedByAi: Boolean = false
+    val categorizedByAi: Boolean = false,
+    /** URI path to a receipt photo attached to this transaction. */
+    val photoUri: String = "",
+    /** Soft-delete: when non-zero, this transaction is in the trash (epoch millis of deletion). */
+    val deletedAt: Long = 0,
+    /** Split expense: list of people sharing this cost. Empty = not split. */
+    val splitWith: List<SplitPerson> = emptyList()
 ) {
     /** Resolved latitude: prefers [location], falls back to legacy [latitude] field. */
     val resolvedLat: Double? get() = location?.lat ?: @Suppress("DEPRECATION") latitude
@@ -65,7 +71,24 @@ data class Transaction(
 
     /** True when this transaction carries a GPS fix. */
     val hasLocation: Boolean get() = resolvedLat != null && resolvedLng != null
+
+    /** True when this transaction is in the trash (soft-deleted). */
+    val isDeleted: Boolean get() = deletedAt > 0
+
+    /** True when this transaction is a split expense. */
+    val isSplit: Boolean get() = splitWith.isNotEmpty()
+
+    /** Each person's share of the split expense. */
+    val splitAmount: Double get() = if (splitWith.isNotEmpty()) amount / (splitWith.size + 1) else amount
 }
+
+/**
+ * A person participating in a split expense.
+ */
+data class SplitPerson(
+    val name: String,
+    val paid: Boolean = false
+)
 
 enum class TransactionType {
     EXPENSE, INCOME
@@ -214,6 +237,62 @@ data class InAppNotification(
 /**
  * App-wide data container stored as JSON.
  */
+/**
+ * A detected recurring transaction pattern (e.g., Netflix $15.99 monthly).
+ */
+data class RecurringPattern(
+    val id: String = UUID.randomUUID().toString(),
+    val description: String,
+    val merchantName: String = "",
+    val amount: Double,
+    val category: String,
+    /** Average interval between occurrences in days. */
+    val intervalDays: Int,
+    /** Number of times this pattern was observed. */
+    val occurrenceCount: Int,
+    /** Whether the user has confirmed/dismissed this pattern. */
+    val confirmed: Boolean = false,
+    val dismissed: Boolean = false,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+/**
+ * Spending streak and achievement tracking.
+ */
+data class SpendingStreak(
+    /** Current consecutive days with logged expenses. */
+    val currentStreak: Int = 0,
+    /** Longest-ever consecutive streak. */
+    val longestStreak: Int = 0,
+    /** Last date a transaction was logged (yyyy-MM-dd). */
+    val lastLogDate: String = "",
+    /** Total number of transactions ever logged. */
+    val totalTransactionsLogged: Int = 0,
+    /** Achievements unlocked (achievement IDs). */
+    val unlockedAchievements: List<String> = emptyList(),
+    /** Months where user stayed under budget. */
+    val monthsUnderBudget: Int = 0
+)
+
+/**
+ * Budget pace indicator data for a single category.
+ */
+data class BudgetPace(
+    val categoryName: String,
+    val monthlyLimit: Double,
+    val spent: Double,
+    val dayOfMonth: Int,
+    val daysInMonth: Int,
+    /** Projected end-of-month spend at current pace. */
+    val projectedSpend: Double,
+    /** Pace status: UNDER, ON_TRACK, OVER */
+    val status: PaceStatus
+)
+
+enum class PaceStatus {
+    UNDER, ON_TRACK, OVER
+}
+
 data class AppData(
     val transactions: List<Transaction> = emptyList(),
     val categories: List<Category> = defaultCategories(),
@@ -227,6 +306,10 @@ data class AppData(
     val rateHistory: List<RateHistoryEntry> = emptyList(),
     /** AI prompt/response conversation history. */
     val aiConversations: List<AiConversation> = emptyList(),
+    /** Detected recurring transaction patterns. */
+    val recurringPatterns: List<RecurringPattern> = emptyList(),
+    /** Spending streak and achievement tracking. */
+    val spendingStreak: SpendingStreak = SpendingStreak(),
     val settings: AppSettings = AppSettings(),
     val lastUpdated: Long = System.currentTimeMillis()
 )
@@ -362,7 +445,9 @@ enum class DashboardSection {
     WEEKLY_CHART,
     AI_INSIGHTS,
     CATEGORY_BREAKDOWN,
-    RECENT_TRANSACTIONS
+    RECENT_TRANSACTIONS,
+    BUDGET_PACE,
+    SPENDING_STREAKS
 }
 
 /**
@@ -560,7 +645,21 @@ data class AppSettings(
     /** Timestamp of the last successful rate fetch (epoch millis). 0 = never. */
     val lastRateUpdateTimestamp: Long = 0,
     /** Whether the splash/onboarding screen has been shown to the user. */
-    val splashShown: Boolean = false
+    val splashShown: Boolean = false,
+    // ── Dashboard visibility toggles ──────────────────────────────
+    /** Which dashboard cards are visible (by DashboardSection name). Empty = all visible. */
+    val hiddenDashboardSections: List<String> = emptyList(),
+    // ── Soft-delete retention ─────────────────────────────────────
+    /** Days to keep soft-deleted transactions before permanent purge. */
+    val trashRetentionDays: Int = 30,
+    // ── Tag suggestions ───────────────────────────────────────────
+    /** Recently used tags for auto-suggest. */
+    val recentTags: List<String> = emptyList(),
+    // ── Offline currency cache ────────────────────────────────────
+    /** Cached exchange rates for offline use. */
+    val cachedExchangeRates: Map<String, Double> = emptyMap(),
+    /** Timestamp when cached rates were last updated. */
+    val cachedRatesTimestamp: Long = 0
 )
 
 fun defaultCategories(): List<Category> = listOf(

@@ -26,6 +26,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import com.smartexpense.tracker.data.model.*
 import com.smartexpense.tracker.ui.components.dragDropItem
 import com.smartexpense.tracker.ui.components.rememberDragDropListState
@@ -43,21 +46,35 @@ fun DashboardScreen(
     onDeleteTransaction: (String) -> Unit,
     sectionOrder: List<DashboardSection>,
     onMoveSections: (DashboardSection, DashboardSection) -> Unit,
-    currencyCode: String = "USD"
+    currencyCode: String = "USD",
+    budgetPaces: List<BudgetPace> = emptyList(),
+    spendingStreak: SpendingStreak = SpendingStreak(),
+    onNaturalLanguageEntry: (String) -> String? = { null },
+    hiddenSections: Set<String> = emptySet()
 ) {
     val visibleSections = remember(
         sectionOrder,
         uiState.suggestions.isEmpty(),
-        uiState.categoryBreakdown.isEmpty()
+        uiState.categoryBreakdown.isEmpty(),
+        hiddenSections,
+        budgetPaces.isEmpty(),
+        spendingStreak.currentStreak
     ) {
         sectionOrder.filter { section ->
+            if (section.name in hiddenSections) return@filter false
             when (section) {
                 DashboardSection.AI_INSIGHTS -> uiState.suggestions.isNotEmpty()
                 DashboardSection.CATEGORY_BREAKDOWN -> uiState.categoryBreakdown.isNotEmpty()
+                DashboardSection.BUDGET_PACE -> budgetPaces.isNotEmpty()
+                DashboardSection.SPENDING_STREAKS -> true
                 else -> true
             }
         }
     }
+
+    // Natural language entry state
+    var nlpInput by remember { mutableStateOf("") }
+    var nlpResult by remember { mutableStateOf<String?>(null) }
 
     val lazyListState = rememberLazyListState()
     val dragDropState = rememberDragDropListState(lazyListState) { fromIndex, toIndex ->
@@ -74,6 +91,21 @@ fun DashboardScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(vertical = 16.dp)
     ) {
+        // ── Natural Language Quick-Add Bar ──────────────────
+        item(key = "nlp_bar") {
+            NaturalLanguageEntryBar(
+                value = nlpInput,
+                onValueChange = { nlpInput = it },
+                onSubmit = {
+                    val result = onNaturalLanguageEntry(nlpInput)
+                    nlpResult = result ?: "Could not parse. Try: \"Coffee $4.50\" or \"Salary 3000 income\""
+                    if (result != null) nlpInput = ""
+                },
+                resultMessage = nlpResult,
+                onDismissResult = { nlpResult = null }
+            )
+        }
+
         itemsIndexed(visibleSections, key = { _, section -> section.name }) { index, section ->
             val isDragged = index == dragDropState.draggedIndex
             Box(
@@ -98,6 +130,10 @@ fun DashboardScreen(
                         RecentTransactionsSection(
                             uiState.recentTransactions, currencyCode, onDeleteTransaction
                         )
+                    DashboardSection.BUDGET_PACE ->
+                        BudgetPaceSection(budgetPaces, currencyCode)
+                    DashboardSection.SPENDING_STREAKS ->
+                        SpendingStreakSection(spendingStreak)
                 }
             }
         }
@@ -574,4 +610,227 @@ fun TransactionItem(
             onDelete = { onDelete(); showDetail = false }
         )
     }
+}
+
+// ── Natural Language Quick-Add Bar ────────────────────────────────────────────
+
+@Composable
+fun NaturalLanguageEntryBar(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+    resultMessage: String?,
+    onDismissResult: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        androidx.compose.material3.OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = { Text("Quick add: \"Coffee \$4.50\" or \"Salary 3000 income\"", fontSize = 13.sp) },
+            leadingIcon = { Icon(Icons.Filled.FlashOn, contentDescription = null, tint = OrangeWarning, modifier = Modifier.size(20.dp)) },
+            trailingIcon = {
+                if (value.isNotEmpty()) {
+                    IconButton(onClick = onSubmit) {
+                        Icon(Icons.Filled.Send, contentDescription = "Add", tint = GreenPrimary)
+                    }
+                }
+            },
+            singleLine = true,
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                imeAction = androidx.compose.ui.text.input.ImeAction.Done
+            ),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                onDone = { if (value.isNotEmpty()) onSubmit() }
+            )
+        )
+        if (resultMessage != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (resultMessage.startsWith("Could not"))
+                        MaterialTheme.colorScheme.errorContainer
+                    else GreenPrimary.copy(alpha = 0.1f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        if (resultMessage.startsWith("Could not")) Icons.Filled.Error else Icons.Filled.CheckCircle,
+                        contentDescription = null,
+                        tint = if (resultMessage.startsWith("Could not")) MaterialTheme.colorScheme.error else GreenPrimary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(resultMessage, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismissResult, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Filled.Close, contentDescription = "Dismiss", modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Budget Pace Indicator Section ────────────────────────────────────────────
+
+@Composable
+private fun BudgetPaceSection(budgetPaces: List<BudgetPace>, currencyCode: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Speed, contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Budget Pace", style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold)
+        }
+
+        budgetPaces.forEach { pace ->
+            BudgetPaceCard(pace, currencyCode)
+        }
+    }
+}
+
+@Composable
+private fun BudgetPaceCard(pace: BudgetPace, currencyCode: String) {
+    val paceColor = when (pace.status) {
+        PaceStatus.UNDER -> GreenIncome
+        PaceStatus.ON_TRACK -> OrangeWarning
+        PaceStatus.OVER -> RedExpense
+    }
+    val paceLabel = when (pace.status) {
+        PaceStatus.UNDER -> "Under pace"
+        PaceStatus.ON_TRACK -> "On track"
+        PaceStatus.OVER -> "Over pace"
+    }
+    val progress = (pace.spent / pace.monthlyLimit).coerceIn(0.0, 1.5).toFloat()
+    val linearProgress = (pace.dayOfMonth.toFloat() / pace.daysInMonth).coerceIn(0f, 1f)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(pace.categoryName, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = paceColor.copy(alpha = 0.15f)
+                ) {
+                    Text(paceLabel, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
+                        color = paceColor,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            // Progress bar
+            Box(modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)) {
+                // Expected pace line
+                Box(modifier = Modifier
+                    .fillMaxWidth(linearProgress)
+                    .height(8.dp)
+                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)))
+                // Actual spending bar
+                Box(modifier = Modifier
+                    .fillMaxWidth(progress.coerceAtMost(1f))
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(paceColor))
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "${CurrencyUtils.format(pace.spent, currencyCode)} / ${CurrencyUtils.format(pace.monthlyLimit, currencyCode)}",
+                    fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "Day ${pace.dayOfMonth}/${pace.daysInMonth} · Projected: ${CurrencyUtils.format(pace.projectedSpend, currencyCode)}",
+                    fontSize = 11.sp, color = paceColor
+                )
+            }
+        }
+    }
+}
+
+// ── Spending Streak Section ──────────────────────────────────────────────────
+
+@Composable
+private fun SpendingStreakSection(streak: SpendingStreak) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.LocalFireDepartment, contentDescription = null,
+                    tint = OrangeWarning, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Tracking Streak", style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                StreakStat("Current", "${streak.currentStreak} days", OrangeWarning)
+                StreakStat("Best", "${streak.longestStreak} days", GreenPrimary)
+                StreakStat("Total", "${streak.totalTransactionsLogged} txns", BluePrimary)
+            }
+            // Achievements
+            if (streak.unlockedAchievements.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(streak.unlockedAchievements) { achievement ->
+                        val (label, icon) = achievementInfo(achievement)
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = PurpleAccent.copy(alpha = 0.1f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(icon, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium,
+                                    color = PurpleAccent)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StreakStat(label: String, value: String, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = color)
+        Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+private fun achievementInfo(id: String): Pair<String, String> = when (id) {
+    "streak_7" -> "1 Week Streak" to "\uD83D\uDD25"
+    "streak_14" -> "2 Week Streak" to "\u2B50"
+    "streak_30" -> "30 Day Streak" to "\uD83C\uDFC6"
+    "streak_100" -> "100 Day Streak" to "\uD83D\uDC8E"
+    "tx_100" -> "100 Transactions" to "\uD83D\uDCCA"
+    "tx_500" -> "500 Transactions" to "\uD83D\uDE80"
+    else -> id to "\uD83C\uDF1F"
 }

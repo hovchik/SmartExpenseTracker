@@ -85,15 +85,24 @@ class JsonStorageManager(private val context: Context) {
     private fun saveDataInternal(data: AppData) {
         val file = getFile()
         val backupFile = getBackupFile()
+        val tempFile = File(context.filesDir, "$fileName.tmp")
 
         // Create backup of existing data
         if (file.exists()) {
             file.copyTo(backupFile, overwrite = true)
         }
 
-        // Write new data
+        // Atomic write: write to temp file first, then rename.
+        // This prevents data corruption if the app crashes mid-write.
         val json = gson.toJson(data)
-        file.writeText(json)
+        tempFile.writeText(json)
+        // Validate the temp file before replacing the real file
+        if (tempFile.length() > 0) {
+            tempFile.renameTo(file)
+        } else {
+            // Temp file is empty — don't overwrite real data
+            tempFile.delete()
+        }
         cachedData = data
     }
 
