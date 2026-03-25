@@ -43,7 +43,9 @@ fun TransactionsScreen(
     onDeleteTransaction: (String) -> Unit,
     categories: List<String> = emptyList(),
     onBatchDelete: (Set<String>) -> Unit = {},
-    onBatchRecategorize: (Set<String>, String) -> Unit = { _, _ -> }
+    onBatchRecategorize: (Set<String>, String) -> Unit = { _, _ -> },
+    onNavigateToTrash: () -> Unit = {},
+    trashCount: Int = 0
 ) {
     var searchQuery by remember { mutableStateOf("") }
     // Filter chips state
@@ -96,8 +98,24 @@ fun TransactionsScreen(
 
         // ── Top bar ────────────────────────────────────────────────
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Text("Transactions", style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Transactions", style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold)
+                if (trashCount > 0) {
+                    TextButton(onClick = onNavigateToTrash) {
+                        Icon(Icons.Filled.Delete, contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Trash ($trashCount)", fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(12.dp))
 
             // Search bar

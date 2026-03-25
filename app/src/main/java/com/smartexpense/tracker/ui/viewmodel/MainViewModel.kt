@@ -1355,6 +1355,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.restoreTransaction(id) }
     }
 
+    /** Empties the trash (permanently deletes all soft-deleted transactions). */
+    fun emptyTrash() {
+        viewModelScope.launch {
+            val deleted = repository.getDeletedTransactions()
+            for (tx in deleted) {
+                repository.permanentlyDeleteTransaction(tx.id)
+            }
+        }
+    }
+
     // ─── Batch Operations ────────────────────────────────────────
 
     fun batchRecategorize(ids: Set<String>, newCategory: String) {

@@ -133,12 +133,13 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
             "ocr_sections"     -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
             "local_ai_setup"   -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
             "ai_chat_history"  -> { currentScreen = "ai_analyze" }
+            "trash"            -> { currentScreen = "transactions"; viewModel.setSelectedTab(2) }
             else               -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
         }
     }
 
     // Hide the top bar on full-screen sub-screens (they have their own top bar)
-    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup")
+    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup", "trash")
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -194,7 +195,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
             }
         },
         bottomBar = {
-            if (currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup")) {
+            if (currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup", "trash")) {
                 NavigationBar(tonalElevation = 2.dp) {
                     // Home
                     NavigationBarItem(
@@ -304,7 +305,18 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         onDeleteTransaction = { viewModel.deleteTransaction(it) },
                         categories = uiState.categories.map { it.name },
                         onBatchDelete = { ids -> viewModel.batchDelete(ids) },
-                        onBatchRecategorize = { ids, cat -> viewModel.batchRecategorize(ids, cat) }
+                        onBatchRecategorize = { ids, cat -> viewModel.batchRecategorize(ids, cat) },
+                        onNavigateToTrash = { currentScreen = "trash" },
+                        trashCount = viewModel.getDeletedTransactions().size
+                    )
+                    "trash" -> TrashScreen(
+                        deletedTransactions = viewModel.getDeletedTransactions(),
+                        currencyCode = currencyCode,
+                        onRestore = { viewModel.restoreTransaction(it) },
+                        onPermanentlyDelete = { viewModel.permanentlyDeleteTransaction(it) },
+                        onEmptyTrash = { viewModel.emptyTrash() },
+                        onNavigateBack = { currentScreen = "transactions"; viewModel.setSelectedTab(2) },
+                        trashRetentionDays = uiState.settings.trashRetentionDays
                     )
                     "scan" -> ScanReceiptScreen(
                         onOcrResult = { text, qrData -> viewModel.processOcrText(text, qrData) },
