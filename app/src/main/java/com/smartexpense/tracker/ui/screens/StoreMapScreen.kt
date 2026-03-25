@@ -249,6 +249,7 @@ fun StoreMapScreen(
                         TransactionSource.OCR_SCAN -> "OCR"
                         TransactionSource.MANUAL -> "Manual"
                         TransactionSource.IMPORT -> "Imported"
+                        TransactionSource.VOICE -> "Voice"
                     }
                     append(" · $srcLabel")
                 }

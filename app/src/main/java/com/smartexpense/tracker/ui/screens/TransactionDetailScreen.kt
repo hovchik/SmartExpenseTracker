@@ -153,6 +153,7 @@ fun TransactionDetailDialog(
                     TransactionSource.SMS -> "SMS auto-detected"
                     TransactionSource.NOTIFICATION -> "Notification auto-detected"
                     TransactionSource.IMPORT -> "Imported from file"
+                    TransactionSource.VOICE -> "Voice input"
                 }
                 DetailRow(Icons.Filled.Source, "Source", sourceLabel)
 
