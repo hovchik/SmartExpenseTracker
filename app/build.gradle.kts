@@ -72,10 +72,11 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.7.6")
 
     // CameraX for OCR scanning
-    implementation("androidx.camera:camera-core:1.3.1")
-    implementation("androidx.camera:camera-camera2:1.3.1")
-    implementation("androidx.camera:camera-lifecycle:1.3.1")
-    implementation("androidx.camera:camera-view:1.3.1")
+    // Updated to 1.4.2 for 16 KB page-size aligned native libraries (Android 15+ requirement)
+    implementation("androidx.camera:camera-core:1.4.2")
+    implementation("androidx.camera:camera-camera2:1.4.2")
+    implementation("androidx.camera:camera-lifecycle:1.4.2")
+    implementation("androidx.camera:camera-view:1.4.2")
 
     // ML Kit for OCR — all script recognizers for multi-language support
     // Updated to 16.0.1 for 16 KB page-size alignment (Android 15+ requirement)
@@ -87,7 +88,8 @@ dependencies {
 
     // Tesseract OCR for Armenian script (ML Kit has no Armenian model)
     // Tesseract4Android wraps Tesseract 5.x — modern, actively maintained replacement for tess-two
-    implementation("cz.adaptech.tesseract4android:tesseract4android:4.7.0")
+    // Updated to 4.8.0 for 16 KB page-size aligned native libraries (Android 15+ requirement)
+    implementation("cz.adaptech.tesseract4android:tesseract4android:4.8.0")
 
     // ML Kit Barcode scanning — for QR codes on receipts
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
