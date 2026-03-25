@@ -129,6 +129,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     BackHandler(enabled = currentScreen != "dashboard") {
         when (currentScreen) {
             "sms_scan"         -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
+            "voice_input"      -> { currentScreen = "add" }
             "store_map"        -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
             "ocr_sections"     -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
             "local_ai_setup"   -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
@@ -139,7 +140,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     }
 
     // Hide the top bar on full-screen sub-screens (they have their own top bar)
-    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup", "trash")
+    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup", "trash", "voice_input")
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -195,7 +196,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
             }
         },
         bottomBar = {
-            if (currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup", "trash")) {
+            if (currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup", "trash", "voice_input")) {
                 NavigationBar(tonalElevation = 2.dp) {
                     // Home
                     NavigationBarItem(
@@ -291,12 +292,23 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         },
                         currencyCode = currencyCode,
                         ocrParsedData = ocrParsedData,
+                        onVoiceInput = { currentScreen = "voice_input" },
                         onSaveItems = { items, merchant, total ->
                             viewModel.saveOcrSection(
                                 label = merchant, merchantName = merchant,
                                 items = items, totalAmount = total,
                                 rawOcrText = ocrParsedData?.rawOcrText ?: ""
                             )
+                        }
+                    )
+                    "voice_input" -> VoiceTransactionScreen(
+                        categories = uiState.categories.map { it.name },
+                        currencyCode = currencyCode,
+                        onAddTransaction = { input ->
+                            viewModel.addTransactionFromVoice(input)
+                        },
+                        onNavigateBack = {
+                            currentScreen = "add"
                         }
                     )
                     "transactions" -> TransactionsScreen(

@@ -1405,6 +1405,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return "${parsed.description}: $sym${String.format("%.2f", parsed.amount)} ($typeLabel)"
     }
 
+    /**
+     * Parses voice input text and adds it as a transaction with VOICE source.
+     * Returns a human-readable summary string, or null if parsing failed.
+     */
+    fun addTransactionFromVoice(input: String): String? {
+        val categories = repository.appData.value.categories.map { it.name }
+        val parsed = com.smartexpense.tracker.util.NaturalLanguageParser.parse(input, categories)
+            ?: return null
+
+        addTransaction(
+            amount = parsed.amount,
+            description = parsed.description,
+            category = parsed.category,
+            type = parsed.type,
+            source = TransactionSource.VOICE,
+            timestamp = parsed.timestamp
+        )
+
+        val typeLabel = if (parsed.type == TransactionType.INCOME) "income" else "expense"
+        val sym = com.smartexpense.tracker.data.model.currencyInfoFor(
+            repository.appData.value.settings.currencyCode
+        ).symbol
+        return "${parsed.description}: $sym${String.format("%.2f", parsed.amount)} ($typeLabel)"
+    }
+
     // ─── Budget Pace Indicator ───────────────────────────────────
 
     /**
