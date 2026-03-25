@@ -49,6 +49,7 @@ android {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
         jniLibs {
             useLegacyPackaging = false
+            pageAlignmentInBytes = 16384
         }
     }
 }
@@ -72,11 +73,11 @@ dependencies {
     // Navigation
     implementation("androidx.navigation:navigation-compose:2.7.6")
 
-    // CameraX for OCR scanning
-    implementation("androidx.camera:camera-core:1.3.1")
-    implementation("androidx.camera:camera-camera2:1.3.1")
-    implementation("androidx.camera:camera-lifecycle:1.3.1")
-    implementation("androidx.camera:camera-view:1.3.1")
+    // CameraX for OCR scanning (1.4.1 – 16 KB page-aligned native libs)
+    implementation("androidx.camera:camera-core:1.4.1")
+    implementation("androidx.camera:camera-camera2:1.4.1")
+    implementation("androidx.camera:camera-lifecycle:1.4.1")
+    implementation("androidx.camera:camera-view:1.4.1")
 
     // ML Kit for OCR — all script recognizers for multi-language support
     // Updated to 16.0.1 for 16 KB page-size alignment (Android 15+ requirement)
@@ -87,14 +88,14 @@ dependencies {
     implementation("com.google.mlkit:text-recognition-korean:16.0.1")       // Korean
 
     // Tesseract OCR for Armenian script (ML Kit has no Armenian model)
-    // Tesseract4Android wraps Tesseract 5.x — modern, actively maintained replacement for tess-two
-    implementation("cz.adaptech.tesseract4android:tesseract4android:4.7.0")
+    // Tesseract4Android wraps Tesseract 5.x — 4.8.0 ships 16 KB page-aligned native libs
+    implementation("cz.adaptech.tesseract4android:tesseract4android:4.8.0")
 
-    // ML Kit Barcode scanning — for QR codes on receipts
-    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    // ML Kit Barcode scanning — for QR codes on receipts (17.4.0 – 16 KB aligned)
+    implementation("com.google.mlkit:barcode-scanning:17.4.0")
 
-    // MediaPipe LLM Inference — on-device Gemma/LLM for AI categorization & insights
-    implementation("com.google.mediapipe:tasks-genai:0.10.27")
+    // MediaPipe LLM Inference — on-device Gemma/LLM for AI categorization & insights (16 KB aligned)
+    implementation("com.google.mediapipe:tasks-genai:0.10.29")
 
     // Gson for JSON storage
     implementation("com.google.code.gson:gson:2.10.1")
