@@ -90,8 +90,8 @@ dependencies {
     // Tesseract4Android wraps Tesseract 5.x — 4.8.0 ships 16 KB page-aligned native libs
     implementation("cz.adaptech.tesseract4android:tesseract4android:4.8.0")
 
-    // ML Kit Barcode scanning — for QR codes on receipts (17.4.0 – 16 KB aligned)
-    implementation("com.google.mlkit:barcode-scanning:17.4.0")
+    // ML Kit Barcode scanning — for QR codes on receipts
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
 
     // MediaPipe LLM Inference — on-device Gemma/LLM for AI categorization & insights (16 KB aligned)
     implementation("com.google.mediapipe:tasks-genai:0.10.29")
