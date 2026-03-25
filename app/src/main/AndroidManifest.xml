@@ -14,6 +14,9 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
 
+    <!-- Microphone permission for voice transaction input -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <!-- Location permission for Store Map and geo-tagging transactions -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />

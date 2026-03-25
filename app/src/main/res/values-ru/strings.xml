@@ -160,6 +160,21 @@
     <string name="import_warning">Все текущие данные будут заменены содержимым выбранного файла. Ваши существующие транзакции и настройки будут перезаписаны.\n\nСначала экспортируйте текущие данные, если хотите их сохранить.</string>
     <string name="import_replace">Импортировать и заменить</string>
 
+    <!-- Voice Input -->
+    <string name="voice_input_title">Голосовой ввод</string>
+    <string name="voice_start">Начать голосовой ввод</string>
+    <string name="voice_stop">Остановить запись</string>
+    <string name="voice_listening">Слушаю…</string>
+    <string name="voice_hint">Нажмите на микрофон и произнесите транзакцию</string>
+    <string name="voice_not_available">Распознавание речи недоступно на этом устройстве</string>
+    <string name="voice_error_no_match">Не удалось распознать. Попробуйте ещё раз.</string>
+    <string name="voice_error_network">Ошибка сети. Проверьте подключение.</string>
+    <string name="voice_error_audio">Ошибка записи звука. Проверьте микрофон.</string>
+    <string name="voice_error_generic">Ошибка распознавания речи. Попробуйте ещё раз.</string>
+    <string name="voice_date_label">Дата</string>
+    <string name="voice_pick_date">Выбрать дату</string>
+    <string name="source_voice">Голос</string>
+
     <!-- Notification Keywords -->
     <string name="section_notification_keywords">КЛЮЧЕВЫЕ СЛОВА УВЕДОМЛЕНИЙ</string>
     <string name="notification_keywords">Ключевые слова</string>

@@ -1,4 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">FlowSense</string>
+
+    <!-- Common (used as fallback for non-translated locales) -->
+    <string name="back">Back</string>
+    <string name="cancel">Cancel</string>
+    <string name="expense">Expense</string>
+    <string name="income">Income</string>
+    <string name="amount">Amount</string>
+    <string name="description">Description</string>
+    <string name="category">Category</string>
+    <string name="add_transaction">Add Transaction</string>
+    <string name="merchant_optional">Merchant (optional)</string>
+    <string name="notes_optional">Notes (optional)</string>
+    <string name="scan_receipt_instead">Scan Receipt Instead</string>
+    <string name="add_expense">Add Expense</string>
+    <string name="add_income">Add Income</string>
+    <string name="error_valid_amount_description">Please enter a valid amount and description</string>
+
+    <!-- Voice Input -->
+    <string name="voice_input_title">Voice Input</string>
+    <string name="voice_start">Start voice input</string>
+    <string name="voice_stop">Stop listening</string>
+    <string name="voice_listening">Listening…</string>
+    <string name="voice_hint">Tap the mic and say your transaction</string>
+    <string name="voice_not_available">Speech recognition is not available on this device</string>
+    <string name="voice_error_no_match">Could not understand. Please try again.</string>
+    <string name="voice_error_network">Network error. Check your connection.</string>
+    <string name="voice_error_audio">Audio recording error. Check microphone.</string>
+    <string name="voice_error_generic">Voice recognition error. Please try again.</string>
+    <string name="voice_date_label">Date</string>
+    <string name="voice_pick_date">Pick date</string>
+    <string name="source_voice">Voice</string>
 </resources>

@@ -160,6 +160,21 @@
     <string name="import_warning">Esto reemplazara todos los datos actuales con el contenido del archivo seleccionado. Sus transacciones y ajustes existentes seran sobrescritos.\n\nAsegurese de exportar sus datos actuales primero si desea conservarlos.</string>
     <string name="import_replace">Importar y reemplazar</string>
 
+    <!-- Voice Input -->
+    <string name="voice_input_title">Entrada de voz</string>
+    <string name="voice_start">Iniciar entrada de voz</string>
+    <string name="voice_stop">Detener</string>
+    <string name="voice_listening">Escuchando…</string>
+    <string name="voice_hint">Toque el microfono y diga su transaccion</string>
+    <string name="voice_not_available">El reconocimiento de voz no esta disponible</string>
+    <string name="voice_error_no_match">No se pudo entender. Intente de nuevo.</string>
+    <string name="voice_error_network">Error de red. Verifique su conexion.</string>
+    <string name="voice_error_audio">Error de audio. Verifique el microfono.</string>
+    <string name="voice_error_generic">Error de reconocimiento de voz. Intente de nuevo.</string>
+    <string name="voice_date_label">Fecha</string>
+    <string name="voice_pick_date">Seleccionar fecha</string>
+    <string name="source_voice">Voz</string>
+
     <!-- Notification Keywords -->
     <string name="section_notification_keywords">PALABRAS CLAVE DE NOTIFICACIONES</string>
     <string name="notification_keywords">Palabras clave</string>

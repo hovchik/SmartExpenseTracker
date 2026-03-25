@@ -533,6 +533,7 @@ fun TransactionItem(
                         TransactionSource.OCR_SCAN -> Icons.Filled.CameraAlt
                         TransactionSource.SMS -> Icons.Filled.Sms
                         TransactionSource.NOTIFICATION -> Icons.Filled.Notifications
+                        TransactionSource.VOICE -> Icons.Filled.Mic
                         else -> if (isExpense) Icons.Filled.ShoppingCart else Icons.Filled.AccountBalance
                     },
                     contentDescription = null,
