@@ -10,6 +10,12 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 
+/** Fixes null non-null String fields that Gson may produce for older JSON data. */
+private fun AppData.sanitizeTransactions(): AppData {
+    val sanitized = transactions.map { it.sanitized() }
+    return if (sanitized !== transactions) copy(transactions = sanitized) else this
+}
+
 /**
  * Manages all local JSON storage operations.
  * Data is persisted to a single JSON file in the app's private directory.
@@ -41,7 +47,7 @@ class JsonStorageManager(private val context: Context) {
             if (file.exists()) {
                 try {
                     val json = file.readText()
-                    val data = gson.fromJson(json, AppData::class.java)
+                    val data = gson.fromJson(json, AppData::class.java).sanitizeTransactions()
                     cachedData = data
                     data
                 } catch (e: Exception) {
@@ -50,7 +56,7 @@ class JsonStorageManager(private val context: Context) {
                         val backup = getBackupFile()
                         if (backup.exists()) {
                             val json = backup.readText()
-                            val data = gson.fromJson(json, AppData::class.java)
+                            val data = gson.fromJson(json, AppData::class.java).sanitizeTransactions()
                             cachedData = data
                             data
                         } else {
@@ -123,7 +129,7 @@ class JsonStorageManager(private val context: Context) {
     suspend fun importData(jsonString: String): Result<AppData> = mutex.withLock {
         withContext(Dispatchers.IO) {
             try {
-                val data = gson.fromJson(jsonString, AppData::class.java)
+                val data = gson.fromJson(jsonString, AppData::class.java).sanitizeTransactions()
                 saveDataInternal(data)
                 Result.success(data)
             } catch (e: Exception) {

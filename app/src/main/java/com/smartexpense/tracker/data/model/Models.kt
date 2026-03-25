@@ -83,6 +83,25 @@ data class Transaction(
 
     /** Safe accessor for photoUri that handles null from Gson. */
     val resolvedPhotoUri: String get() = photoUri ?: ""
+
+    /**
+     * Returns a copy with null String fields replaced by their defaults.
+     * Gson bypasses Kotlin constructors via `Unsafe`, so non-null String
+     * fields can be `null` at runtime when the JSON key was missing.
+     */
+    @Suppress("SENSELESS_COMPARISON")
+    fun sanitized(): Transaction =
+        if (currencyCode == null || originalCurrencyCode == null || description == null ||
+            category == null || notes == null || merchantName == null || dateTime == null
+        ) copy(
+            description = description ?: "",
+            category = category ?: "",
+            dateTime = dateTime ?: isoDateFormat.get()!!.format(Date(timestamp)),
+            notes = notes ?: "",
+            merchantName = merchantName ?: "",
+            currencyCode = currencyCode ?: "",
+            originalCurrencyCode = originalCurrencyCode ?: "",
+        ) else this
 }
 
 /**
