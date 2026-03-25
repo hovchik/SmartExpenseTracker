@@ -168,6 +168,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _engineDescriptions = MutableStateFlow<Map<AiEnginePreference, String>>(emptyMap())
     val engineDescriptions: StateFlow<Map<AiEnginePreference, String>> = _engineDescriptions.asStateFlow()
 
+    // ── Fields used in init (must be declared before init block) ──────
+    /** Last deleted transaction, kept for undo support. */
+    private val _lastDeletedTransaction = MutableStateFlow<Transaction?>(null)
+    val lastDeletedTransaction: StateFlow<Transaction?> = _lastDeletedTransaction.asStateFlow()
+
+    private val _recurringPatterns = MutableStateFlow<List<RecurringPattern>>(emptyList())
+    val recurringPatterns: StateFlow<List<RecurringPattern>> = _recurringPatterns.asStateFlow()
+
     init {
         // Start battery monitoring immediately
         batteryMonitor.startMonitoring()
@@ -1318,10 +1326,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Last deleted transaction, kept for undo support. */
-    private val _lastDeletedTransaction = MutableStateFlow<Transaction?>(null)
-    val lastDeletedTransaction: StateFlow<Transaction?> = _lastDeletedTransaction.asStateFlow()
-
     fun deleteTransaction(id: String) {
         viewModelScope.launch {
             val deleted = repository.deleteTransaction(id)
@@ -1439,9 +1443,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ─── Smart Recurring Detection ───────────────────────────────
-
-    private val _recurringPatterns = MutableStateFlow<List<RecurringPattern>>(emptyList())
-    val recurringPatterns: StateFlow<List<RecurringPattern>> = _recurringPatterns.asStateFlow()
 
     fun detectRecurringPatterns() {
         viewModelScope.launch {
