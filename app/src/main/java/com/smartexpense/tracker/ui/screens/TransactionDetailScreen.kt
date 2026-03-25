@@ -87,6 +87,7 @@ fun TransactionDetailDialog(
                                 TransactionSource.OCR_SCAN -> Icons.Filled.CameraAlt
                                 TransactionSource.SMS -> Icons.Filled.Sms
                                 TransactionSource.NOTIFICATION -> Icons.Filled.Notifications
+                                TransactionSource.VOICE -> Icons.Filled.Mic
                                 else -> if (isExpense) Icons.Filled.ShoppingCart
                                 else Icons.Filled.AccountBalance
                             },
@@ -153,6 +154,7 @@ fun TransactionDetailDialog(
                     TransactionSource.SMS -> "SMS auto-detected"
                     TransactionSource.NOTIFICATION -> "Notification auto-detected"
                     TransactionSource.IMPORT -> "Imported from file"
+                    TransactionSource.VOICE -> "Voice input"
                 }
                 DetailRow(Icons.Filled.Source, "Source", sourceLabel)
 

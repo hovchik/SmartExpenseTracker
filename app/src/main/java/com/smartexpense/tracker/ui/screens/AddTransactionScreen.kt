@@ -39,7 +39,9 @@ fun AddTransactionScreen(
     /** Pre-populated OCR data; when non-null the form is filled from the scan result. */
     ocrParsedData: OcrParsedData? = null,
     /** Called after saving when OCR items are present; saves items as a goods section. */
-    onSaveItems: ((items: List<Pair<String, Double>>, merchantName: String, totalAmount: Double) -> Unit)? = null
+    onSaveItems: ((items: List<Pair<String, Double>>, merchantName: String, totalAmount: Double) -> Unit)? = null,
+    /** Navigate to voice input screen. */
+    onVoiceInput: (() -> Unit)? = null
 ) {
     val currencySymbol = CurrencyUtils.symbolFor(currencyCode)
     val isFromOcr = ocrParsedData != null
@@ -472,16 +474,35 @@ fun AddTransactionScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Scan Receipt Button — hidden when already pre-filled from OCR
+        // Scan Receipt & Voice Input buttons — hidden when already pre-filled from OCR
         if (!isFromOcr) {
-            OutlinedButton(
-                onClick = onScanReceipt,
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(Icons.Filled.CameraAlt, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Scan Receipt Instead")
+                OutlinedButton(
+                    onClick = onScanReceipt,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Icon(Icons.Filled.CameraAlt, contentDescription = null)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Scan Receipt")
+                }
+                if (onVoiceInput != null) {
+                    OutlinedButton(
+                        onClick = onVoiceInput,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = GreenPrimary
+                        )
+                    ) {
+                        Icon(Icons.Filled.Mic, contentDescription = null)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Voice Input")
+                    }
+                }
             }
             Spacer(modifier = Modifier.height(12.dp))
         }

@@ -610,6 +610,7 @@ fun ReportsScreen(
                                 "SMS" -> "SMS"
                                 "NOTIFICATION" -> "Notif"
                                 "IMPORT" -> "Import"
+                                "VOICE" -> "Voice"
                                 else -> source
                             }
                             val icon = when (source) {
@@ -617,6 +618,7 @@ fun ReportsScreen(
                                 "OCR_SCAN" -> Icons.Filled.CameraAlt
                                 "SMS" -> Icons.Filled.Email
                                 "NOTIFICATION" -> Icons.Filled.Notifications
+                                "VOICE" -> Icons.Filled.Mic
                                 else -> Icons.Filled.Description
                             }
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {

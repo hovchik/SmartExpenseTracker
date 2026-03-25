@@ -102,7 +102,8 @@ enum class TransactionSource {
     OCR_SCAN,      // Camera receipt scan
     SMS,           // Parsed from banking SMS
     NOTIFICATION,  // Parsed from banking app notification
-    IMPORT         // Imported from file
+    IMPORT,        // Imported from file
+    VOICE          // Voice input (speech-to-text)
 }
 
 /**

@@ -58,7 +58,7 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
             if (t.amount != transaction.amount) return@any false
             val timeDiff = kotlin.math.abs(t.timestamp - transaction.timestamp)
             when (transaction.source) {
-                TransactionSource.MANUAL, TransactionSource.OCR_SCAN -> {
+                TransactionSource.MANUAL, TransactionSource.OCR_SCAN, TransactionSource.VOICE -> {
                     t.source == transaction.source &&
                         t.description.equals(transaction.description, ignoreCase = true) &&
                         timeDiff < 30_000
