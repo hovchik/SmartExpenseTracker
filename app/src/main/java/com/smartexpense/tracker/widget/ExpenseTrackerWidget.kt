@@ -2,6 +2,7 @@ package com.smartexpense.tracker.widget
 
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
@@ -26,6 +27,7 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.smartexpense.tracker.MainActivity
+import com.smartexpense.tracker.R
 import com.smartexpense.tracker.util.CurrencyUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -44,30 +46,27 @@ class ExpenseTrackerWidget : GlanceAppWidget() {
     }
 }
 
-// ── Colors ──────────────────────────────────────────────────────────────
+// ── Fixed colors (same in light & dark) ─────────────────────────────────
 
-private val GreenPrimary = android.graphics.Color.parseColor("#10B981")
-private val GreenDark = android.graphics.Color.parseColor("#059669")
-private val RedExpense = android.graphics.Color.parseColor("#EF4444")
-private val OrangeWarning = android.graphics.Color.parseColor("#F59E0B")
-private val DarkBg = android.graphics.Color.parseColor("#0F172A")
-private val DarkCard = android.graphics.Color.parseColor("#1E293B")
-private val LightBg = android.graphics.Color.parseColor("#F8FAFC")
-private val LightCard = android.graphics.Color.parseColor("#FFFFFF")
-private val TextLight = android.graphics.Color.parseColor("#E2E8F0")
-private val TextDark = android.graphics.Color.parseColor("#0F172A")
-private val TextMuted = android.graphics.Color.parseColor("#94A3B8")
+private val GreenPrimary = Color(0xFF10B981)
+private val RedExpense = Color(0xFFEF4444)
+private val OrangeWarning = Color(0xFFF59E0B)
 
 // ── Widget UI ───────────────────────────────────────────────────────────
 
 @Composable
 private fun WidgetContent(data: WidgetData) {
-    val bgColor = ColorProvider(day = LightBg, night = DarkBg)
-    val cardColor = ColorProvider(day = LightCard, night = DarkCard)
-    val primaryText = ColorProvider(day = TextDark, night = TextLight)
-    val mutedText = ColorProvider(day = android.graphics.Color.parseColor("#64748B"), night = TextMuted)
-    val greenColor = ColorProvider(day = GreenPrimary, night = GreenPrimary)
-    val redColor = ColorProvider(day = RedExpense, night = RedExpense)
+    // Day/night adaptive colors via resource IDs
+    val bgColor = ColorProvider(R.color.widget_bg)
+    val cardColor = ColorProvider(R.color.widget_card)
+    val primaryText = ColorProvider(R.color.widget_text_primary)
+    val mutedText = ColorProvider(R.color.widget_text_muted)
+    val alertBg = ColorProvider(R.color.widget_alert_bg)
+
+    // Fixed colors
+    val greenColor = ColorProvider(GreenPrimary)
+    val redColor = ColorProvider(RedExpense)
+    val orangeColor = ColorProvider(OrangeWarning)
 
     Box(
         modifier = GlanceModifier
@@ -125,9 +124,8 @@ private fun WidgetContent(data: WidgetData) {
                     )
                     Spacer(modifier = GlanceModifier.height(8.dp))
 
-                    // Income / Expense row
+                    // Income / Expense / Today row
                     Row(modifier = GlanceModifier.fillMaxWidth()) {
-                        // Income
                         Column(modifier = GlanceModifier.defaultWeight()) {
                             Text(
                                 text = "Income",
@@ -142,7 +140,6 @@ private fun WidgetContent(data: WidgetData) {
                                 )
                             )
                         }
-                        // Expenses
                         Column(modifier = GlanceModifier.defaultWeight()) {
                             Text(
                                 text = "Expenses",
@@ -157,7 +154,6 @@ private fun WidgetContent(data: WidgetData) {
                                 )
                             )
                         }
-                        // Today
                         Column(modifier = GlanceModifier.defaultWeight()) {
                             Text(
                                 text = "Today",
@@ -166,7 +162,7 @@ private fun WidgetContent(data: WidgetData) {
                             Text(
                                 text = CurrencyUtils.formatCompact(data.todayExpenses, data.currencyCode),
                                 style = TextStyle(
-                                    color = ColorProvider(day = OrangeWarning, night = OrangeWarning),
+                                    color = orangeColor,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Medium
                                 )
@@ -209,7 +205,11 @@ private fun WidgetContent(data: WidgetData) {
                                 )
                                 Text(
                                     text = CurrencyUtils.formatCompact(cat.amount, data.currencyCode),
-                                    style = TextStyle(color = redColor, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                                    style = TextStyle(
+                                        color = redColor,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
                                 )
                             }
                         }
@@ -221,14 +221,10 @@ private fun WidgetContent(data: WidgetData) {
             if (data.worstPace != null) {
                 Spacer(modifier = GlanceModifier.height(8.dp))
                 val pace = data.worstPace
-                val alertColor = ColorProvider(day = RedExpense, night = RedExpense)
                 Box(
                     modifier = GlanceModifier
                         .fillMaxWidth()
-                        .background(ColorProvider(
-                            day = android.graphics.Color.parseColor("#FEF2F2"),
-                            night = android.graphics.Color.parseColor("#371717")
-                        ))
+                        .background(alertBg)
                         .cornerRadius(10.dp)
                         .padding(8.dp)
                 ) {
@@ -241,8 +237,14 @@ private fun WidgetContent(data: WidgetData) {
                             style = TextStyle(fontSize = 12.sp)
                         )
                         Text(
-                            text = "${pace.categoryName}: ${CurrencyUtils.formatCompact(pace.spent, data.currencyCode)} / ${CurrencyUtils.formatCompact(pace.limit, data.currencyCode)}",
-                            style = TextStyle(color = alertColor, fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                            text = "${pace.categoryName}: " +
+                                    "${CurrencyUtils.formatCompact(pace.spent, data.currencyCode)} / " +
+                                    CurrencyUtils.formatCompact(pace.limit, data.currencyCode),
+                            style = TextStyle(
+                                color = redColor,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
                             modifier = GlanceModifier.defaultWeight()
                         )
                     }

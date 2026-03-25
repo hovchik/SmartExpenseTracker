@@ -9,4 +9,11 @@
     <color name="white">#FFFFFF</color>
     <color name="black">#000000</color>
     <color name="ic_launcher_background">#0F172A</color>
+
+    <!-- Widget colors (light mode defaults) -->
+    <color name="widget_bg">#F8FAFC</color>
+    <color name="widget_card">#FFFFFF</color>
+    <color name="widget_text_primary">#0F172A</color>
+    <color name="widget_text_muted">#64748B</color>
+    <color name="widget_alert_bg">#FEF2F2</color>
 </resources>

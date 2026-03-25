@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Widget colors (dark mode overrides) -->
+    <color name="widget_bg">#0F172A</color>
+    <color name="widget_card">#1E293B</color>
+    <color name="widget_text_primary">#E2E8F0</color>
+    <color name="widget_text_muted">#94A3B8</color>
+    <color name="widget_alert_bg">#371717</color>
+</resources>
