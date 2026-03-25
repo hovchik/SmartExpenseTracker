@@ -56,12 +56,12 @@ data class Transaction(
     val exchangeRate: Double = 0.0,
     /** True when this transaction's category was assigned by an AI model rather than the user or rule-based engine. */
     val categorizedByAi: Boolean = false,
-    /** URI path to a receipt photo attached to this transaction. */
-    val photoUri: String = "",
-    /** Soft-delete: when non-zero, this transaction is in the trash (epoch millis of deletion). */
-    val deletedAt: Long = 0,
-    /** Split expense: list of people sharing this cost. Empty = not split. */
-    val splitWith: List<SplitPerson> = emptyList()
+    /** URI path to a receipt photo attached to this transaction. Nullable for Gson backward compat. */
+    val photoUri: String? = "",
+    /** Soft-delete: when non-zero, this transaction is in the trash (epoch millis of deletion). Nullable for Gson backward compat. */
+    val deletedAt: Long? = 0,
+    /** Split expense: list of people sharing this cost. Empty = not split. Nullable for Gson backward compat. */
+    val splitWith: List<SplitPerson>? = emptyList()
 ) {
     /** Resolved latitude: prefers [location], falls back to legacy [latitude] field. */
     val resolvedLat: Double? get() = location?.lat ?: @Suppress("DEPRECATION") latitude
@@ -73,13 +73,16 @@ data class Transaction(
     val hasLocation: Boolean get() = resolvedLat != null && resolvedLng != null
 
     /** True when this transaction is in the trash (soft-deleted). */
-    val isDeleted: Boolean get() = deletedAt > 0
+    val isDeleted: Boolean get() = (deletedAt ?: 0) > 0
 
     /** True when this transaction is a split expense. */
-    val isSplit: Boolean get() = splitWith.isNotEmpty()
+    val isSplit: Boolean get() = !splitWith.isNullOrEmpty()
 
     /** Each person's share of the split expense. */
-    val splitAmount: Double get() = if (splitWith.isNotEmpty()) amount / (splitWith.size + 1) else amount
+    val splitAmount: Double get() = if (!splitWith.isNullOrEmpty()) amount / (splitWith.size + 1) else amount
+
+    /** Safe accessor for photoUri that handles null from Gson. */
+    val resolvedPhotoUri: String get() = photoUri ?: ""
 }
 
 /**
@@ -306,10 +309,10 @@ data class AppData(
     val rateHistory: List<RateHistoryEntry> = emptyList(),
     /** AI prompt/response conversation history. */
     val aiConversations: List<AiConversation> = emptyList(),
-    /** Detected recurring transaction patterns. */
-    val recurringPatterns: List<RecurringPattern> = emptyList(),
-    /** Spending streak and achievement tracking. */
-    val spendingStreak: SpendingStreak = SpendingStreak(),
+    /** Detected recurring transaction patterns. Nullable for Gson backward compat. */
+    val recurringPatterns: List<RecurringPattern>? = emptyList(),
+    /** Spending streak and achievement tracking. Nullable for Gson backward compat. */
+    val spendingStreak: SpendingStreak? = SpendingStreak(),
     val settings: AppSettings = AppSettings(),
     val lastUpdated: Long = System.currentTimeMillis()
 )
@@ -647,17 +650,17 @@ data class AppSettings(
     /** Whether the splash/onboarding screen has been shown to the user. */
     val splashShown: Boolean = false,
     // ── Dashboard visibility toggles ──────────────────────────────
-    /** Which dashboard cards are visible (by DashboardSection name). Empty = all visible. */
-    val hiddenDashboardSections: List<String> = emptyList(),
+    /** Which dashboard cards are visible (by DashboardSection name). Empty = all visible. Nullable for Gson backward compat. */
+    val hiddenDashboardSections: List<String>? = emptyList(),
     // ── Soft-delete retention ─────────────────────────────────────
     /** Days to keep soft-deleted transactions before permanent purge. */
     val trashRetentionDays: Int = 30,
     // ── Tag suggestions ───────────────────────────────────────────
-    /** Recently used tags for auto-suggest. */
-    val recentTags: List<String> = emptyList(),
+    /** Recently used tags for auto-suggest. Nullable for Gson backward compat. */
+    val recentTags: List<String>? = emptyList(),
     // ── Offline currency cache ────────────────────────────────────
-    /** Cached exchange rates for offline use. */
-    val cachedExchangeRates: Map<String, Double> = emptyMap(),
+    /** Cached exchange rates for offline use. Nullable for Gson backward compat. */
+    val cachedExchangeRates: Map<String, Double>? = emptyMap(),
     /** Timestamp when cached rates were last updated. */
     val cachedRatesTimestamp: Long = 0
 )

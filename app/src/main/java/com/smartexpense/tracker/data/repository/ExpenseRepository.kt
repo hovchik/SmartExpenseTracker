@@ -171,7 +171,7 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         val current = _appData.value
         val updated = current.copy(
             transactions = current.transactions.filter {
-                it.deletedAt == 0L || it.deletedAt > cutoff
+                (it.deletedAt ?: 0) == 0L || (it.deletedAt ?: 0) > cutoff
             }
         )
         if (updated.transactions.size != current.transactions.size) {
@@ -185,7 +185,7 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
      */
     fun getDeletedTransactions(): List<Transaction> {
         return _appData.value.transactions.filter { it.isDeleted }
-            .sortedByDescending { it.deletedAt }
+            .sortedByDescending { it.deletedAt ?: 0 }
     }
 
     // ─── Batch Operations ─────────────────────────────────────────
@@ -598,7 +598,7 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
             // Only consider patterns with reasonable intervals (7-45 days)
             if (avgInterval in 7..45 && intervals.all { it in (avgInterval / 2)..(avgInterval * 2) }) {
                 val avgAmount = txs.map { it.amount }.average()
-                val existing = current.recurringPatterns.find {
+                val existing = current.recurringPatterns.orEmpty().find {
                     it.description.equals(sorted.last().description, ignoreCase = true) &&
                         kotlin.math.abs(it.amount - avgAmount) < avgAmount * 0.1
                 }
@@ -617,7 +617,7 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         // Save detected patterns
         if (patterns.isNotEmpty()) {
             val updated = current.copy(
-                recurringPatterns = (patterns + current.recurringPatterns.filter { it.confirmed || it.dismissed }).distinctBy { it.description.lowercase() }
+                recurringPatterns = (patterns + current.recurringPatterns.orEmpty().filter { it.confirmed || it.dismissed }).distinctBy { it.description.lowercase() }
             )
             _appData.value = updated
             storage.saveData(updated)
@@ -628,7 +628,7 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
     suspend fun confirmRecurringPattern(id: String) {
         val current = _appData.value
         val updated = current.copy(
-            recurringPatterns = current.recurringPatterns.map {
+            recurringPatterns = current.recurringPatterns.orEmpty().map {
                 if (it.id == id) it.copy(confirmed = true) else it
             }
         )
@@ -639,7 +639,7 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
     suspend fun dismissRecurringPattern(id: String) {
         val current = _appData.value
         val updated = current.copy(
-            recurringPatterns = current.recurringPatterns.map {
+            recurringPatterns = current.recurringPatterns.orEmpty().map {
                 if (it.id == id) it.copy(dismissed = true) else it
             }
         )
@@ -654,7 +654,7 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
      */
     suspend fun updateSpendingStreak() {
         val current = _appData.value
-        val streak = current.spendingStreak
+        val streak = current.spendingStreak ?: SpendingStreak()
         val today = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US)
             .format(java.util.Date(System.currentTimeMillis()))
 
@@ -783,7 +783,7 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         val debts = mutableMapOf<String, Double>()
         for (tx in _appData.value.transactions.filter { !it.isDeleted && it.isSplit }) {
             val share = tx.splitAmount
-            for (person in tx.splitWith) {
+            for (person in tx.splitWith.orEmpty()) {
                 if (!person.paid) {
                     debts[person.name] = (debts[person.name] ?: 0.0) + share
                 }

@@ -249,7 +249,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         budgetPaces = viewModel.computeBudgetPaces(),
                         spendingStreak = spendingStreak,
                         onNaturalLanguageEntry = { viewModel.addTransactionFromNaturalLanguage(it) },
-                        hiddenSections = uiState.settings.hiddenDashboardSections.toSet()
+                        hiddenSections = uiState.settings.hiddenDashboardSections.orEmpty().toSet()
                     )
                     "reports" -> ReportsScreen(
                         generateReport = { viewModel.generateReport(it) },

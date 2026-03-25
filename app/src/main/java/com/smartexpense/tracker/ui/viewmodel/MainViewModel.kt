@@ -1467,7 +1467,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ─── Spending Streaks ────────────────────────────────────────
 
     val spendingStreak: StateFlow<SpendingStreak> = repository.appData
-        .map { it.spendingStreak }
+        .map { it.spendingStreak ?: SpendingStreak() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, SpendingStreak())
 
     // ─── CSV Export ──────────────────────────────────────────────
@@ -1499,7 +1499,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun updateRecentTags(tags: List<String>) {
         viewModelScope.launch {
             val settings = repository.appData.value.settings
-            val updated = (tags + settings.recentTags).distinct().take(20)
+            val updated = (tags + settings.recentTags.orEmpty()).distinct().take(20)
             repository.updateSettings(settings.copy(recentTags = updated))
         }
     }
@@ -1517,7 +1517,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleDashboardSection(section: DashboardSection, visible: Boolean) {
         viewModelScope.launch {
             val settings = repository.appData.value.settings
-            val hidden = settings.hiddenDashboardSections.toMutableList()
+            val hidden = settings.hiddenDashboardSections.orEmpty().toMutableList()
             if (visible) {
                 hidden.remove(section.name)
             } else {
@@ -1528,7 +1528,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun isDashboardSectionVisible(section: DashboardSection): Boolean {
-        return section.name !in (repository.appData.value.settings.hiddenDashboardSections)
+        return section.name !in (repository.appData.value.settings.hiddenDashboardSections.orEmpty())
     }
 
     // ─── Photo Attachments ───────────────────────────────────────
@@ -1548,7 +1548,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun getCachedExchangeRate(fromCurrency: String, toCurrency: String): Double? {
         val settings = repository.appData.value.settings
-        val rates = settings.cachedExchangeRates
+        val rates = settings.cachedExchangeRates.orEmpty()
         if (rates.isEmpty()) return null
 
         val fromRate = rates[fromCurrency] ?: return null
