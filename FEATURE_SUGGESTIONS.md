@@ -1,4 +1,4 @@
-# Feature Suggestions for SmartExpenseTracker
+# Feature Suggestions for FlowSense
 
 Productivity and user-friendliness improvements organized by impact and effort.
 

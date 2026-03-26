@@ -69,7 +69,7 @@ The app supports three AI execution modes:
 
 ```
 FlowSense/
-├── app/src/main/java/com/smartexpense/tracker/
+├── app/src/main/java/com/flowsense/app/
 │   ├── ai/                       # NEW: Tri-mode AI architecture
 │   │   ├── provider/             # AiProvider interface, CloudClaudeAiProvider, SystemAiProvider,
 │   │   │                         #   CustomLocalModelProvider, AiProviderSelector, PromptAdapter
@@ -96,7 +96,7 @@ FlowSense/
 │   │   └── theme/                # Material 3 theme with custom green/dark palette
 │   ├── util/                     # DateUtils, CurrencyUtils
 │   ├── MainActivity.kt           # Navigation host with setup wizard route
-│   └── SmartExpenseApp.kt        # Application class
+│   └── FlowSenseApp.kt           # Application class
 ```
 
 ---
@@ -143,7 +143,7 @@ For SMS parsing:
 
 ## JSON Data Format
 
-All data is stored in `smart_expense_data.json`:
+All data is stored in `flowsense_data.json`:
 
 ```json
 {

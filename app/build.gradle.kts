@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.smartexpense.tracker"
+    namespace = "com.flowsense.app"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.smartexpense.tracker"
+        applicationId = "com.flowsense.app"
         minSdk = 31   // Android 12 – minimum for Google AICore (Gemini Nano)
         targetSdk = 36 // Android 16 (S24 Ultra target)
         versionCode = 1
