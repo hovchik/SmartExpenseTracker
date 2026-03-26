@@ -35,7 +35,11 @@ data class LocalAiModel(
      *  Must not exceed the value baked into the .task/.bin file.
      *  Models from litert-community with "ekv1280" in the filename use 1280.
      *  Community mirrors without explicit ekv info use a conservative 1024. */
-    val maxTokens: Int = 1280
+    val maxTokens: Int = 1280,
+    /** Recommendation priority (higher = recommended first).
+     *  Combines inference speed and output quality for expense-tracking tasks.
+     *  Used by [ModelCatalog.recommendedModel] instead of raw size. */
+    val recommendationPriority: Int = 0
 )
 
 enum class RuntimeType(val label: String) {
@@ -95,7 +99,8 @@ object ModelCatalog {
             supportsStreaming = true,
             version = "1.0",
             downloadUrl = "https://huggingface.co/litert-community/SmolLM-135M-Instruct/resolve/main/SmolLM-135M-Instruct_multi-prefill-seq_q8_ekv1280.task",
-            description = "Tiny 135M model. Ultra-fast, good for basic categorization on low-end devices."
+            description = "Tiny 135M model. Ultra-fast, good for basic categorization on low-end devices.",
+            recommendationPriority = 20
         ),
 
         LocalAiModel(
@@ -112,7 +117,8 @@ object ModelCatalog {
             supportsStreaming = true,
             version = "2.5",
             downloadUrl = "https://huggingface.co/litert-community/Qwen2.5-0.5B-Instruct/resolve/main/Qwen2.5-0.5B-Instruct_multi-prefill-seq_q8_ekv1280.task",
-            description = "Small but capable 0.5B model. Good quality-to-size ratio."
+            description = "Small but capable 0.5B model. Good quality-to-size ratio.",
+            recommendationPriority = 50
         ),
 
         // NOTE: AfiOne/gemma3-1b-it-int4.task was removed — community export with
@@ -135,7 +141,8 @@ object ModelCatalog {
             supportsStreaming = true,
             version = "1.0",
             downloadUrl = "https://huggingface.co/litert-community/TinyLlama-1.1B-Chat-v1.0/resolve/main/TinyLlama-1.1B-Chat-v1.0_multi-prefill-seq_q8_ekv1280.task",
-            description = "Fast 1.1B chat model. Good balance of speed and quality."
+            description = "Fast 1.1B chat model. Good balance of speed and quality.",
+            recommendationPriority = 60
         ),
 
         // NOTE: autoocrat0413/gemma-2b-it-gpu-int4.bin was removed — old .bin format
@@ -157,7 +164,8 @@ object ModelCatalog {
             supportsStreaming = true,
             version = "2.5",
             downloadUrl = "https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct/resolve/main/Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv1280.task",
-            description = "Strong 1.5B model. Excellent for expense categorization and insights."
+            description = "Best pick: fast inference with strong accuracy. Excellent for expense categorization and insights.",
+            recommendationPriority = 100
         ),
 
         LocalAiModel(
@@ -175,7 +183,8 @@ object ModelCatalog {
             version = "1.0",
             downloadUrl = "https://huggingface.co/litert-community/DeepSeek-R1-Distill-Qwen-1.5B/resolve/main/DeepSeek-R1-Distill-Qwen-1.5B_multi-prefill-seq_q8_ekv1280.task",
             description = "DeepSeek reasoning model. Strong analytical capabilities for financial insights.",
-            isReasoningModel = true
+            isReasoningModel = true,
+            recommendationPriority = 80
         ),
 
         // ── Large models (2.5–4 GB) — phones/tablets with 8 GB RAM ──────
@@ -200,7 +209,8 @@ object ModelCatalog {
             supportsStreaming = true,
             version = "4.0",
             downloadUrl = "https://huggingface.co/litert-community/Phi-4-mini-instruct/resolve/main/Phi-4-mini-instruct_multi-prefill-seq_q8_ekv1280.task",
-            description = "Microsoft Phi-4 Mini. Strong reasoning for complex financial analysis."
+            description = "Microsoft Phi-4 Mini. Strong reasoning but slower due to 3.7 GB size.",
+            recommendationPriority = 40
         ),
 
         // ── Extra-large models (5–7 GB) — high-end devices with 12+ GB RAM ──
@@ -219,7 +229,8 @@ object ModelCatalog {
             supportsStreaming = true,
             version = "2.5",
             downloadUrl = "https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct/resolve/main/Qwen2.5-1.5B-Instruct_multi-prefill-seq_f32_ekv1280.task",
-            description = "Full-precision 1.5B model. Maximum accuracy, requires 8+ GB RAM."
+            description = "Full-precision 1.5B model. Maximum accuracy but slow due to 5.9 GB size.",
+            recommendationPriority = 30
         ),
 
         LocalAiModel(
@@ -236,8 +247,9 @@ object ModelCatalog {
             supportsStreaming = true,
             version = "1.0",
             downloadUrl = "https://huggingface.co/litert-community/DeepSeek-R1-Distill-Qwen-1.5B/resolve/main/DeepSeek-R1-Distill-Qwen-1.5B_multi-prefill-seq_f32_ekv1280.task",
-            description = "Full-precision DeepSeek reasoning model. Best analytical quality.",
-            isReasoningModel = true
+            description = "Full-precision DeepSeek reasoning model. Best analytical quality but slow due to 6.8 GB size.",
+            isReasoningModel = true,
+            recommendationPriority = 25
         )
     )
 
@@ -273,9 +285,10 @@ object ModelCatalog {
             supportsStreaming = true,
             version = "3.0",
             downloadUrl = "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/Gemma3-1B-IT_multi-prefill-seq_q8_ekv1280.task",
-            description = "Official Google Gemma 3 1B. Requires HuggingFace token.",
+            description = "Official Google Gemma 3 1B. Fast and accurate. Requires HuggingFace token.",
             isGated = true,
-            licenseUrl = "https://huggingface.co/litert-community/Gemma3-1B-IT"
+            licenseUrl = "https://huggingface.co/litert-community/Gemma3-1B-IT",
+            recommendationPriority = 90
         ),
 
         LocalAiModel(
@@ -292,9 +305,10 @@ object ModelCatalog {
             supportsStreaming = true,
             version = "2.0",
             downloadUrl = "https://huggingface.co/litert-community/Gemma2-2B-IT/resolve/main/Gemma2-2B-IT_multi-prefill-seq_q8_ekv1280.task",
-            description = "Official Google Gemma 2 2B (2.71 GB). Requires HuggingFace token.",
+            description = "Official Google Gemma 2 2B (2.71 GB). Good quality but slower than 1B models. Requires HuggingFace token.",
             isGated = true,
-            licenseUrl = "https://huggingface.co/litert-community/Gemma2-2B-IT"
+            licenseUrl = "https://huggingface.co/litert-community/Gemma2-2B-IT",
+            recommendationPriority = 70
         ),
 
         LocalAiModel(
@@ -311,10 +325,11 @@ object ModelCatalog {
             supportsStreaming = true,
             version = "3.0",
             downloadUrl = "https://huggingface.co/google/gemma-3n-E4B-it-litert-preview/resolve/main/gemma-3n-E4B-it-int4.task",
-            description = "Official Gemma 3n E4B (4.41 GB). Best quality. Requires HuggingFace token.",
+            description = "Official Gemma 3n E4B (4.41 GB). High quality but very slow inference. Requires HuggingFace token.",
             isGated = true,
             licenseUrl = "https://huggingface.co/google/gemma-3n-E4B-it-litert-preview",
-            maxTokens = 1024 // Official preview — no ekv info in filename, use safe default
+            maxTokens = 1024, // Official preview — no ekv info in filename, use safe default
+            recommendationPriority = 35
         )
     )
 
@@ -325,10 +340,12 @@ object ModelCatalog {
     fun modelsForDevice(availableRamMb: Int): List<LocalAiModel> =
         availableModels.filter { it.requiredRamMb <= availableRamMb }
 
-    /** Returns the recommended model for a given RAM tier. */
+    /** Returns the recommended model for a given RAM tier.
+     *  Picks the model with the highest [LocalAiModel.recommendationPriority]
+     *  that fits comfortably in the device's available RAM. */
     fun recommendedModel(availableRamMb: Int): LocalAiModel? =
         modelsForDevice(availableRamMb)
-            .sortedByDescending { it.sizeMb }
-            .firstOrNull { it.recommendedRamMb <= availableRamMb }
-            ?: modelsForDevice(availableRamMb).firstOrNull()
+            .filter { it.recommendedRamMb <= availableRamMb }
+            .maxByOrNull { it.recommendationPriority }
+            ?: modelsForDevice(availableRamMb).maxByOrNull { it.recommendationPriority }
 }
