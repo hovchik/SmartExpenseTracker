@@ -2,6 +2,8 @@ package com.flowsense.app.service.notification
 
 import android.app.Notification
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
@@ -48,20 +50,28 @@ class BankingNotificationListener : NotificationListenerService() {
 
     @Volatile
     private var isConnected = false
+    private val handler = Handler(Looper.getMainLooper())
+    private val rebindRunnable = Runnable {
+        try {
+            requestRebind(android.content.ComponentName(applicationContext, BankingNotificationListener::class.java))
+        } catch (e: Exception) {
+            Log.w(TAG, "requestRebind failed (expected on older APIs): ${e.message}")
+        }
+    }
 
     override fun onListenerConnected() {
         isConnected = true
+        handler.removeCallbacks(rebindRunnable)
         Log.d(TAG, "Notification listener connected")
     }
 
     override fun onListenerDisconnected() {
         isConnected = false
-        Log.d(TAG, "Notification listener disconnected, requesting rebind")
-        try {
-            requestRebind(android.content.ComponentName(this, BankingNotificationListener::class.java))
-        } catch (e: Exception) {
-            Log.w(TAG, "requestRebind failed (expected on older APIs): ${e.message}")
-        }
+        Log.d(TAG, "Notification listener disconnected, scheduling rebind")
+        // Delay rebind to avoid racing with the system's own unbind/rebind
+        // cycle during package changes (ManagedServices.rebindServices).
+        handler.removeCallbacks(rebindRunnable)
+        handler.postDelayed(rebindRunnable, 3000)
     }
 
     // Explicit banking/payment app package whitelist
