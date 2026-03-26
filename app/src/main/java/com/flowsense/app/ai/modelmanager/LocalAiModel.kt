@@ -68,62 +68,15 @@ enum class InstallState(val label: String) {
  *
  * Sources (ungated):
  *  - litert-community (official Google/LiteRT)
- *  - AfiOne/gemma3-1b-it-int4.task (community Gemma mirror)
- *  - CarlosJefte/Gemma-2-2b-mediapipe (community Gemma 2 mirror)
- *  - realbyte/gemma-3n-E2B-it-int4-mediapipe (community Gemma 3n mirror)
- *  - autoocrat0413/gemma-2b-it-gpu-int4-mediapipe (community Gemma mirror)
  *
  * Sources (gated — require HuggingFace token):
- *  - google/gemma-3-1b-it (official Gemma 3 1B)
- *  - google/gemma-2-2b-it (official Gemma 2 2B)
- *  - google/gemma-3n-E4B-it (official Gemma 3n E4B)
+ *  - litert-community/Gemma3-1B-IT (official Gemma 3 1B)
+ *  - litert-community/Gemma2-2B-IT (official Gemma 2 2B)
  */
 object ModelCatalog {
 
     /** Models that can be downloaded without any authentication. */
     val ungatedModels: List<LocalAiModel> = listOf(
-
-        // ── Tiny models (< 600 MB) — any device with 2+ GB RAM ──────────
-
-        LocalAiModel(
-            modelId = "smollm-135m-q8",
-            displayName = "SmolLM 135M (int8)",
-            runtimeType = RuntimeType.MEDIAPIPE,
-            fileFormat = ".task",
-            quantization = "int8",
-            requiredRamMb = 512,
-            recommendedRamMb = 1024,
-            sizeMb = 159,
-            supportsTextGeneration = true,
-            supportsStructuredJson = false,
-            supportsStreaming = true,
-            version = "1.0",
-            downloadUrl = "https://huggingface.co/litert-community/SmolLM-135M-Instruct/resolve/main/SmolLM-135M-Instruct_multi-prefill-seq_q8_ekv1280.task",
-            description = "Tiny 135M model. Ultra-fast, good for basic categorization on low-end devices.",
-            recommendationPriority = 20
-        ),
-
-        LocalAiModel(
-            modelId = "qwen25-05b-q8",
-            displayName = "Qwen 2.5 0.5B (int8)",
-            runtimeType = RuntimeType.MEDIAPIPE,
-            fileFormat = ".task",
-            quantization = "int8",
-            requiredRamMb = 1024,
-            recommendedRamMb = 2048,
-            sizeMb = 521,
-            supportsTextGeneration = true,
-            supportsStructuredJson = false,
-            supportsStreaming = true,
-            version = "2.5",
-            downloadUrl = "https://huggingface.co/litert-community/Qwen2.5-0.5B-Instruct/resolve/main/Qwen2.5-0.5B-Instruct_multi-prefill-seq_q8_ekv1280.task",
-            description = "Small but capable 0.5B model. Good quality-to-size ratio.",
-            recommendationPriority = 50
-        ),
-
-        // NOTE: AfiOne/gemma3-1b-it-int4.task was removed — community export with
-        // incompatible model signature ("Unsupported model signature" error).
-        // Use the official gated Gemma 3 1B below instead.
 
         // ── Small models (1–1.5 GB) — phones with 4 GB RAM ─────────────
 
@@ -187,70 +140,6 @@ object ModelCatalog {
             recommendationPriority = 80
         ),
 
-        // ── Large models (2.5–4 GB) — phones/tablets with 8 GB RAM ──────
-
-        // NOTE: CarlosJefte/Gemma-2-2b-mediapipe was removed — community export with
-        // incompatible model signature. Use the official gated Gemma 2 2B below instead.
-
-        // NOTE: realbyte/gemma-3n-E2B-it-int4 was removed — community export with
-        // potentially incompatible model signature. Use official gated models instead.
-
-        LocalAiModel(
-            modelId = "phi4-mini-q8",
-            displayName = "Phi-4 Mini (int8)",
-            runtimeType = RuntimeType.MEDIAPIPE,
-            fileFormat = ".task",
-            quantization = "int8",
-            requiredRamMb = 5120,
-            recommendedRamMb = 8192,
-            sizeMb = 3761,
-            supportsTextGeneration = true,
-            supportsStructuredJson = false,
-            supportsStreaming = true,
-            version = "4.0",
-            downloadUrl = "https://huggingface.co/litert-community/Phi-4-mini-instruct/resolve/main/Phi-4-mini-instruct_multi-prefill-seq_q8_ekv1280.task",
-            description = "Microsoft Phi-4 Mini. Strong reasoning but slower due to 3.7 GB size.",
-            recommendationPriority = 40
-        ),
-
-        // ── Extra-large models (5–7 GB) — high-end devices with 12+ GB RAM ──
-
-        LocalAiModel(
-            modelId = "qwen25-15b-f32",
-            displayName = "Qwen 2.5 1.5B (f32)",
-            runtimeType = RuntimeType.MEDIAPIPE,
-            fileFormat = ".task",
-            quantization = "f32",
-            requiredRamMb = 6144,
-            recommendedRamMb = 10240,
-            sizeMb = 5895,
-            supportsTextGeneration = true,
-            supportsStructuredJson = false,
-            supportsStreaming = true,
-            version = "2.5",
-            downloadUrl = "https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct/resolve/main/Qwen2.5-1.5B-Instruct_multi-prefill-seq_f32_ekv1280.task",
-            description = "Full-precision 1.5B model. Maximum accuracy but slow due to 5.9 GB size.",
-            recommendationPriority = 30
-        ),
-
-        LocalAiModel(
-            modelId = "deepseek-r1-15b-f32",
-            displayName = "DeepSeek-R1 1.5B (f32)",
-            runtimeType = RuntimeType.MEDIAPIPE,
-            fileFormat = ".task",
-            quantization = "f32",
-            requiredRamMb = 8192,
-            recommendedRamMb = 12288,
-            sizeMb = 6794,
-            supportsTextGeneration = true,
-            supportsStructuredJson = false,
-            supportsStreaming = true,
-            version = "1.0",
-            downloadUrl = "https://huggingface.co/litert-community/DeepSeek-R1-Distill-Qwen-1.5B/resolve/main/DeepSeek-R1-Distill-Qwen-1.5B_multi-prefill-seq_f32_ekv1280.task",
-            description = "Full-precision DeepSeek reasoning model. Best analytical quality but slow due to 6.8 GB size.",
-            isReasoningModel = true,
-            recommendationPriority = 25
-        )
     )
 
     /**
@@ -265,7 +154,6 @@ object ModelCatalog {
      * Verified repos (all return HTTP 401 = gated, exists):
      *  - litert-community/Gemma3-1B-IT
      *  - litert-community/Gemma2-2B-IT
-     *  - google/gemma-3n-E4B-it-litert-preview
      */
     val gatedModels: List<LocalAiModel> = listOf(
 
@@ -309,27 +197,6 @@ object ModelCatalog {
             isGated = true,
             licenseUrl = "https://huggingface.co/litert-community/Gemma2-2B-IT",
             recommendationPriority = 70
-        ),
-
-        LocalAiModel(
-            modelId = "gemma3n-e4b-it-int4-official",
-            displayName = "Gemma 3n E4B IT (int4) [Official]",
-            runtimeType = RuntimeType.MEDIAPIPE,
-            fileFormat = ".task",
-            quantization = "int4",
-            requiredRamMb = 4096,
-            recommendedRamMb = 8192,
-            sizeMb = 4410,
-            supportsTextGeneration = true,
-            supportsStructuredJson = false,
-            supportsStreaming = true,
-            version = "3.0",
-            downloadUrl = "https://huggingface.co/google/gemma-3n-E4B-it-litert-preview/resolve/main/gemma-3n-E4B-it-int4.task",
-            description = "Official Gemma 3n E4B (4.41 GB). High quality but very slow inference. Requires HuggingFace token.",
-            isGated = true,
-            licenseUrl = "https://huggingface.co/google/gemma-3n-E4B-it-litert-preview",
-            maxTokens = 1024, // Official preview — no ekv info in filename, use safe default
-            recommendationPriority = 35
         )
     )
 
