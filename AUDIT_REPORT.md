@@ -1,4 +1,4 @@
-# SmartExpenseTracker Codebase Audit Report
+# FlowSense Codebase Audit Report
 
 **Date:** 2026-03-24
 **Scope:** Full codebase audit — bugs, edge cases, security vulnerabilities, and code quality
@@ -163,8 +163,8 @@ No size limit. A 10-year range creates 3650+ Date objects. Could cause OOM in re
 **File:** `DateUtils.kt:9-13`
 `SimpleDateFormat` ThreadLocal entries accumulate in thread pools. Memory leak.
 
-### 35. SmartExpenseApp volatile nullable field
-**File:** `SmartExpenseApp.kt:37-38`
+### 35. FlowSenseApp volatile nullable field
+**File:** `FlowSenseApp.kt:37-38`
 `aiProviderSelector` is `@Volatile` and nullable, accessed without null-safety atomicity.
 
 ### 36. AddTransactionScreen missing amount bounds
