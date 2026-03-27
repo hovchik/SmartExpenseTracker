@@ -682,7 +682,10 @@ data class AppSettings(
     /** Cached exchange rates for offline use. Nullable for Gson backward compat. */
     val cachedExchangeRates: Map<String, Double>? = emptyMap(),
     /** Timestamp when cached rates were last updated. */
-    val cachedRatesTimestamp: Long = 0
+    val cachedRatesTimestamp: Long = 0,
+    // ── Widget preferences ────────────────────────────────────────
+    /** When true, the expense summary widget masks all monetary amounts (privacy mode). */
+    val widgetHideAmounts: Boolean = false
 )
 
 fun defaultCategories(): List<Category> = listOf(

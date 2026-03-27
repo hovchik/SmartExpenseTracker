@@ -7,9 +7,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.action.ActionParameters
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.action.ActionCallback
+import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -22,10 +25,12 @@ import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
+import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import com.flowsense.app.FlowSenseApp
 import com.flowsense.app.MainActivity
 import com.flowsense.app.R
 import com.flowsense.app.util.CurrencyUtils
@@ -35,6 +40,7 @@ import kotlinx.coroutines.withContext
 /**
  * Glance-based home screen widget showing monthly expense summary,
  * today's spending, top categories, and budget alerts.
+ * Supports hiding monetary amounts for privacy.
  */
 class ExpenseTrackerWidget : GlanceAppWidget() {
 
@@ -52,6 +58,41 @@ private val GreenPrimary = Color(0xFF10B981)
 private val RedExpense = Color(0xFFEF4444)
 private val OrangeWarning = Color(0xFFF59E0B)
 
+/** Placeholder shown when amounts are hidden. */
+private const val HIDDEN_AMOUNT = "••••"
+
+/** Formats an amount or returns the hidden placeholder. */
+private fun formatOrHide(amount: Double, currencyCode: String, hide: Boolean): String =
+    if (hide) HIDDEN_AMOUNT else CurrencyUtils.format(amount, currencyCode)
+
+/** Formats a compact amount or returns the hidden placeholder. */
+private fun formatCompactOrHide(amount: Double, currencyCode: String, hide: Boolean): String =
+    if (hide) HIDDEN_AMOUNT else CurrencyUtils.formatCompact(amount, currencyCode)
+
+// ── Toggle hide/show action ─────────────────────────────────────────────
+
+/**
+ * ActionCallback that toggles the widgetHideAmounts setting and refreshes the widget.
+ */
+class ToggleHideAmountsAction : ActionCallback {
+    override suspend fun onAction(
+        context: Context,
+        glanceId: GlanceId,
+        parameters: ActionParameters
+    ) {
+        val app = context.applicationContext as? FlowSenseApp ?: return
+        val repo = app.repository
+        repo.awaitInitialization(5_000)
+
+        val current = repo.appData.value.settings
+        val updated = current.copy(widgetHideAmounts = !current.widgetHideAmounts)
+        repo.updateSettings(updated)
+
+        // Refresh this widget instance
+        ExpenseTrackerWidget().update(context, glanceId)
+    }
+}
+
 // ── Widget UI ───────────────────────────────────────────────────────────
 
 @Composable
@@ -68,6 +109,8 @@ private fun WidgetContent(data: WidgetData) {
     val redColor = ColorProvider(RedExpense)
     val orangeColor = ColorProvider(OrangeWarning)
 
+    val hide = data.hideAmounts
+
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
@@ -78,7 +121,7 @@ private fun WidgetContent(data: WidgetData) {
     ) {
         Column(modifier = GlanceModifier.fillMaxSize()) {
 
-            // ── Header: App name + month ──
+            // ── Header: App name + eye toggle + month ──
             Row(
                 modifier = GlanceModifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -91,6 +134,18 @@ private fun WidgetContent(data: WidgetData) {
                         fontWeight = FontWeight.Bold
                     )
                 )
+                Spacer(modifier = GlanceModifier.width(6.dp))
+                // Eye toggle button
+                Box(
+                    modifier = GlanceModifier
+                        .clickable(actionRunCallback<ToggleHideAmountsAction>())
+                        .padding(2.dp)
+                ) {
+                    Text(
+                        text = if (hide) "\uD83D\uDE48" else "\uD83D\uDC41",
+                        style = TextStyle(fontSize = 14.sp)
+                    )
+                }
                 Spacer(modifier = GlanceModifier.defaultWeight())
                 Text(
                     text = data.monthLabel,
@@ -115,7 +170,7 @@ private fun WidgetContent(data: WidgetData) {
                     )
                     Spacer(modifier = GlanceModifier.height(2.dp))
                     Text(
-                        text = CurrencyUtils.format(data.balance, data.currencyCode),
+                        text = formatOrHide(data.balance, data.currencyCode, hide),
                         style = TextStyle(
                             color = if (data.balance >= 0) greenColor else redColor,
                             fontSize = 22.sp,
@@ -132,7 +187,7 @@ private fun WidgetContent(data: WidgetData) {
                                 style = TextStyle(color = mutedText, fontSize = 10.sp)
                             )
                             Text(
-                                text = CurrencyUtils.formatCompact(data.totalIncome, data.currencyCode),
+                                text = formatCompactOrHide(data.totalIncome, data.currencyCode, hide),
                                 style = TextStyle(
                                     color = greenColor,
                                     fontSize = 13.sp,
@@ -146,7 +201,7 @@ private fun WidgetContent(data: WidgetData) {
                                 style = TextStyle(color = mutedText, fontSize = 10.sp)
                             )
                             Text(
-                                text = CurrencyUtils.formatCompact(data.totalExpenses, data.currencyCode),
+                                text = formatCompactOrHide(data.totalExpenses, data.currencyCode, hide),
                                 style = TextStyle(
                                     color = redColor,
                                     fontSize = 13.sp,
@@ -160,7 +215,7 @@ private fun WidgetContent(data: WidgetData) {
                                 style = TextStyle(color = mutedText, fontSize = 10.sp)
                             )
                             Text(
-                                text = CurrencyUtils.formatCompact(data.todayExpenses, data.currencyCode),
+                                text = formatCompactOrHide(data.todayExpenses, data.currencyCode, hide),
                                 style = TextStyle(
                                     color = orangeColor,
                                     fontSize = 13.sp,
@@ -204,7 +259,7 @@ private fun WidgetContent(data: WidgetData) {
                                     modifier = GlanceModifier.defaultWeight()
                                 )
                                 Text(
-                                    text = CurrencyUtils.formatCompact(cat.amount, data.currencyCode),
+                                    text = formatCompactOrHide(cat.amount, data.currencyCode, hide),
                                     style = TextStyle(
                                         color = redColor,
                                         fontSize = 11.sp,
@@ -233,13 +288,17 @@ private fun WidgetContent(data: WidgetData) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "⚠ ",
+                            text = "\u26A0 ",
                             style = TextStyle(fontSize = 12.sp)
                         )
                         Text(
-                            text = "${pace.categoryName}: " +
-                                    "${CurrencyUtils.formatCompact(pace.spent, data.currencyCode)} / " +
-                                    CurrencyUtils.formatCompact(pace.limit, data.currencyCode),
+                            text = if (hide) {
+                                "${pace.categoryName}: $HIDDEN_AMOUNT / $HIDDEN_AMOUNT"
+                            } else {
+                                "${pace.categoryName}: " +
+                                        "${CurrencyUtils.formatCompact(pace.spent, data.currencyCode)} / " +
+                                        CurrencyUtils.formatCompact(pace.limit, data.currencyCode)
+                            },
                             style = TextStyle(
                                 color = redColor,
                                 fontSize = 11.sp,
@@ -264,7 +323,7 @@ private fun WidgetContent(data: WidgetData) {
                 )
                 Spacer(modifier = GlanceModifier.defaultWeight())
                 Text(
-                    text = "Tap to open →",
+                    text = "Tap to open \u2192",
                     style = TextStyle(color = greenColor, fontSize = 10.sp)
                 )
             }

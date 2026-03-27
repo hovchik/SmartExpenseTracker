@@ -33,13 +33,25 @@ class MainActivity : ComponentActivity() {
             val themeMode by viewModel.themeMode.collectAsState()
             val uiState by viewModel.uiState.collectAsState()
             val splashShown = uiState.settings.splashShown
+
+            // Deep-link from Quick Add widget: navigate_to=add, preset_category, preset_type
+            val navigateTo = intent?.getStringExtra("navigate_to")
+            val presetCategory = intent?.getStringExtra("preset_category") ?: ""
+            val presetType = intent?.getStringExtra("preset_type") ?: ""
+
             FlowSenseTheme(themeMode = themeMode) {
                 if (!splashShown) {
                     SplashScreen(onGetStarted = {
                         viewModel.updateSettings(uiState.settings.copy(splashShown = true))
                     })
                 } else {
-                    MainApp(viewModel = viewModel, activity = this@MainActivity)
+                    MainApp(
+                        viewModel = viewModel,
+                        activity = this@MainActivity,
+                        initialScreen = navigateTo,
+                        presetCategory = presetCategory,
+                        presetType = presetType
+                    )
                 }
             }
         }
@@ -48,7 +60,13 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainApp(viewModel: MainViewModel, activity: Activity) {
+fun MainApp(
+    viewModel: MainViewModel,
+    activity: Activity,
+    initialScreen: String? = null,
+    presetCategory: String = "",
+    presetType: String = ""
+) {
     val uiState by viewModel.uiState.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
     val reportPeriod by viewModel.reportPeriod.collectAsState()
@@ -121,7 +139,10 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     // Shortcut to always-up-to-date currency code
     val currencyCode = uiState.settings.currencyCode
 
-    var currentScreen by remember { mutableStateOf("dashboard") }
+    var currentScreen by remember { mutableStateOf(initialScreen ?: "dashboard") }
+    // Preset values from Quick Add widget
+    var widgetPresetCategory by remember { mutableStateOf(presetCategory) }
+    var widgetPresetType by remember { mutableStateOf(presetType) }
 
     // Intercept system back button: always go to Dashboard instead of closing the app.
     // Sub-screens that go back to a non-dashboard destination (sms_scan → settings)
@@ -287,6 +308,9 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         },
                         onNavigateBack = {
                             viewModel.clearOcrData()
+                            // Clear widget presets after navigating away
+                            widgetPresetCategory = ""
+                            widgetPresetType = ""
                             currentScreen = "dashboard"
                             viewModel.setSelectedTab(0)
                         },
@@ -299,7 +323,9 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                                 items = items, totalAmount = total,
                                 rawOcrText = ocrParsedData?.rawOcrText ?: ""
                             )
-                        }
+                        },
+                        presetCategory = widgetPresetCategory,
+                        presetType = widgetPresetType
                     )
                     "voice_input" -> VoiceTransactionScreen(
                         categories = uiState.categories.map { it.name },

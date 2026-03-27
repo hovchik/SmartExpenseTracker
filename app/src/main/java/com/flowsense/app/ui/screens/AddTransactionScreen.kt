@@ -41,7 +41,11 @@ fun AddTransactionScreen(
     /** Called after saving when OCR items are present; saves items as a goods section. */
     onSaveItems: ((items: List<Pair<String, Double>>, merchantName: String, totalAmount: Double) -> Unit)? = null,
     /** Navigate to voice input screen. */
-    onVoiceInput: (() -> Unit)? = null
+    onVoiceInput: (() -> Unit)? = null,
+    /** Category pre-selected via the Quick Add widget. Empty = no preset. */
+    presetCategory: String = "",
+    /** Transaction type pre-selected via the Quick Add widget ("EXPENSE" or "INCOME"). Empty = default. */
+    presetType: String = ""
 ) {
     val currencySymbol = CurrencyUtils.symbolFor(currencyCode)
     val isFromOcr = ocrParsedData != null
@@ -53,9 +57,9 @@ fun AddTransactionScreen(
         mutableStateOf(ocrParsedData?.merchantName ?: "")
     }
     var selectedCategory by remember(ocrParsedData) {
-        mutableStateOf(ocrParsedData?.category ?: "")
+        mutableStateOf(ocrParsedData?.category ?: presetCategory)
     }
-    var isExpense by remember { mutableStateOf(true) }
+    var isExpense by remember { mutableStateOf(presetType != "INCOME") }
     var merchantName by remember(ocrParsedData) {
         mutableStateOf(ocrParsedData?.merchantName ?: "")
     }

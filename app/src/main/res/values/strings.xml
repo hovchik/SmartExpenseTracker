@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">FlowSense</string>
     <string name="widget_description">Monthly expense summary with balance, top categories, and budget alerts</string>
+    <string name="widget_quick_add_description">Smart quick-add transaction with personalized category suggestions</string>
 </resources>
