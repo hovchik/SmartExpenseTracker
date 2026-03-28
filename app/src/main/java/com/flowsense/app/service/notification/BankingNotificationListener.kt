@@ -239,7 +239,7 @@ class BankingNotificationListener : NotificationListenerService() {
                     val userCatNames = repo.appData.value.categories
                         .filter { !it.isDefault }.map { it.name }
                     val categoryNames = repo.appData.value.categories.map { it.name }
-                    val category = FlowSenseApp.instance.aiCategorize(
+                    val category = app.aiCategorize(
                         parsed.description, categoryNames, parsed.isExpense, userCatNames
                     )
 

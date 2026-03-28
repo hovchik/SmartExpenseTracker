@@ -79,7 +79,7 @@ data class Transaction(
     val isSplit: Boolean get() = !splitWith.isNullOrEmpty()
 
     /** Each person's share of the split expense. */
-    val splitAmount: Double get() = if (!splitWith.isNullOrEmpty()) amount / (splitWith.size + 1) else amount
+    val splitAmount: Double get() = if (!splitWith.isNullOrEmpty()) amount / (splitWith!!.size + 1) else amount
 
     /** Safe accessor for photoUri that handles null from Gson. */
     val resolvedPhotoUri: String get() = photoUri ?: ""
@@ -563,7 +563,7 @@ data class AiConversation(
     val aiModelName: String? = "AI",
     val timestamp: Long = System.currentTimeMillis(),
     /** Date string for grouping, e.g. "2026-03-17". */
-    val dateKey: String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(System.currentTimeMillis()))
+    val dateKey: String = isoDateFormat.get()!!.format(Date(System.currentTimeMillis())).substring(0, 10)
 )
 
 data class AppSettings(

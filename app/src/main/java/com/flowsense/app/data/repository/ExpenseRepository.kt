@@ -294,7 +294,7 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
     suspend fun addSuggestions(suggestions: List<AiSuggestion>) {
         val current = _appData.value
         val updated = current.copy(
-            suggestions = suggestions + current.suggestions.filter { it.isDismissed }
+            suggestions = current.suggestions.filter { it.isDismissed } + suggestions
         )
         _appData.value = updated
         storage.saveData(updated)

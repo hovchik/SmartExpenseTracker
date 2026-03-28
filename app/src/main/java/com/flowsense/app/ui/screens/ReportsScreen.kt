@@ -1200,7 +1200,8 @@ private fun CategoryDonutChart(
     categoryBreakdown: Map<String, Double>,
     categoryColors: List<Color>
 ) {
-    val total = categoryBreakdown.values.sum().takeIf { it > 0 } ?: return
+    val total = categoryBreakdown.values.sum()
+    if (total <= 0) return
     val slices = categoryBreakdown.entries
         .sortedByDescending { it.value }
         .take(8)
@@ -1268,7 +1269,7 @@ private fun DailyHistoryChart(
 ) {
     if (data.isEmpty()) return
 
-    val maxVal = data.maxOf { maxOf(it.expense, it.income) }.coerceAtLeast(1.0)
+    val maxVal = (data.maxOfOrNull { maxOf(it.expense, it.income) } ?: 0.0).coerceAtLeast(1.0)
     val expenseColor = RedExpense
     val incomeColor = GreenIncome
     val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)

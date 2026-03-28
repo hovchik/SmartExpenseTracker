@@ -13,7 +13,7 @@ import java.io.File
 /** Fixes null non-null String fields that Gson may produce for older JSON data. */
 private fun AppData.sanitizeTransactions(): AppData {
     val sanitized = transactions.map { it.sanitized() }
-    return if (sanitized !== transactions) copy(transactions = sanitized) else this
+    return if (sanitized != transactions) copy(transactions = sanitized) else this
 }
 
 /**
@@ -104,7 +104,11 @@ class JsonStorageManager(private val context: Context) {
         tempFile.writeText(json)
         // Validate the temp file before replacing the real file
         if (tempFile.length() > 0) {
-            tempFile.renameTo(file)
+            if (!tempFile.renameTo(file)) {
+                // renameTo can fail on some filesystems; fall back to copy + delete
+                tempFile.copyTo(file, overwrite = true)
+                tempFile.delete()
+            }
         } else {
             // Temp file is empty — don't overwrite real data
             tempFile.delete()

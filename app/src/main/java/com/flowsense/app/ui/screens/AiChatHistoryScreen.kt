@@ -157,15 +157,16 @@ private fun DateGroupHeader(dateKey: String, count: Int) {
     val displayDate = remember(dateKey) {
         try {
             val parsed = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(dateKey)
+                ?: return@remember dateKey
             val today = Calendar.getInstance()
-            val dateCal = Calendar.getInstance().apply { time = parsed!! }
+            val dateCal = Calendar.getInstance().apply { time = parsed }
 
             when {
                 today.get(Calendar.YEAR) == dateCal.get(Calendar.YEAR) &&
                     today.get(Calendar.DAY_OF_YEAR) == dateCal.get(Calendar.DAY_OF_YEAR) -> "Today"
                 today.get(Calendar.YEAR) == dateCal.get(Calendar.YEAR) &&
                     today.get(Calendar.DAY_OF_YEAR) - dateCal.get(Calendar.DAY_OF_YEAR) == 1 -> "Yesterday"
-                else -> SimpleDateFormat("MMMM dd, yyyy", Locale.US).format(parsed!!)
+                else -> SimpleDateFormat("MMMM dd, yyyy", Locale.US).format(parsed)
             }
         } catch (_: Exception) {
             dateKey

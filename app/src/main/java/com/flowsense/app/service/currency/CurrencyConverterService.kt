@@ -92,8 +92,9 @@ object CurrencyConverterService {
             "https://api.exchangerate-api.com/v4/latest/$base"
         )
         for (urlStr in sources) {
+            var conn: HttpURLConnection? = null
             try {
-                val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+                conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = 8_000
                     readTimeout = 8_000
@@ -107,14 +108,17 @@ object CurrencyConverterService {
                     val ratesObj = json.optJSONObject("rates") ?: continue
                     val map = mutableMapOf<String, Double>()
                     ratesObj.keys().forEach { key ->
-                        map[key] = ratesObj.getDouble(key)
+                        val rate = ratesObj.optDouble(key, Double.NaN)
+                        if (rate.isFinite()) {
+                            map[key] = rate
+                        }
                     }
                     if (map.isNotEmpty()) return map
-                } else {
-                    conn.disconnect()
                 }
             } catch (_: Exception) {
                 // try next source
+            } finally {
+                conn?.disconnect()
             }
         }
         return null
@@ -136,8 +140,9 @@ object CurrencyConverterService {
      * Returns USD-based rates (same format as the API sources).
      */
     private fun fetchRatesFromRateAm(): Map<String, Double>? {
+        var conn: HttpURLConnection? = null
         try {
-            val conn = (URL("https://www.rate.am/").openConnection() as HttpURLConnection).apply {
+            conn = (URL("https://www.rate.am/").openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 10_000
                 readTimeout = 15_000
@@ -146,15 +151,15 @@ object CurrencyConverterService {
                 setRequestProperty("Accept-Language", "en-US,en;q=0.9")
             }
             if (conn.responseCode != HttpURLConnection.HTTP_OK) {
-                conn.disconnect()
                 return null
             }
             val html = conn.inputStream.bufferedReader().readText()
-            conn.disconnect()
             return parseRateAmHtml(html)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to fetch rate.am: ${e.message}")
             return null
+        } finally {
+            conn?.disconnect()
         }
     }
 

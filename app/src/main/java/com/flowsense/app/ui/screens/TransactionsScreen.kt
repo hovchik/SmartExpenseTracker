@@ -84,9 +84,11 @@ fun TransactionsScreen(
             .entries
             .sortedByDescending { it.key }
             .map { (key, txs) ->
-                val label = monthFormatter.format(
-                    SimpleDateFormat("yyyy-MM", Locale.US).parse(key) ?: Date()
-                )
+                val label = try {
+                    monthFormatter.format(
+                        SimpleDateFormat("yyyy-MM", Locale.US).parse(key) ?: Date()
+                    )
+                } catch (_: Exception) { key }
                 label to txs.sortedByDescending { it.timestamp }
             }
     }

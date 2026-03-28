@@ -104,7 +104,7 @@ suspend fun loadWidgetData(context: Context): WidgetData {
                 spent >= linearPace * 0.90 -> PaceStatus.ON_TRACK
                 else -> PaceStatus.UNDER
             }
-            if (status == PaceStatus.OVER && (worstPace == null || spent / budget.monthlyLimit > (worstPace.spent / worstPace.limit))) {
+            if (status == PaceStatus.OVER && budget.monthlyLimit > 0 && (worstPace == null || worstPace.limit <= 0 || spent / budget.monthlyLimit > worstPace.spent / worstPace.limit)) {
                 worstPace = BudgetPaceSnapshot(catName, spent, budget.monthlyLimit, status)
             }
         }

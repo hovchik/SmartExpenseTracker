@@ -28,7 +28,7 @@ object ExpenseNotificationHelper {
     private const val NOTIF_ID_SCHEDULED_BASE = 2000
 
     fun createChannels(context: Context) {
-        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_ID_BUDGET, CHANNEL_NAME_BUDGET, NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = CHANNEL_DESC_BUDGET

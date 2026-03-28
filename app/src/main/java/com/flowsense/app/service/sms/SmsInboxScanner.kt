@@ -196,7 +196,7 @@ class SmsInboxScanner(private val context: Context) {
                         listOf("Food", "Transport", "Shopping", "Bills", "Entertainment", "Health", "Education", "Other")
                     }
                     val cat = try {
-                        FlowSenseApp.instance.aiCategorize(desc, allCatNames, userCategoryNames = userCategoryNames)
+                        (context.applicationContext as? FlowSenseApp)?.aiCategorize(desc, allCatNames, userCategoryNames = userCategoryNames) ?: "Other"
                     } catch (_: Throwable) { "Other" }
 
                     // Store original parsed currency so the review screen can show it
