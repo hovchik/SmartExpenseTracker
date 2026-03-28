@@ -659,6 +659,120 @@ class PromptAdapter {
         val aiSuggestion: String? = null
     )
 
+    // ── GPS Track Analysis with AI ────────────────────────────────
+
+    /**
+     * Creates a prompt for AI-powered GPS track analysis.
+     * Explicitly requests a JSON response so callers can parse it reliably.
+     *
+     * @param tracks list of track summaries to analyze (activity type, distance, duration, etc.)
+     */
+    fun createTrackAnalysisPrompt(tracks: List<TrackSummary>): String {
+        return buildString {
+            appendLine("You are a GPS activity and fitness analyst. Analyze the following GPS tracks and provide insights.")
+            appendLine()
+            appendLine("=== GPS Tracks ===")
+            for ((idx, track) in tracks.withIndex()) {
+                appendLine("Track ${idx + 1}:")
+                appendLine("  Activity type: ${track.activityType}")
+                appendLine("  Distance: ${String.format("%.2f", track.distanceKm)} km")
+                appendLine("  Duration: ${track.durationMinutes} minutes")
+                if (track.averageSpeedKmh > 0) appendLine("  Average speed: ${String.format("%.1f", track.averageSpeedKmh)} km/h")
+                if (track.maxSpeedKmh > 0) appendLine("  Max speed: ${String.format("%.1f", track.maxSpeedKmh)} km/h")
+                if (track.startAddress.isNotBlank()) appendLine("  Start: ${track.startAddress}")
+                if (track.endAddress.isNotBlank()) appendLine("  End: ${track.endAddress}")
+                if (track.elevationGainM > 0) appendLine("  Elevation gain: ${String.format("%.0f", track.elevationGainM)} m")
+                if (track.steps > 0) appendLine("  Steps: ${track.steps}")
+                if (track.calories > 0) appendLine("  Calories: ${track.calories}")
+                appendLine("  Date: ${track.date}")
+            }
+            appendLine()
+            appendLine("=== Response Format ===")
+            appendLine("You MUST respond with ONLY valid JSON. No text before or after the JSON.")
+            appendLine("Use this exact structure:")
+            appendLine("""
+{
+  "summary": "Brief overall summary of the tracks",
+  "tracks": [
+    {
+      "activity": "activity type",
+      "distance_km": 0.0,
+      "duration_min": 0,
+      "analysis": "specific analysis of this track",
+      "suggestions": "improvement suggestions for this track",
+      "health_insights": "health-related observations"
+    }
+  ],
+  "overall_health_insights": "Overall health and fitness observations",
+  "recommendations": ["recommendation 1", "recommendation 2"]
+}""".trimIndent())
+        }
+    }
+
+    /**
+     * Safely parses an AI response that is expected to be JSON.
+     * Returns the parsed JSONObject, or constructs one from the raw text
+     * if the response is not valid JSON.
+     *
+     * This prevents the "Value X of type java.lang.String cannot be converted
+     * to JSONObject" crash when the AI returns plain text instead of JSON.
+     */
+    fun safeParseJsonResponse(response: String): org.json.JSONObject {
+        val cleaned = response.trim()
+            .replace(Regex("<think>[\\s\\S]*?</think>"), "")
+            .replace(Regex("</think>"), "")
+            .trim()
+
+        // Try to extract JSON from the response (AI may wrap it in markdown code blocks)
+        val jsonCandidate = extractJsonFromResponse(cleaned)
+
+        return try {
+            org.json.JSONObject(jsonCandidate)
+        } catch (_: Exception) {
+            // Response is not valid JSON — wrap the raw text in a fallback JSON structure
+            org.json.JSONObject().apply {
+                put("summary", cleaned.take(500))
+                put("tracks", org.json.JSONArray())
+                put("overall_health_insights", cleaned)
+                put("recommendations", org.json.JSONArray())
+                put("parse_error", true)
+            }
+        }
+    }
+
+    /**
+     * Attempts to extract a JSON object from a response that may contain
+     * surrounding text or markdown code fences.
+     */
+    private fun extractJsonFromResponse(response: String): String {
+        // Try markdown code block first: ```json ... ``` or ``` ... ```
+        val codeBlockRegex = Regex("```(?:json)?\\s*\\n?(\\{[\\s\\S]*?\\})\\s*\\n?```")
+        codeBlockRegex.find(response)?.let { return it.groupValues[1] }
+
+        // Try to find the first { ... } block
+        val firstBrace = response.indexOf('{')
+        val lastBrace = response.lastIndexOf('}')
+        if (firstBrace >= 0 && lastBrace > firstBrace) {
+            return response.substring(firstBrace, lastBrace + 1)
+        }
+
+        return response
+    }
+
+    data class TrackSummary(
+        val activityType: String,
+        val distanceKm: Double = 0.0,
+        val durationMinutes: Int = 0,
+        val averageSpeedKmh: Double = 0.0,
+        val maxSpeedKmh: Double = 0.0,
+        val startAddress: String = "",
+        val endAddress: String = "",
+        val elevationGainM: Double = 0.0,
+        val steps: Int = 0,
+        val calories: Int = 0,
+        val date: String = ""
+    )
+
     data class CategoryResult(
         val category: String?,
         val isNewCategory: Boolean
