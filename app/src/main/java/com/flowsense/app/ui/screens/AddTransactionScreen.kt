@@ -527,7 +527,7 @@ fun AddTransactionScreen(
                     if (showItemsSection && editableItems.isNotEmpty() && ocrParsedData?.isTerminalReceipt != true) {
                         val finalItems = editableItems
                             .filter { it.second.isNotBlank() && it.third.toDoubleOrNull() != null }
-                            .map { it.second to it.third.toDouble() }
+                            .map { it.second to (it.third.toDoubleOrNull() ?: 0.0) }
                         if (finalItems.isNotEmpty()) {
                             onSaveItems?.invoke(finalItems, merchantName.ifBlank { description }, amountVal)
                         }

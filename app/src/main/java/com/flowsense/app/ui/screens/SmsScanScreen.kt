@@ -246,7 +246,7 @@ fun SmsScanScreen(
                     if (scanState.isSaving && scanState.savingTotal > 0) {
                         Spacer(modifier = Modifier.height(4.dp))
                         LinearProgressIndicator(
-                            progress = { scanState.savingProgress.toFloat() / scanState.savingTotal.toFloat() },
+                            progress = { if (scanState.savingTotal > 0) scanState.savingProgress.toFloat() / scanState.savingTotal.toFloat() else 0f },
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(6.dp),
                             color = GreenPrimary,
                             trackColor = GreenPrimary.copy(alpha = 0.15f)
@@ -514,8 +514,8 @@ fun SmsScanScreen(
                                             Column {
                                                 Text("From", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                                 Text(
-                                                    if (startDate != null) dateFormat.format(Date(startDate!!))
-                                                    else "Select start date",
+                                                    startDate?.let { dateFormat.format(Date(it)) }
+                                                        ?: "Select start date",
                                                     fontSize = 14.sp,
                                                     fontWeight = if (startDate != null) FontWeight.Medium else FontWeight.Normal,
                                                     color = if (startDate != null) MaterialTheme.colorScheme.onSurface
@@ -556,8 +556,8 @@ fun SmsScanScreen(
                                             Column {
                                                 Text("To", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                                 Text(
-                                                    if (endDate != null) dateFormat.format(Date(endDate!!))
-                                                    else "Select end date",
+                                                    endDate?.let { dateFormat.format(Date(it)) }
+                                                        ?: "Select end date",
                                                     fontSize = 14.sp,
                                                     fontWeight = if (endDate != null) FontWeight.Medium else FontWeight.Normal,
                                                     color = if (endDate != null) MaterialTheme.colorScheme.onSurface
@@ -577,15 +577,16 @@ fun SmsScanScreen(
                                     }
 
                                     Spacer(modifier = Modifier.height(4.dp))
+                                    val sd = startDate
+                                    val ed = endDate
                                     Text(
-                                        if (startDate == null && endDate == null)
-                                            "Select dates to filter SMS messages"
-                                        else if (startDate != null && endDate != null)
-                                            "Scanning messages from ${dateFormat.format(Date(startDate!!))} to ${dateFormat.format(Date(endDate!!))}"
-                                        else if (startDate != null)
-                                            "Scanning messages from ${dateFormat.format(Date(startDate!!))}"
-                                        else
-                                            "Scanning messages until ${dateFormat.format(Date(endDate!!))}",
+                                        when {
+                                            sd == null && ed == null -> "Select dates to filter SMS messages"
+                                            sd != null && ed != null -> "Scanning messages from ${dateFormat.format(Date(sd))} to ${dateFormat.format(Date(ed))}"
+                                            sd != null -> "Scanning messages from ${dateFormat.format(Date(sd))}"
+                                            ed != null -> "Scanning messages until ${dateFormat.format(Date(ed))}"
+                                            else -> "Select dates to filter SMS messages"
+                                        },
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )

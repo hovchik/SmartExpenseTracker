@@ -61,15 +61,15 @@ class OllamaService {
                 readTimeout = CONNECT_TIMEOUT
                 setRequestProperty("Accept", "application/json")
             }
-            val ok = conn.responseCode == HttpURLConnection.HTTP_OK
+            val code = conn.responseCode
             conn.disconnect()
-            if (!ok) {
-                errorMessage = "Server returned ${conn.responseCode}"
+            if (code != HttpURLConnection.HTTP_OK) {
+                errorMessage = "Server returned $code"
                 isReady = false
             } else {
                 errorMessage = null
             }
-            ok
+            code == HttpURLConnection.HTTP_OK
         } catch (e: Exception) {
             errorMessage = "Cannot connect: ${e.message}"
             isReady = false
@@ -154,8 +154,9 @@ class OllamaService {
      */
     suspend fun generateResponse(prompt: String): String? = withContext(Dispatchers.IO) {
         if (modelName.isEmpty()) return@withContext null
+        var conn: HttpURLConnection? = null
         try {
-            val conn = (URL("${host.trimEnd('/')}/api/generate").openConnection() as HttpURLConnection).apply {
+            conn = (URL("${host.trimEnd('/')}/api/generate").openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = CONNECT_TIMEOUT
                 readTimeout = READ_TIMEOUT
@@ -180,12 +181,10 @@ class OllamaService {
             if (conn.responseCode != HttpURLConnection.HTTP_OK) {
                 val errBody = try { conn.errorStream?.bufferedReader()?.readText() } catch (_: Exception) { null }
                 Log.w(TAG, "Generate failed: HTTP ${conn.responseCode} — $errBody")
-                conn.disconnect()
                 return@withContext null
             }
 
             val body = conn.inputStream.bufferedReader().readText()
-            conn.disconnect()
 
             val json = JSONObject(body)
             val raw = json.optString("response", "").trim()
@@ -197,6 +196,8 @@ class OllamaService {
         } catch (e: Exception) {
             Log.e(TAG, "generateResponse failed: ${e.message}")
             null
+        } finally {
+            conn?.disconnect()
         }
     }
 

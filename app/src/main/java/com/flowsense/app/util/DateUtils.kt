@@ -46,7 +46,8 @@ object DateUtils {
         cal.timeInMillis = timestamp
         // Walk backward to the first day of the week to avoid
         // Calendar.set(DAY_OF_WEEK) quirks at week boundaries.
-        while (cal.get(Calendar.DAY_OF_WEEK) != cal.firstDayOfWeek) {
+        var guard = 7
+        while (cal.get(Calendar.DAY_OF_WEEK) != cal.firstDayOfWeek && guard-- > 0) {
             cal.add(Calendar.DATE, -1)
         }
         cal.set(Calendar.HOUR_OF_DAY, 0)
@@ -90,6 +91,7 @@ object DateUtils {
     }
 
     fun getDaysInRange(start: Long, end: Long): List<Long> {
+        if (start > end) return emptyList()
         val days = mutableListOf<Long>()
         val cal = Calendar.getInstance()
         cal.timeInMillis = start

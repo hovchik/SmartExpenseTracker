@@ -278,9 +278,10 @@ class SmsReceiver : BroadcastReceiver() {
                         }
 
                         val fbCategoryNames = fallbackRepo.appData.value.categories.map { it.name }
-                        val fbCategory = FlowSenseApp.instance.aiCategorize(
+                        val ruleEngine = com.flowsense.app.service.ai.AiExpenseEngine()
+                        val fbCategory = ruleEngine.categorize(
                             parsed.description.ifEmpty { fullMessage },
-                            fbCategoryNames, parsed.isExpense, fallbackCatNames
+                            parsed.isExpense, fallbackCatNames
                         )
                         fallbackRepo.addTransaction(Transaction(
                             amount = fbFinal,
