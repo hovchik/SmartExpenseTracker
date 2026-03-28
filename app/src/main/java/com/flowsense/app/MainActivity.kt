@@ -13,6 +13,8 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -123,13 +125,19 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
 
     var currentScreen by remember { mutableStateOf("dashboard") }
 
+    // Track where voice_input was launched from, so back goes to the right place
+    var voiceInputOrigin by remember { mutableStateOf("dashboard") }
+
+    // Bottom sheet state for the "Add" action chooser
+    var showAddOptions by remember { mutableStateOf(false) }
+
     // Intercept system back button: always go to Dashboard instead of closing the app.
     // Sub-screens that go back to a non-dashboard destination (sms_scan → settings)
     // are handled explicitly in the when-branch below.
     BackHandler(enabled = currentScreen != "dashboard") {
         when (currentScreen) {
             "sms_scan"         -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
-            "voice_input"      -> { currentScreen = "add" }
+            "voice_input"      -> { currentScreen = voiceInputOrigin }
             "store_map"        -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
             "ocr_sections"     -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
             "local_ai_setup"   -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
@@ -212,10 +220,10 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         icon = { Icon(if (selectedTab == 1) Icons.Filled.BarChart else Icons.Outlined.BarChart, "Reports") },
                         label = { Text("Reports") }
                     )
-                    // Add (FAB-style centre item)
+                    // Add (FAB-style centre item) — opens option sheet
                     NavigationBarItem(
                         selected = false,
-                        onClick = { currentScreen = "add" },
+                        onClick = { showAddOptions = true },
                         icon = { Icon(Icons.Filled.AddCircle, "Add", modifier = Modifier.size(32.dp)) },
                         label = { Text("Add", fontWeight = FontWeight.Bold) }
                     )
@@ -240,19 +248,35 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             Crossfade(targetState = currentScreen, label = "screen") { screen ->
                 when (screen) {
-                    "dashboard" -> DashboardScreen(
-                        uiState = uiState,
-                        weeklyChartData = uiState.weeklyChartData,
-                        onDismissSuggestion = { viewModel.dismissSuggestion(it) },
-                        onDeleteTransaction = { viewModel.deleteTransaction(it) },
-                        sectionOrder = dashboardSectionOrder,
-                        onMoveSections = { from, to -> viewModel.moveDashboardSection(from, to) },
-                        currencyCode = currencyCode,
-                        budgetPaces = viewModel.computeBudgetPaces(),
-                        spendingStreak = spendingStreak,
-                        onNaturalLanguageEntry = { viewModel.addTransactionFromNaturalLanguage(it) },
-                        hiddenSections = uiState.settings.hiddenDashboardSections.orEmpty().toSet()
-                    )
+                    "dashboard" -> Box(modifier = Modifier.fillMaxSize()) {
+                        DashboardScreen(
+                            uiState = uiState,
+                            weeklyChartData = uiState.weeklyChartData,
+                            onDismissSuggestion = { viewModel.dismissSuggestion(it) },
+                            onDeleteTransaction = { viewModel.deleteTransaction(it) },
+                            sectionOrder = dashboardSectionOrder,
+                            onMoveSections = { from, to -> viewModel.moveDashboardSection(from, to) },
+                            currencyCode = currencyCode,
+                            budgetPaces = viewModel.computeBudgetPaces(),
+                            spendingStreak = spendingStreak,
+                            onNaturalLanguageEntry = { viewModel.addTransactionFromNaturalLanguage(it) },
+                            hiddenSections = uiState.settings.hiddenDashboardSections.orEmpty().toSet()
+                        )
+                        // Floating voice input button for quick access
+                        FloatingActionButton(
+                            onClick = {
+                                voiceInputOrigin = "dashboard"
+                                currentScreen = "voice_input"
+                            },
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(end = 16.dp, bottom = 16.dp),
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ) {
+                            Icon(Icons.Filled.Mic, contentDescription = "Voice Input")
+                        }
+                    }
                     "reports" -> ReportsScreen(
                         generateReport = { viewModel.generateReport(it) },
                         generateMonthlyReport = { year, month ->
@@ -292,7 +316,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         },
                         currencyCode = currencyCode,
                         ocrParsedData = ocrParsedData,
-                        onVoiceInput = { currentScreen = "voice_input" },
+                        onVoiceInput = { voiceInputOrigin = "add"; currentScreen = "voice_input" },
                         onSaveItems = { items, merchant, total ->
                             viewModel.saveOcrSection(
                                 label = merchant, merchantName = merchant,
@@ -308,7 +332,8 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                             viewModel.addTransactionFromVoice(input)
                         },
                         onNavigateBack = {
-                            currentScreen = "add"
+                            currentScreen = voiceInputOrigin
+                            if (voiceInputOrigin == "dashboard") viewModel.setSelectedTab(0)
                         }
                     )
                     "transactions" -> TransactionsScreen(
@@ -495,6 +520,143 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                             viewModel.setSelectedTab(3)
                         }
                     )
+                }
+            }
+        }
+    }
+
+    // ─── Add Transaction Options Bottom Sheet ─────────────────────────
+    if (showAddOptions) {
+        ModalBottomSheet(
+            onDismissRequest = { showAddOptions = false }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Text(
+                    "Add Transaction",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                // Voice Input — prominent first option
+                Surface(
+                    onClick = {
+                        showAddOptions = false
+                        voiceInputOrigin = currentScreen
+                        currentScreen = "voice_input"
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.Mic,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text(
+                                "Voice Input",
+                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Text(
+                                "Say it and it's added",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Manual Entry
+                Surface(
+                    onClick = {
+                        showAddOptions = false
+                        currentScreen = "add"
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.Edit,
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text(
+                                "Manual Entry",
+                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Text(
+                                "Fill in the details yourself",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Scan Receipt
+                Surface(
+                    onClick = {
+                        showAddOptions = false
+                        if (isSubscribed) {
+                            currentScreen = "scan"
+                        } else {
+                            paywallFeatureName = "OCR Receipt Scanner"
+                            showPaywall = true
+                        }
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.CameraAlt,
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text(
+                                "Scan Receipt",
+                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Text(
+                                "Capture a receipt with your camera",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
         }
