@@ -217,7 +217,7 @@ class CloudAiProvider : AiProvider {
 
         val requestBody = JSONObject().apply {
             put("model", claudeModel)
-            put("max_tokens", 2048)
+            put("max_tokens", 4096)
             put("messages", JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "user")
@@ -315,9 +315,9 @@ class CloudAiProvider : AiProvider {
             // OpenAI's newer models (gpt-4.1-*) require max_completion_tokens;
             // DeepSeek and older OpenAI models use max_tokens.
             if (isOpenAi) {
-                put("max_completion_tokens", 2048)
+                put("max_completion_tokens", 4096)
             } else {
-                put("max_tokens", 2048)
+                put("max_tokens", 4096)
             }
             put("messages", JSONArray().apply {
                 put(JSONObject().apply {

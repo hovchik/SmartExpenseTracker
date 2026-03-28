@@ -2379,6 +2379,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
 
+                // GPS location analysis — show where spending happens
+                val geoTransactions = filtered.filter { it.hasLocation }
+                if (geoTransactions.isNotEmpty()) {
+                    appendLine()
+                    appendLine("=== GPS Location Insights ===")
+                    appendLine("Transactions with GPS data: ${geoTransactions.size} of ${filtered.size} (${String.format("%.0f", geoTransactions.size * 100.0 / filtered.size)}%)")
+                    // Group by merchant+location to identify spending hotspots
+                    val locationClusters = geoTransactions.filter { it.merchantName.isNotBlank() }
+                        .groupBy { it.merchantName }
+                        .mapValues { (_, txs) ->
+                            val total = txs.sumOf { it.amount }
+                            val avgLat = txs.mapNotNull { it.resolvedLat }.average()
+                            val avgLng = txs.mapNotNull { it.resolvedLng }.average()
+                            Triple(txs.size, total, Pair(avgLat, avgLng))
+                        }
+                        .entries.sortedByDescending { it.value.second }
+                        .take(5)
+                    if (locationClusters.isNotEmpty()) {
+                        appendLine("Top spending locations:")
+                        locationClusters.forEach { (merchant, data) ->
+                            val (count, total, coords) = data
+                            appendLine("- $merchant: $sym${String.format("%.2f", total)} ($count visits, GPS: ${String.format("%.4f", coords.first)}, ${String.format("%.4f", coords.second)})")
+                        }
+                    }
+                    // In-store vs remote spending
+                    val inStoreCount = geoTransactions.size
+                    val remoteCount = filtered.size - inStoreCount
+                    appendLine("In-store purchases: $inStoreCount | Remote/online: $remoteCount")
+                }
+
                 if (dayOfWeekSpending.isNotEmpty()) {
                     appendLine()
                     appendLine("=== Day-of-Week Spending Pattern ===")
@@ -2416,7 +2446,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 appendLine("2. EXPENSE ANALYSIS")
                 appendLine("   - Identify the biggest spending categories and whether they are reasonable.")
                 appendLine("   - Highlight the highest and lowest expenses and what they tell us.")
-                appendLine("   - Comment on spending patterns (day-of-week, merchant concentration).")
+                appendLine("   - Comment on spending patterns (day-of-week, merchant concentration, GPS location hotspots if available).")
                 appendLine()
                 if (income.isNotEmpty()) {
                     appendLine("3. INCOME vs EXPENSES")
