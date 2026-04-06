@@ -307,7 +307,7 @@ When a banking SMS arrives (e.g. "Chase: $42.00 at Starbucks"), FlowSense's SMS 
 
 > **Answer to enter in Play Console:**
 
-FlowSense captures bank transactions automatically by listening to notifications from the user's banking apps. Because users can have any banking app installed (thousands exist globally across all banks and regions), the app cannot pre-declare a fixed list of package names. When the user taps "Scan for Banking Apps" in Settings, FlowSense calls getInstalledApplications() to search all installed apps by name and package identifier for financial keywords (e.g. "bank", "pay", "wallet"). The discovered apps are shown to the user, who selects which ones to monitor. Without QUERY_ALL_PACKAGES, this keyword-based discovery across the full app inventory is not possible.
+FlowSense captures transactions by listening to notifications from banking apps. Because users can have any banking app installed (thousands exist globally), it cannot pre-declare a fixed list. When the user taps "Scan for Banking Apps", FlowSense calls getInstalledApplications() to match apps by name and package against financial keywords (e.g. "bank", "pay", "wallet"). Matches are listed and the user picks which to monitor. Without QUERY_ALL_PACKAGES, keyword-based app discovery is impossible.
 
 ---
 
