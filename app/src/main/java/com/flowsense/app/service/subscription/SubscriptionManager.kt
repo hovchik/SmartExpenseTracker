@@ -176,8 +176,7 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
             )
             .build()
 
-        billingClient.queryProductDetailsAsync(queryParams) { result ->
-            val billingResult = result.billingResult
+        billingClient.queryProductDetailsAsync(queryParams) { billingResult, result ->
             val productDetailsList = result.productDetailsList
             if (billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
                 Log.e(TAG, "Query subs failed: ${billingResult.debugMessage}")
@@ -225,8 +224,7 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
             )
             .build()
 
-        billingClient.queryProductDetailsAsync(queryParams) { result ->
-            val billingResult = result.billingResult
+        billingClient.queryProductDetailsAsync(queryParams) { billingResult, result ->
             val productDetailsList = result.productDetailsList
             if (billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
                 Log.e(TAG, "Query in-app failed: ${billingResult.debugMessage}")
