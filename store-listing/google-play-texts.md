@@ -296,4 +296,19 @@ When a banking SMS arrives (e.g. "Chase: $42.00 at Starbucks"), FlowSense's SMS 
 
 ---
 
+## 14. QUERY_ALL_PACKAGES Permission Declaration (Play Console Form)
+
+> Fill in this answer exactly as written when Google Play asks about
+> `android.permission.QUERY_ALL_PACKAGES`.
+
+---
+
+### Question — Describe 1 feature in your app that requires a permitted use of the QUERY_ALL_PACKAGES permission
+
+> **Answer to enter in Play Console:**
+
+FlowSense captures bank transactions automatically by listening to notifications from the user's banking apps. Because users can have any banking app installed (thousands exist globally across all banks and regions), the app cannot pre-declare a fixed list of package names. When the user taps "Scan for Banking Apps" in Settings, FlowSense calls getInstalledApplications() to search all installed apps by name and package identifier for financial keywords (e.g. "bank", "pay", "wallet"). The discovered apps are shown to the user, who selects which ones to monitor. Without QUERY_ALL_PACKAGES, this keyword-based discovery across the full app inventory is not possible.
+
+---
+
 *Document prepared for FlowSense v1.0 — Google Play Console submission*
