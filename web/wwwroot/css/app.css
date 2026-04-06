@@ -1165,3 +1165,161 @@ img { max-width: 100%; display: block; }
     .phone-frame { width: 220px; }
     .hero-title { font-size: 2rem; }
 }
+
+/* ============================================================
+   SETTINGS GUIDE PAGE
+   ============================================================ */
+.sg-section {
+    margin-bottom: 48px;
+    scroll-margin-top: calc(var(--navbar-h) + 16px);
+}
+.sg-section:last-child { margin-bottom: 0; }
+
+.sg-card {
+    background: var(--bg-card);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: background var(--transition), border-color var(--transition);
+}
+.sg-card-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px 24px;
+    border-bottom: 1.5px solid var(--border);
+}
+.sg-icon {
+    width: 44px; height: 44px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.sg-icon--purple { background: rgba(99,102,241,.12); color: var(--primary); }
+.sg-icon--green  { background: rgba(16,185,129,.12); color: #059669; }
+.sg-icon--blue   { background: rgba(59,130,246,.12); color: #2563eb; }
+.sg-icon--orange { background: rgba(245,158,11,.12); color: #d97706; }
+.sg-icon--red    { background: rgba(239,68,68,.12);  color: #dc2626; }
+.sg-icon--teal   { background: rgba(20,184,166,.12); color: #0d9488; }
+[data-theme="dark"] .sg-icon--green  { color: #6ee7b7; }
+[data-theme="dark"] .sg-icon--blue   { color: #93c5fd; }
+[data-theme="dark"] .sg-icon--orange { color: #fcd34d; }
+[data-theme="dark"] .sg-icon--red    { color: #fca5a5; }
+[data-theme="dark"] .sg-icon--teal   { color: #99f6e4; }
+@media (prefers-color-scheme: dark) {
+    [data-theme="system"] .sg-icon--green  { color: #6ee7b7; }
+    [data-theme="system"] .sg-icon--blue   { color: #93c5fd; }
+    [data-theme="system"] .sg-icon--orange { color: #fcd34d; }
+    [data-theme="system"] .sg-icon--red    { color: #fca5a5; }
+    [data-theme="system"] .sg-icon--teal   { color: #99f6e4; }
+}
+
+.sg-card-title { flex: 1; }
+.sg-card-title h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 3px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.sg-card-title p {
+    font-size: .85rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0;
+}
+.sg-card-body {
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.sg-item {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 14px 16px;
+    background: var(--bg-subtle);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    transition: background var(--transition), border-color var(--transition);
+}
+.sg-item:hover { background: var(--bg-card-hover); }
+.sg-item-icon {
+    font-size: 1.15rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+    width: 24px;
+    text-align: center;
+}
+.sg-item-text strong {
+    display: block;
+    font-size: .9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 3px;
+}
+.sg-item-text p {
+    font-size: .83rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    margin: 0;
+}
+.sg-item-text ul {
+    margin: 6px 0 0 16px;
+    padding: 0;
+}
+.sg-item-text ul li {
+    font-size: .82rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 3px;
+}
+.sg-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 4px 0;
+}
+.sg-tip {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 12px 16px;
+    background: var(--badge-bg);
+    border-radius: var(--radius-md);
+    border-left: 3px solid var(--primary);
+    font-size: .83rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
+}
+.sg-tip svg { flex-shrink: 0; color: var(--primary); margin-top: 2px; }
+.sg-tip strong { color: var(--primary); }
+
+.sg-section-label {
+    font-size: .75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+/* Settings guide TOC active state */
+.policy-toc a.active {
+    color: var(--primary);
+    background: var(--badge-bg);
+    font-weight: 600;
+}
+
+@media (max-width: 1024px) {
+    .sg-card-header { flex-wrap: wrap; }
+}
+@media (max-width: 480px) {
+    .sg-card-header { padding: 16px; }
+    .sg-card-body   { padding: 16px; }
+    .sg-item        { padding: 12px; }
+}

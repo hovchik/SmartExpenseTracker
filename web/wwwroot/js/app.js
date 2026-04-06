@@ -135,6 +135,7 @@
             '.ai-mode',
             '.review-card',
             '.section-header',
+            '.sg-card',
         ];
         const elements = document.querySelectorAll(selectors.join(','));
 
@@ -151,6 +152,36 @@
             el.classList.add('fade-target');
             observer.observe(el);
         });
+    }
+
+    /* ── TOC scroll-spy (policy & settings pages) ────────── */
+    function initTocScrollSpy() {
+        const toc = document.querySelector('.policy-toc nav');
+        if (!toc) return;
+
+        const links = Array.from(toc.querySelectorAll('a[href^="#"]'));
+        if (!links.length) return;
+
+        const sections = links
+            .map(a => document.getElementById(a.getAttribute('href').slice(1)))
+            .filter(Boolean);
+
+        const navH = parseInt(getComputedStyle(document.documentElement)
+            .getPropertyValue('--navbar-h')) || 64;
+
+        function updateActive() {
+            let current = sections[0];
+            sections.forEach(sec => {
+                if (sec.getBoundingClientRect().top <= navH + 32) current = sec;
+            });
+            links.forEach(a => {
+                a.classList.toggle('active',
+                    a.getAttribute('href') === '#' + (current ? current.id : ''));
+            });
+        }
+
+        window.addEventListener('scroll', updateActive, { passive: true });
+        updateActive();
     }
 
     /* ── Textarea character counter ──────────────────────── */
@@ -199,6 +230,7 @@
         initStarRating();
         initSmoothScroll();
         initFadeIn();
+        initTocScrollSpy();
         initCharCounter();
         initFormLoading();
     });

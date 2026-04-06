@@ -1,0 +1,780 @@
+@page "/settings-guide"
+@model SettingsGuideModel
+@{
+    ViewData["Title"] = "Settings Guide";
+}
+
+<section class="policy-hero" id="top">
+    <div class="container">
+        <div class="badge badge-pill">Reference</div>
+        <h1>Settings Guide</h1>
+        <p>A complete reference for every setting in FlowSense. Tap any section header in the app to expand its controls.</p>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <div class="policy-layout">
+
+            <aside class="policy-toc">
+                <h4>Sections</h4>
+                <nav>
+                    <a href="#sg-appearance">Appearance</a>
+                    <a href="#sg-currency">Currency</a>
+                    <a href="#sg-data-sources">Data Sources</a>
+                    <a href="#sg-app-scanner">App Scanner</a>
+                    <a href="#sg-budget">Budget Threshold</a>
+                    <a href="#sg-salary">Salary Scheduler</a>
+                    <a href="#sg-scheduled-expenses">Scheduled Expenses</a>
+                    <a href="#sg-categories">Categories</a>
+                    <a href="#sg-ai-engine">AI Engine</a>
+                    <a href="#sg-import-export">Import &amp; Export</a>
+                    <a href="#sg-storage">Storage</a>
+                    <a href="#sg-battery">Battery Monitor</a>
+                    <a href="#sg-permissions">Permissions</a>
+                    <a href="#sg-subscription">Subscription</a>
+                    <a href="#sg-about">About</a>
+                </nav>
+            </aside>
+
+            <article class="policy-content">
+
+                <div class="policy-highlight">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <div>All settings sections are <strong>collapsible</strong> — tap any section header to expand or collapse. Settings are saved automatically as you change them.</div>
+                </div>
+
+
+                <!-- ═══ 1. APPEARANCE ═══ -->
+                <div class="sg-section" id="sg-appearance">
+                    <div class="sg-card">
+                        <div class="sg-card-header">
+                            <div class="sg-icon sg-icon--purple">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20z"/></svg>
+                            </div>
+                            <div class="sg-card-title">
+                                <h3>Appearance</h3>
+                                <p>Control the visual theme of the entire app.</p>
+                            </div>
+                        </div>
+                        <div class="sg-card-body">
+                            <div class="sg-item">
+                                <div class="sg-item-icon">☀️</div>
+                                <div class="sg-item-text">
+                                    <strong>Light Mode</strong>
+                                    <p>White and light-grey backgrounds with dark text. Best for daytime use in bright environments.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🌙</div>
+                                <div class="sg-item-text">
+                                    <strong>Dark Mode</strong>
+                                    <p>Deep dark backgrounds with light text. Easier on eyes at night, and saves battery on OLED screens.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">📱</div>
+                                <div class="sg-item-text">
+                                    <strong>System Default</strong>
+                                    <p>Automatically follows your Android system theme setting. If your device switches to dark mode at sunset, FlowSense will too.</p>
+                                </div>
+                            </div>
+                            <div class="sg-tip">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                <span><strong>Tip:</strong> Theme changes take effect immediately — no restart required.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ 2. CURRENCY ═══ -->
+                <div class="sg-section" id="sg-currency">
+                    <div class="sg-card">
+                        <div class="sg-card-header">
+                            <div class="sg-icon sg-icon--green">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                            </div>
+                            <div class="sg-card-title">
+                                <h3>Currency</h3>
+                                <p>Configure your primary currency, exchange rate source, and use the live currency converter.</p>
+                            </div>
+                        </div>
+                        <div class="sg-card-body">
+                            <div class="sg-item">
+                                <div class="sg-item-icon">💱</div>
+                                <div class="sg-item-text">
+                                    <strong>Display Currency</strong>
+                                    <p>Choose your primary currency from 15+ options. This determines the symbol shown on the dashboard, reports, and throughout the app. Also used as a hint during OCR receipt scanning.</p>
+                                    <ul>
+                                        <li>USD ($) · EUR (€) · GBP (£) · AMD (֏) · INR (₹) · JPY (¥)</li>
+                                        <li>CNY (¥) · CAD (C$) · AUD (A$) · CHF (Fr) · KRW (₩)</li>
+                                        <li>BRL (R$) · MXN ($) · RUB (₽) · AED (د.إ)</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <hr class="sg-divider" />
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🌐</div>
+                                <div class="sg-item-text">
+                                    <strong>Exchange Rate Source</strong>
+                                    <p>Choose where FlowSense fetches live exchange rates:</p>
+                                    <ul>
+                                        <li><strong>Open API</strong> — Global rates from open.er-api.com. Best for most users worldwide.</li>
+                                        <li><strong>rate.am</strong> — Armenian bank average rates. Best if you primarily use Armenian Dram (AMD) and want locally-accurate conversion rates.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">⏱️</div>
+                                <div class="sg-item-text">
+                                    <strong>Rate Update Frequency</strong>
+                                    <p>How often FlowSense refreshes exchange rates in the background:</p>
+                                    <ul>
+                                        <li><strong>Every Hour</strong> — Freshest rates, uses slightly more data</li>
+                                        <li><strong>Every 3 Hours</strong> — Good balance</li>
+                                        <li><strong>Daily</strong> — Minimal data usage</li>
+                                        <li><strong>Manual</strong> — Only refreshes when you tap the converter</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🔄</div>
+                                <div class="sg-item-text">
+                                    <strong>Currency Converter</strong>
+                                    <p>A built-in live converter. Enter an amount, choose From and To currencies (with swap button), and see the converted value instantly. Uses your configured exchange rate source. Tap any currency name to change it from the dropdown.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ 3. DATA SOURCES ═══ -->
+                <div class="sg-section" id="sg-data-sources">
+                    <div class="sg-card">
+                        <div class="sg-card-header">
+                            <div class="sg-icon sg-icon--blue">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                            </div>
+                            <div class="sg-card-title">
+                                <h3>Data Sources</h3>
+                                <p>Control how FlowSense automatically detects and imports transactions from your device.</p>
+                            </div>
+                        </div>
+                        <div class="sg-card-body">
+                            <div class="sg-item">
+                                <div class="sg-item-icon">💬</div>
+                                <div class="sg-item-text">
+                                    <strong>SMS Transaction Detection <span style="font-size:.75rem;color:var(--text-muted);font-weight:400">(Toggle)</span></strong>
+                                    <p>When enabled, FlowSense listens for incoming SMS messages and automatically extracts banking transactions. Uses income/expense keywords to classify the type. Requires SMS permission. All processing is local — your SMS content is never uploaded.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🔔</div>
+                                <div class="sg-item-text">
+                                    <strong>Banking App Notifications <span style="font-size:.75rem;color:var(--text-muted);font-weight:400">(Toggle)</span></strong>
+                                    <p>Monitors notifications from apps in your connected banking apps list. When a matching notification arrives, FlowSense extracts the transaction. Requires Notification Listener access (enable in Android system settings — Settings → Apps → Special App Access → Notification Access).</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🤖</div>
+                                <div class="sg-item-text">
+                                    <strong>AI Auto-Categorization <span style="font-size:.75rem;color:var(--text-muted);font-weight:400">(Toggle)</span></strong>
+                                    <p>When a new transaction is detected from SMS or notification, the AI engine automatically assigns the most likely category. Disable if you prefer to always categorize manually, or if you want to review every transaction before it's categorized.</p>
+                                </div>
+                            </div>
+                            <hr class="sg-divider" />
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🏷️</div>
+                                <div class="sg-item-text">
+                                    <strong>Transaction Type Keywords</strong>
+                                    <p>Customize which words in SMS/notification text signal an income transaction vs an expense. FlowSense scans message text for these keywords to determine direction.</p>
+                                    <ul>
+                                        <li><strong>Income keywords</strong> (e.g. "credited", "received", "salary", "refund") — when found, the transaction is classified as income</li>
+                                        <li><strong>Expense keywords</strong> (e.g. "debited", "charged", "payment", "purchased") — classified as expense</li>
+                                        <li>Tap a keyword chip to remove it. Type in the text field and tap <strong>Add</strong> to add new ones.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">📥</div>
+                                <div class="sg-item-text">
+                                    <strong>Scan SMS Inbox</strong>
+                                    <p>One-time bulk scan of your entire SMS inbox. FlowSense reads all messages, applies keyword matching, and imports detected banking transactions. Useful when you first install the app and want to import historical transactions. Requires SMS permission.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🏦</div>
+                                <div class="sg-item-text">
+                                    <strong>Connected Banking Apps</strong>
+                                    <p>List of apps currently monitored for transaction notifications. Tap the X icon next to any app to remove it from the monitored list. Add more apps via the Application Scanner section.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ 4. APPLICATION SCANNER ═══ -->
+                <div class="sg-section" id="sg-app-scanner">
+                    <div class="sg-card">
+                        <div class="sg-card-header">
+                            <div class="sg-icon sg-icon--teal">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            </div>
+                            <div class="sg-card-title">
+                                <h3>Application Scanner <span class="chip chip--purple">Premium</span></h3>
+                                <p>Discover and connect banking apps installed on your device for automatic notification monitoring.</p>
+                            </div>
+                        </div>
+                        <div class="sg-card-body">
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🔑</div>
+                                <div class="sg-item-text">
+                                    <strong>Scan Keywords</strong>
+                                    <p>Words used to identify banking apps by matching against app names and package IDs. Default keywords include "bank", "pay", "wallet", "finance", "money". Tap a chip to remove it; type in the field and tap Add to add new keywords.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🔍</div>
+                                <div class="sg-item-text">
+                                    <strong>Find Banking Apps on Device</strong>
+                                    <p>Scans all installed apps for those matching your scan keywords. Results show app name, package ID, and a + button to add them to your monitored list. Already-monitored apps are shown as already added.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">📱</div>
+                                <div class="sg-item-text">
+                                    <strong>Browse All Installed Apps</strong>
+                                    <p>Full searchable list of every app on your device. Use the search bar to filter by name or package name. Tap + to add any app to the monitored list. Use this if your banking app wasn't found by keyword scan.</p>
+                                </div>
+                            </div>
+                            <div class="sg-tip">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                <span><strong>Note:</strong> After adding an app, make sure Banking App Notifications is toggled ON in Data Sources, and that Notification Listener access is granted in Android Settings.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ 5. BUDGET THRESHOLD ═══ -->
+                <div class="sg-section" id="sg-budget">
+                    <div class="sg-card">
+                        <div class="sg-card-header">
+                            <div class="sg-icon sg-icon--red">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                            </div>
+                            <div class="sg-card-title">
+                                <h3>Budget Threshold <span class="chip chip--purple">Premium</span></h3>
+                                <p>Set a monthly spending limit and receive push notifications when you approach it.</p>
+                            </div>
+                        </div>
+                        <div class="sg-card-body">
+                            <div class="sg-item">
+                                <div class="sg-item-icon">💰</div>
+                                <div class="sg-item-text">
+                                    <strong>Monthly Expense Limit</strong>
+                                    <p>Enter a number in your configured currency. When your total expenses for the current month exceed this amount, FlowSense sends a push notification alert. Set to <strong>0</strong> to disable the alert entirely.</p>
+                                </div>
+                            </div>
+                            <div class="sg-tip">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                <span><strong>Tip:</strong> For granular per-category budgets, open the <strong>Reports</strong> tab and tap the budget icon next to each category. The monthly limit here is a global ceiling across all spending.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ 6. SALARY SCHEDULER ═══ -->
+                <div class="sg-section" id="sg-salary">
+                    <div class="sg-card">
+                        <div class="sg-card-header">
+                            <div class="sg-icon sg-icon--green">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            </div>
+                            <div class="sg-card-title">
+                                <h3>Salary Scheduler <span class="chip chip--purple">Premium</span></h3>
+                                <p>Automatically add your monthly salary as an income transaction on a chosen day.</p>
+                            </div>
+                        </div>
+                        <div class="sg-card-body">
+                            <div class="sg-item">
+                                <div class="sg-item-icon">⚡</div>
+                                <div class="sg-item-text">
+                                    <strong>Enable / Disable</strong>
+                                    <p>Toggle the automatic salary scheduler on or off. When enabled, a scheduled Android WorkManager job runs on the configured day each month.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">💵</div>
+                                <div class="sg-item-text">
+                                    <strong>Salary Amount</strong>
+                                    <p>Your regular monthly income amount in your configured currency. This is the amount added to your transactions automatically.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">📅</div>
+                                <div class="sg-item-text">
+                                    <strong>Day of Month</strong>
+                                    <p>Which calendar day (1–31) the salary transaction is auto-added. If your payday is the 25th, enter 25. If the month has fewer days (e.g. February), the entry appears on the last day of that month.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">📝</div>
+                                <div class="sg-item-text">
+                                    <strong>Description</strong>
+                                    <p>The label for the auto-generated transaction (e.g. "Monthly Salary", "Freelance Payment"). Appears in your transaction list and reports.</p>
+                                </div>
+                            </div>
+                            <div class="sg-tip">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                <span><strong>Reliability:</strong> Uses Android WorkManager — runs even if FlowSense is not open, as long as the device is on.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ 7. SCHEDULED EXPENSES ═══ -->
+                <div class="sg-section" id="sg-scheduled-expenses">
+                    <div class="sg-card">
+                        <div class="sg-card-header">
+                            <div class="sg-icon sg-icon--orange">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                            </div>
+                            <div class="sg-card-title">
+                                <h3>Scheduled Expenses <span class="chip chip--purple">Premium</span></h3>
+                                <p>Set up recurring expenses that are automatically added on a chosen day each month.</p>
+                            </div>
+                        </div>
+                        <div class="sg-card-body">
+                            <div class="sg-item">
+                                <div class="sg-item-icon">➕</div>
+                                <div class="sg-item-text">
+                                    <strong>Add a Recurring Expense</strong>
+                                    <p>Tap the + button to create a new scheduled expense. Set the amount, category, description, and day of month. Examples:</p>
+                                    <ul>
+                                        <li>Rent: $1,200 · Housing · 1st of month</li>
+                                        <li>Netflix: $15.99 · Entertainment · 12th</li>
+                                        <li>Gym membership: $40 · Personal Care · 1st</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">✏️</div>
+                                <div class="sg-item-text">
+                                    <strong>Edit / Delete</strong>
+                                    <p>Tap any scheduled expense to edit its details. Tap the trash icon to delete it. Deleting a scheduled expense only removes future auto-additions — past transactions already created remain in your history.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ 8. CATEGORIES ═══ -->
+                <div class="sg-section" id="sg-categories">
+                    <div class="sg-card">
+                        <div class="sg-card-header">
+                            <div class="sg-icon sg-icon--purple">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                            </div>
+                            <div class="sg-card-title">
+                                <h3>Categories</h3>
+                                <p>View, add, and delete transaction categories. Custom categories require Premium.</p>
+                            </div>
+                        </div>
+                        <div class="sg-card-body">
+                            <div class="sg-item">
+                                <div class="sg-item-icon">📋</div>
+                                <div class="sg-item-text">
+                                    <strong>Default Categories</strong>
+                                    <p>FlowSense comes with a built-in set of categories for both expenses and income:</p>
+                                    <ul>
+                                        <li>Food &amp; Drinks · Transport · Shopping · Healthcare</li>
+                                        <li>Entertainment · Utilities · Housing · Education</li>
+                                        <li>Personal Care · Travel · Business · Savings</li>
+                                        <li>Income (for income-type transactions)</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">➕</div>
+                                <div class="sg-item-text">
+                                    <strong>Add Custom Category <span class="chip chip--purple">Premium</span></strong>
+                                    <p>Type a name in the text field and tap the + button. New categories immediately appear in the category picker when adding transactions.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🗑️</div>
+                                <div class="sg-item-text">
+                                    <strong>Delete a Category</strong>
+                                    <p>Tap the trash icon next to any category to remove it. <strong>Important:</strong> deleting a category does not delete the transactions assigned to it — those transactions will have no category assigned until you manually update them.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- ═══ 9. AI ENGINE ═══ -->
+                <div class="sg-section" id="sg-ai-engine">
+                    <div class="sg-card">
+                        <div class="sg-card-header">
+                            <div class="sg-icon sg-icon--purple">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z"/><path d="M12 8v4l3 3"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                            </div>
+                            <div class="sg-card-title">
+                                <h3>AI Engine</h3>
+                                <p>Configure which AI powers transaction categorization, insights, and the AI chat assistant.</p>
+                            </div>
+                        </div>
+                        <div class="sg-card-body">
+
+                            <p class="sg-section-label">Step 1 — Choose AI Mode</p>
+
+                            <div class="sg-item">
+                                <div class="sg-item-icon">✨</div>
+                                <div class="sg-item-text">
+                                    <strong>AUTO (Recommended)</strong>
+                                    <p>FlowSense automatically selects the best available AI based on your device capabilities. If your device supports on-device AI, it uses that. Otherwise falls back to local model or prompts for cloud setup.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">📱</div>
+                                <div class="sg-item-text">
+                                    <strong>System AI (On-Device)</strong>
+                                    <p>Uses Android's built-in AI inference via <strong>Android AICore / Gemini Nano</strong>. Fully private — no data leaves your device. Fast and battery-efficient. Requires a Pixel 8 or newer, or another Android device that supports AICore. If your device does not support this mode, it will be shown as unavailable.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">💾</div>
+                                <div class="sg-item-text">
+                                    <strong>Local Model</strong>
+                                    <p>Download a small language model to your device and run it 100% offline using MediaPipe LLM Inference. Choose from:</p>
+                                    <ul>
+                                        <li><strong>Gemma 3 1B</strong> — Smaller, faster, requires ~1 GB storage</li>
+                                        <li><strong>Gemma 2 2B</strong> — More capable, requires ~2 GB storage</li>
+                                    </ul>
+                                    <p style="margin-top:6px">Perfect for privacy-conscious users or areas without reliable internet. Requires a HuggingFace account and access token to download.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">☁️</div>
+                                <div class="sg-item-text">
+                                    <strong>Cloud AI <span class="chip chip--purple">Premium</span></strong>
+                                    <p>Connect to a commercial AI provider using your own API key. Offers the most powerful categorization and financial insights. Transaction text is sent to your chosen provider over HTTPS.</p>
+                                    <ul>
+                                        <li><strong>Claude</strong> (Anthropic) — Excellent reasoning</li>
+                                        <li><strong>Gemini</strong> (Google) — Fast and capable</li>
+                                        <li><strong>ChatGPT</strong> (OpenAI) — GPT-4o and newer models</li>
+                                        <li><strong>DeepSeek</strong> — Cost-effective alternative</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <hr class="sg-divider" />
+                            <p class="sg-section-label">Step 2 — Cloud Provider &amp; API Key</p>
+
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🔐</div>
+                                <div class="sg-item-text">
+                                    <strong>API Key Setup</strong>
+                                    <p>After selecting Cloud AI mode and a provider, enter your personal API key in the text field. Your key is stored only on your device in the private app directory and is never sent to FlowSense servers. You pay for API usage directly to the provider.</p>
+                                </div>
+                            </div>
+
+                            <hr class="sg-divider" />
+                            <p class="sg-section-label">Step 3 — Local Model Management</p>
+
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🤗</div>
+                                <div class="sg-item-text">
+                                    <strong>HuggingFace Token</strong>
+                                    <p>Required to download Gemma models. Sign up at huggingface.co, go to your profile → Access Tokens, create a read token, and paste it here. The token is stored locally and used only for model downloads.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">⬇️</div>
+                                <div class="sg-item-text">
+                                    <strong>Download &amp; Manage Models</strong>
+                                    <p>Browse available models, tap Download, and wait for the file to transfer (requires Wi-Fi recommended). Once downloaded, select which model to use as active. Delete unused models to reclaim storage space. Model storage usage is displayed in MB.</p>
+                                </div>
+                            </div>
+
+                            <div class="sg-tip">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                <span><strong>AI Status:</strong> A status indicator below the mode selector shows whether the current AI mode is active, the privacy level (local vs cloud), and any setup warnings.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ 10. IMPORT & EXPORT ═══ -->
+                <div class="sg-section" id="sg-import-export">
+                    <div class="sg-card">
+                        <div class="sg-card-header">
+                            <div class="sg-icon sg-icon--blue">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                            </div>
+                            <div class="sg-card-title">
+                                <h3>Import &amp; Export</h3>
+                                <p>Back up your data or migrate to a new device using JSON files.</p>
+                            </div>
+                        </div>
+                        <div class="sg-card-body">
+                            <div class="sg-item">
+                                <div class="sg-item-icon">📤</div>
+                                <div class="sg-item-text">
+                                    <strong>Export Data as JSON</strong>
+                                    <p>Saves a complete snapshot of all your transactions, categories, budgets, scheduled expenses, and app settings to a <code>flowsense_backup.json</code> file. A file picker lets you choose where to save it (Downloads, Google Drive, etc.). Recommended before clearing data or switching devices.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">📥</div>
+                                <div class="sg-item-text">
+                                    <strong>Import Data from JSON</strong>
+                                    <p>Restores from a previously exported backup file. A confirmation dialog warns you that this will <strong>overwrite all current data</strong>. Use this when migrating to a new phone or restoring a backup. The file must be a valid FlowSense JSON export.</p>
+                                </div>
+                            </div>
+                            <div class="sg-tip">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                <span><strong>Tip:</strong> The exported JSON is human-readable — you can open it in a text editor to inspect or manually edit your data.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ 11. STORAGE ═══ -->
+                <div class="sg-section" id="sg-storage">
+                    <div class="sg-card">
+                        <div class="sg-card-header">
+                            <div class="sg-icon sg-icon--orange">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                            </div>
+                            <div class="sg-card-title">
+                                <h3>Storage</h3>
+                                <p>View data file information and permanently clear all app data.</p>
+                            </div>
+                        </div>
+                        <div class="sg-card-body">
+                            <div class="sg-item">
+                                <div class="sg-item-icon">📁</div>
+                                <div class="sg-item-text">
+                                    <strong>Local Storage Info</strong>
+                                    <p>Shows the path and current file size of your data file (<code>flowsense_data.json</code>). This file grows as you add more transactions. Typical sizes range from a few KB (new user) to several MB (years of transactions).</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🗑️</div>
+                                <div class="sg-item-text">
+                                    <strong>Clear All Data</strong>
+                                    <p style="color:var(--text-primary);font-weight:500">⚠️ Destructive action — irreversible.</p>
+                                    <p>Permanently deletes all transactions, categories, budgets, and resets all settings to factory defaults. A confirmation dialog appears before proceeding. <strong>Export a backup first</strong> if you want to preserve your data.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ 12. BATTERY MONITOR ═══ -->
+                <div class="sg-section" id="sg-battery">
+                    <div class="sg-card">
+                        <div class="sg-card-header">
+                            <div class="sg-icon sg-icon--green">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="18" height="11" rx="2" ry="2"/><line x1="22" y1="11" x2="22" y2="13"/><line x1="6" y1="12" x2="6.01" y2="12"/></svg>
+                            </div>
+                            <div class="sg-card-title">
+                                <h3>Battery Monitor</h3>
+                                <p>Live battery status dashboard. FlowSense monitors battery to manage AI feature availability.</p>
+                            </div>
+                        </div>
+                        <div class="sg-card-body">
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🔋</div>
+                                <div class="sg-item-text">
+                                    <strong>Battery Level &amp; Charging Status</strong>
+                                    <p>Displays your current battery percentage and whether the device is charging (USB, AC adapter, or wireless). The icon changes to reflect the charge level.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">📊</div>
+                                <div class="sg-item-text">
+                                    <strong>Battery Details</strong>
+                                    <p>Four read-only statistics updated in real time:</p>
+                                    <ul>
+                                        <li><strong>Health</strong> — Good / Fair / Poor (battery condition over its lifetime)</li>
+                                        <li><strong>Temperature</strong> — In Celsius. Values over 40°C may affect AI performance.</li>
+                                        <li><strong>Voltage</strong> — Current battery voltage in Volts</li>
+                                        <li><strong>Technology</strong> — Battery chemistry (usually Li-ion)</li>
+                                        <li><strong>Power Saver</strong> — Whether Android's Battery Saver mode is active</li>
+                                        <li><strong>Charging</strong> — Source type (USB, AC, Wireless, Not charging)</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="sg-tip">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                <span>When battery drops below <strong>20%</strong>, a warning banner appears and AI features may be throttled. Below <strong>10% (critical)</strong>, all background AI processing pauses automatically to preserve power for essential functions.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ 13. PERMISSIONS ═══ -->
+                <div class="sg-section" id="sg-permissions">
+                    <div class="sg-card">
+                        <div class="sg-card-header">
+                            <div class="sg-icon sg-icon--teal">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            </div>
+                            <div class="sg-card-title">
+                                <h3>Permissions</h3>
+                                <p>View the status of all permissions FlowSense may request, with quick links to Android Settings.</p>
+                            </div>
+                        </div>
+                        <div class="sg-card-body">
+                            <div class="sg-item">
+                                <div class="sg-item-icon">📷</div>
+                                <div class="sg-item-text">
+                                    <strong>Camera</strong>
+                                    <p>Required for OCR receipt scanning. Images are processed entirely on-device by ML Kit — never uploaded. Without this permission, you must enter receipt amounts manually.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">💬</div>
+                                <div class="sg-item-text">
+                                    <strong>Read SMS &amp; Receive SMS</strong>
+                                    <p>Required for the SMS Transaction Detection and Scan SMS Inbox features. All SMS content is processed locally and never transmitted. Without this, SMS-based detection is unavailable.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🔔</div>
+                                <div class="sg-item-text">
+                                    <strong>Notification Listener</strong>
+                                    <p>Granted in Android System Settings (not a standard runtime permission). Required for Banking App Notifications to detect transactions from other apps. Without this, notification-based detection is unavailable.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">📍</div>
+                                <div class="sg-item-text">
+                                    <strong>Location (Fine, Coarse &amp; Background)</strong>
+                                    <p>Used to geo-tag transactions on the Store Map. Fine location gives GPS accuracy; background location allows geo-tagging when the app is in the background. Without location permission, the Store Map feature is unavailable.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🎙️</div>
+                                <div class="sg-item-text">
+                                    <strong>Record Audio (Microphone)</strong>
+                                    <p>Required for Voice Transaction input. Audio is processed by Android's built-in SpeechRecognizer — never recorded or stored by FlowSense. Without this, voice entry is unavailable.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🔔</div>
+                                <div class="sg-item-text">
+                                    <strong>Post Notifications</strong>
+                                    <p>Required to send budget alerts and scheduled expense reminders. Without this, push alerts are silently suppressed.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🌐</div>
+                                <div class="sg-item-text">
+                                    <strong>Internet</strong>
+                                    <p>Required for: live exchange rate lookups, cloud AI API calls (if configured), and downloading local AI models from HuggingFace. No financial data is sent to FlowSense servers.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ 14. SUBSCRIPTION ═══ -->
+                <div class="sg-section" id="sg-subscription">
+                    <div class="sg-card">
+                        <div class="sg-card-header">
+                            <div class="sg-icon sg-icon--orange">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                            </div>
+                            <div class="sg-card-title">
+                                <h3>Subscription</h3>
+                                <p>View your current plan and manage Premium access via Google Play.</p>
+                            </div>
+                        </div>
+                        <div class="sg-card-body">
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🆓</div>
+                                <div class="sg-item-text">
+                                    <strong>Free Plan</strong>
+                                    <p>Available to everyone. Includes:</p>
+                                    <ul>
+                                        <li>Manual transaction entry</li>
+                                        <li>OCR receipt scanning</li>
+                                        <li>SMS &amp; notification detection</li>
+                                        <li>On-device AI (System AI + Local Model)</li>
+                                        <li>Standard categories, basic reports, currency converter</li>
+                                        <li>Import/Export, Store Map, Voice input</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">⭐</div>
+                                <div class="sg-item-text">
+                                    <strong>Premium Plan</strong>
+                                    <p>Unlocks all advanced features. Available as monthly or yearly subscription via Google Play:</p>
+                                    <ul>
+                                        <li>Cloud AI (Claude, Gemini, ChatGPT, DeepSeek)</li>
+                                        <li>Application Scanner — discover &amp; connect banking apps</li>
+                                        <li>Budget Threshold alerts</li>
+                                        <li>Salary Scheduler</li>
+                                        <li>Scheduled Expenses</li>
+                                        <li>Custom Categories</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🎁</div>
+                                <div class="sg-item-text">
+                                    <strong>Free Trial</strong>
+                                    <p>New subscribers receive a <strong>3-day free trial</strong> with full Premium access. The trial converts to a paid subscription at the end of the period unless cancelled.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🔄</div>
+                                <div class="sg-item-text">
+                                    <strong>Restore Purchases</strong>
+                                    <p>If you reinstalled FlowSense and your Premium status isn't showing, tap <strong>Restore Purchases</strong>. This queries Google Play to verify your active subscription and re-activates Premium features. Requires an internet connection.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ 15. ABOUT ═══ -->
+                <div class="sg-section" id="sg-about">
+                    <div class="sg-card">
+                        <div class="sg-card-header">
+                            <div class="sg-icon sg-icon--purple">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                            </div>
+                            <div class="sg-card-title">
+                                <h3>About</h3>
+                                <p>App version information and links.</p>
+                            </div>
+                        </div>
+                        <div class="sg-card-body">
+                            <div class="sg-item">
+                                <div class="sg-item-icon">ℹ️</div>
+                                <div class="sg-item-text">
+                                    <strong>App Version</strong>
+                                    <p>Displays the current version number and build date. Useful when reporting bugs or checking if you have the latest release.</p>
+                                </div>
+                            </div>
+                            <div class="sg-item">
+                                <div class="sg-item-icon">🔗</div>
+                                <div class="sg-item-text">
+                                    <strong>Links</strong>
+                                    <p>Quick links to the Privacy Policy, Terms of Use, and this website. Tap to open in your device browser.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </article>
+        </div>
+    </div>
+</section>

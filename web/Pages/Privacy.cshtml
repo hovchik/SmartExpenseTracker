@@ -2,214 +2,605 @@
 @model PrivacyModel
 @{
     ViewData["Title"] = "Privacy Policy";
+    var updated = DateTime.UtcNow.ToString("MMMM d, yyyy");
 }
 
 <section class="policy-hero">
     <div class="container">
         <div class="badge">Legal</div>
         <h1>Privacy Policy</h1>
-        <p>Last updated: <strong>@DateTime.Now.ToString("MMMM d, yyyy")</strong></p>
+        <p>Effective date &amp; last updated: <strong>@updated</strong></p>
+        <p style="margin-top:6px;font-size:.85rem;color:var(--text-muted)">This page serves as the official privacy policy URL submitted to Google Play Console for FlowSense.</p>
     </div>
 </section>
 
 <section class="section">
     <div class="container">
         <div class="policy-layout">
-            <!-- Table of Contents -->
+
             <aside class="policy-toc">
                 <h4>Contents</h4>
                 <nav>
-                    <a href="#overview">Overview</a>
-                    <a href="#data-collected">Data We Collect</a>
-                    <a href="#data-storage">How Data Is Stored</a>
-                    <a href="#ai-providers">AI Providers</a>
-                    <a href="#permissions">Permissions Explained</a>
-                    <a href="#third-party">Third-Party Services</a>
-                    <a href="#your-rights">Your Rights</a>
-                    <a href="#children">Children's Privacy</a>
-                    <a href="#changes">Policy Changes</a>
-                    <a href="#contact">Contact</a>
+                    <a href="#app-info">1. App &amp; Developer</a>
+                    <a href="#summary">2. Summary</a>
+                    <a href="#data-collected">3. Data We Process</a>
+                    <a href="#data-storage">4. Data Storage</a>
+                    <a href="#data-use">5. How Data Is Used</a>
+                    <a href="#no-collect">6. What We Don't Collect</a>
+                    <a href="#permissions">7. Sensitive Permissions</a>
+                    <a href="#ai-providers">8. AI Providers</a>
+                    <a href="#third-party">9. Third-Party SDKs</a>
+                    <a href="#billing">10. In-App Purchases</a>
+                    <a href="#sharing">11. Data Sharing</a>
+                    <a href="#retention">12. Retention &amp; Deletion</a>
+                    <a href="#security">13. Security</a>
+                    <a href="#rights">14. Your Privacy Rights</a>
+                    <a href="#children">15. Children's Privacy</a>
+                    <a href="#regional">16. Regional Disclosures</a>
+                    <a href="#changes">17. Policy Changes</a>
+                    <a href="#contact">18. Contact</a>
                     <a href="#terms">Terms of Use</a>
                 </nav>
             </aside>
 
-            <!-- Policy Content -->
             <article class="policy-content">
 
-                <div class="policy-highlight" id="overview">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                    <div>
-                        <strong>Privacy First.</strong> FlowSense stores all your financial data locally on your device. We do not operate any central servers that hold your personal financial information. Your data is yours.
-                    </div>
+
+                <!-- §1 -->
+                <h2 id="app-info">1. App &amp; Developer Information</h2>
+                <div class="policy-table-wrap">
+                    <table class="policy-table">
+                        <tbody>
+                            <tr><td><strong>Application Name</strong></td><td>FlowSense — AI Expense Tracker</td></tr>
+                            <tr><td><strong>Developer / Publisher</strong></td><td>FlowSense</td></tr>
+                            <tr><td><strong>Platform</strong></td><td>Android (minimum Android 12, API level 31)</td></tr>
+                            <tr><td><strong>Distribution</strong></td><td>Google Play Store</td></tr>
+                            <tr><td><strong>Privacy Policy URL</strong></td><td>This page (submitted to Google Play Console)</td></tr>
+                            <tr><td><strong>Architecture</strong></td><td>Local-first — all user data stored on-device. No FlowSense backend server.</td></tr>
+                        </tbody>
+                    </table>
                 </div>
 
-                <h2 id="data-collected">1. Data We Collect</h2>
-                <h3>Data stored on your device</h3>
-                <p>FlowSense stores the following data exclusively on your device in a local JSON file (<code>flowsense_data.json</code>):</p>
+                <!-- §2 -->
+                <h2 id="summary">2. Summary — Privacy at a Glance</h2>
+                <div class="policy-highlight">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <div>
+                        <strong>FlowSense is designed with privacy by default.</strong> Your financial data never leaves your device unless <em>you</em> explicitly choose to use a cloud AI provider with your own API key. We operate no servers that store your personal or financial information.
+                    </div>
+                </div>
                 <ul>
-                    <li>Financial transactions you enter manually or that are auto-detected</li>
-                    <li>Transaction metadata: amounts, merchants, categories, dates, optional notes</li>
-                    <li>GPS coordinates of transactions (only if you grant location permission)</li>
-                    <li>Budget limits and category preferences</li>
-                    <li>App settings including currency preferences and UI theme</li>
-                    <li>AI API keys you choose to enter (stored locally, never sent to our servers)</li>
+                    <li><strong>100% local data storage</strong> — all transactions, budgets, and settings live in a private JSON file on your device.</li>
+                    <li><strong>No user accounts</strong> — FlowSense requires no registration, email address, or password.</li>
+                    <li><strong>No advertising or tracking</strong> — no analytics SDKs, no tracking pixels, no ad identifiers.</li>
+                    <li><strong>Sensitive permissions are optional</strong> — each permission is used only for the stated feature; the app remains usable without them.</li>
+                    <li><strong>API keys stay on your device</strong> — if you configure Cloud AI, your API key is stored locally and calls go directly from your device to the provider.</li>
+                    <li><strong>In-app purchases</strong> are handled entirely by Google Play Billing — we never see or store payment information.</li>
                 </ul>
 
-                <h3>Data we never collect</h3>
+                <!-- §3 -->
+                <h2 id="data-collected">3. Personal &amp; Financial Data We Process</h2>
+                <p>The following table maps to Google Play's Data Safety form. "Collected" means the data exists on your device within the app. "Shared" means transmitted to an external party.</p>
+
+                <div class="policy-table-wrap">
+                    <table class="policy-table">
+                        <thead>
+                            <tr>
+                                <th>Data Type</th>
+                                <th>Collected?</th>
+                                <th>Shared?</th>
+                                <th>Purpose</th>
+                                <th>Optional?</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Financial info</strong> (amounts, merchants, categories, dates, notes)</td>
+                                <td>Yes — stored locally</td>
+                                <td>Only if Cloud AI enabled (text only, no account numbers)</td>
+                                <td>Core expense tracking &amp; reporting</td>
+                                <td>No — core function</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Precise location</strong> (GPS coordinates)</td>
+                                <td>Yes — stored locally with each transaction</td>
+                                <td>No</td>
+                                <td>Store Map geo-tagging</td>
+                                <td>Yes — requires explicit permission grant</td>
+                            </tr>
+                            <tr>
+                                <td><strong>SMS message content</strong></td>
+                                <td>Processed locally; only extracted transaction data is stored</td>
+                                <td>No</td>
+                                <td>Banking SMS detection</td>
+                                <td>Yes — requires SMS permission</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Notification content</strong> (from banking apps)</td>
+                                <td>Processed locally; only extracted transaction data is stored</td>
+                                <td>No</td>
+                                <td>Banking notification detection</td>
+                                <td>Yes — requires Notification Listener access</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Camera / images</strong> (receipt photos)</td>
+                                <td>Processed locally by ML Kit for OCR; frames are never stored</td>
+                                <td>No</td>
+                                <td>Receipt scanning</td>
+                                <td>Yes — requires Camera permission</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Audio</strong></td>
+                                <td>Processed by Android SpeechRecognizer; never recorded or stored</td>
+                                <td>No</td>
+                                <td>Voice transaction input</td>
+                                <td>Yes — requires Microphone permission</td>
+                            </tr>
+                            <tr>
+                                <td><strong>App list</strong> (installed app names &amp; package IDs)</td>
+                                <td>Read locally to display in App Scanner; not stored persistently beyond the session</td>
+                                <td>No</td>
+                                <td>Discover banking apps for notification monitoring</td>
+                                <td>Yes — Premium feature, requires QUERY_ALL_PACKAGES</td>
+                            </tr>
+                            <tr>
+                                <td><strong>AI API keys</strong> (user-provided)</td>
+                                <td>Stored locally in app private directory</td>
+                                <td>Transmitted directly to the chosen AI provider (not to FlowSense)</td>
+                                <td>Cloud AI authentication</td>
+                                <td>Yes — only if Cloud AI mode selected</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Device identifiers / Advertising ID</strong></td>
+                                <td>Not collected</td>
+                                <td>No</td>
+                                <td>—</td>
+                                <td>—</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Contact list / address book</strong></td>
+                                <td>Not collected</td>
+                                <td>No</td>
+                                <td>—</td>
+                                <td>—</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Crash / performance analytics</strong></td>
+                                <td>Not collected by FlowSense</td>
+                                <td>No</td>
+                                <td>—</td>
+                                <td>—</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- §4 -->
+                <h2 id="data-storage">4. How Your Data Is Stored</h2>
+                <p>All user data is stored in a single JSON file named <code>flowsense_data.json</code> in the app-specific private directory on your Android device (<code>/data/data/com.flowsense.app/files/</code>). This directory:</p>
                 <ul>
-                    <li>We do not collect analytics or telemetry about how you use the app</li>
-                    <li>We do not send your transaction history to any FlowSense server</li>
-                    <li>We do not create user accounts or store any profile data remotely</li>
-                    <li>We do not track your behavior across apps or websites</li>
+                    <li>Is <strong>sandboxed by Android</strong> — no other app can read or write this directory.</li>
+                    <li>Is <strong>automatically backed up</strong> before every write operation, ensuring data integrity even if the app is interrupted mid-save.</li>
+                    <li>Is <strong>protected by your device's lock screen and encryption</strong> (if you have device encryption enabled, which is on by default in Android 12+).</li>
+                    <li>Is <strong>completely deleted when you uninstall FlowSense</strong> from your device, unless you have exported a backup file first.</li>
+                    <li>Is <strong>not backed up to Google's cloud backup</strong> by default (we exclude the data file from Android Auto Backup to prevent unintended cloud sync).</li>
+                </ul>
+                <p>AI API keys you enter are stored in the same private JSON file. They are never logged, never transmitted to FlowSense infrastructure, and never included in bug reports.</p>
+                <p>If you download a local AI model (Gemma), it is stored in the same private app directory. Model files can be deleted at any time via Settings → AI Engine → Delete Model.</p>
+
+                <!-- §5 -->
+                <h2 id="data-use">5. How Your Data Is Used</h2>
+                <p>Data processed by FlowSense is used exclusively for the following purposes, all performed locally on your device:</p>
+                <ul>
+                    <li><strong>Transaction display</strong> — showing your expense and income history on the dashboard, reports, and transaction list.</li>
+                    <li><strong>AI categorization</strong> — sending transaction text (merchant name, amount, raw SMS/notification text) to the configured AI engine to suggest a category. With local AI modes, this never leaves your device. With Cloud AI, text goes to your chosen provider.</li>
+                    <li><strong>Budget calculations</strong> — comparing total monthly spending against your configured budget limits to trigger alerts.</li>
+                    <li><strong>Store Map visualization</strong> — rendering GPS coordinates of transactions on an OpenStreetMap-based map.</li>
+                    <li><strong>Currency conversion</strong> — calculating amounts in different currencies using locally cached exchange rates.</li>
+                    <li><strong>Report generation</strong> — computing daily, weekly, and monthly spending summaries, category breakdowns, and period comparisons.</li>
+                    <li><strong>Scheduled automation</strong> — auto-adding salary and recurring expenses on configured days using Android WorkManager.</li>
                 </ul>
 
-                <h2 id="data-storage">2. How Data Is Stored</h2>
-                <p>All your financial data resides in a single JSON file in the app's private storage directory on your Android device. This directory is:</p>
+                <!-- §6 -->
+                <h2 id="no-collect">6. Data We Never Collect</h2>
+                <p>FlowSense does not and will never:</p>
                 <ul>
-                    <li>Not accessible by other apps (Android sandboxing)</li>
-                    <li>Backed up automatically before every write operation</li>
-                    <li>Protected by your device's lock screen and encryption (if enabled)</li>
-                    <li>Completely deleted when you uninstall the app (unless you export a backup first)</li>
+                    <li>Collect analytics or usage telemetry (we have no analytics SDK in the app)</li>
+                    <li>Transmit your transaction history, financial data, or budgets to any FlowSense server</li>
+                    <li>Create, store, or associate your data with a user account on our systems</li>
+                    <li>Collect your name, email address, phone number, or any other contact information</li>
+                    <li>Access, collect, or store your device contacts, calendar, or photos</li>
+                    <li>Record audio beyond what Android's SpeechRecognizer processes in real time</li>
+                    <li>Track you across other apps or websites</li>
+                    <li>Use advertising identifiers (Android Advertising ID) for any purpose</li>
+                    <li>Fingerprint your device for identification</li>
+                    <li>Share your data with data brokers, advertisers, or marketing platforms</li>
+                    <li>Sell your data in any form</li>
                 </ul>
-                <p>You can export your data at any time via <strong>Settings → Data Management → Export</strong>.</p>
 
-                <h2 id="ai-providers">3. AI Providers</h2>
-                <p>FlowSense offers three AI modes. The privacy implications differ by mode:</p>
+
+                <!-- §7 -->
+                <h2 id="permissions">7. Sensitive Permissions — Justification &amp; Handling</h2>
+                <p>Google Play classifies certain permissions as sensitive. The table below documents each one, why FlowSense requests it, how the data is handled, and what happens if you deny it. All sensitive permissions are optional — denying them limits specific features but does not prevent core expense tracking.</p>
+
+                <div class="policy-table-wrap">
+                    <table class="policy-table">
+                        <thead>
+                            <tr>
+                                <th>Permission</th>
+                                <th>Classification</th>
+                                <th>Purpose in FlowSense</th>
+                                <th>Data Handling</th>
+                                <th>If Denied</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>READ_SMS</code> / <code>RECEIVE_SMS</code></td>
+                                <td>Sensitive (SMS)</td>
+                                <td>Read incoming and historical banking SMS messages to extract transaction amounts, merchants, and dates.</td>
+                                <td>SMS content processed entirely on-device. Only the extracted transaction record is stored. Raw SMS text is never uploaded, logged, or retained.</td>
+                                <td>SMS detection and inbox scan unavailable. Manual entry and other capture methods still work.</td>
+                            </tr>
+                            <tr>
+                                <td><code>BIND_NOTIFICATION_LISTENER_SERVICE</code> (Notification Listener)</td>
+                                <td>Sensitive (Special Access)</td>
+                                <td>Monitor notifications from user-selected banking apps to detect transaction events in real time.</td>
+                                <td>Only notifications from apps explicitly in the user's monitored list are inspected. Notification text is processed locally to extract transaction data. Raw notification content is never stored or transmitted.</td>
+                                <td>Notification-based transaction detection unavailable. All other features work normally.</td>
+                            </tr>
+                            <tr>
+                                <td><code>ACCESS_FINE_LOCATION</code></td>
+                                <td>Sensitive (Location)</td>
+                                <td>Attach precise GPS coordinates to transactions for the Store Map feature.</td>
+                                <td>GPS coordinates stored locally in the transaction record. Never transmitted to FlowSense or any third party (OSM map tile requests are IP-based, not coordinate-based).</td>
+                                <td>Transactions are not geo-tagged. Store Map shows no location data.</td>
+                            </tr>
+                            <tr>
+                                <td><code>ACCESS_COARSE_LOCATION</code></td>
+                                <td>Sensitive (Location)</td>
+                                <td>Fallback location source for Store Map if fine location is unavailable.</td>
+                                <td>Same as above.</td>
+                                <td>Same as above.</td>
+                            </tr>
+                            <tr>
+                                <td><code>ACCESS_BACKGROUND_LOCATION</code></td>
+                                <td>Sensitive (Background Location)</td>
+                                <td>Allow geo-tagging of transactions detected via SMS or notifications when FlowSense is not in the foreground.</td>
+                                <td>Location coordinates captured in the background are stored locally in the same transaction record. Never transmitted externally.</td>
+                                <td>Transactions auto-detected in the background (SMS/notifications) will not include location data.</td>
+                            </tr>
+                            <tr>
+                                <td><code>CAMERA</code></td>
+                                <td>Sensitive (Camera)</td>
+                                <td>Capture receipt images for OCR scanning using Google ML Kit Text Recognition.</td>
+                                <td>Camera frames processed in real time by ML Kit — an on-device library. No image is stored or uploaded. Only the extracted text (amount, merchant) is retained.</td>
+                                <td>Receipt OCR scanning unavailable. Amounts must be entered manually.</td>
+                            </tr>
+                            <tr>
+                                <td><code>RECORD_AUDIO</code></td>
+                                <td>Sensitive (Microphone)</td>
+                                <td>Capture voice input for the Voice Transaction feature.</td>
+                                <td>Audio is streamed directly to Android's SpeechRecognizer (on-device processing). FlowSense never receives, records, or stores raw audio. Only the resulting text transcription is used.</td>
+                                <td>Voice transaction input unavailable.</td>
+                            </tr>
+                            <tr>
+                                <td><code>QUERY_ALL_PACKAGES</code></td>
+                                <td>Sensitive (App Visibility)</td>
+                                <td>Enumerate installed apps for the Application Scanner feature, allowing users to discover and add banking apps to the monitored list.</td>
+                                <td>App names and package identifiers are read only during the scan session and displayed in the UI. No app list is stored persistently or transmitted externally.</td>
+                                <td>Application Scanner feature unavailable. Users can still manually enter package names to monitor specific apps.</td>
+                            </tr>
+                            <tr>
+                                <td><code>POST_NOTIFICATIONS</code></td>
+                                <td>Normal</td>
+                                <td>Send budget threshold alerts and scheduled expense reminders to the user's notification bar.</td>
+                                <td>Notifications are generated locally and contain only information the user configured (budget limit, transaction description). No data is transmitted.</td>
+                                <td>Push alerts for budget limits and scheduled items are suppressed.</td>
+                            </tr>
+                            <tr>
+                                <td><code>INTERNET</code></td>
+                                <td>Normal</td>
+                                <td>Fetch live exchange rates; make Cloud AI API calls (if configured); download local AI model files.</td>
+                                <td>Exchange rate requests include no personal data — only the currency code. Cloud AI calls contain transaction text and go directly to the user's configured provider. Model downloads are authenticated with the user's HuggingFace token. FlowSense does not operate a proxy server.</td>
+                                <td>Exchange rates won't update (cached rates used); Cloud AI unavailable; model download unavailable. Local AI and all local features still work.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- §8 -->
+                <h2 id="ai-providers">8. AI Providers &amp; Data Processing</h2>
+                <p>FlowSense supports three AI modes with distinct privacy profiles:</p>
 
                 <div class="policy-table-wrap">
                     <table class="policy-table">
                         <thead>
                             <tr>
                                 <th>AI Mode</th>
-                                <th>Data Sent Externally?</th>
-                                <th>Provider Privacy Policy</th>
+                                <th>External Data Transfer?</th>
+                                <th>Privacy Level</th>
+                                <th>Provider Policy</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 <td><strong>Cloud AI</strong> (Claude, Gemini, ChatGPT, DeepSeek)</td>
-                                <td>Yes — transaction descriptions are sent to the selected provider to generate categorizations and insights</td>
-                                <td>Subject to each provider's own privacy policy</td>
+                                <td>Yes — transaction text sent to the user-selected provider over HTTPS</td>
+                                <td>Subject to provider's privacy policy</td>
+                                <td>See links below</td>
                             </tr>
                             <tr>
-                                <td><strong>On-Device AI</strong> (Android AICore / Gemini Nano)</td>
-                                <td>No — processing happens entirely on your device</td>
-                                <td>Subject to Google's Android Privacy Policy</td>
+                                <td><strong>System AI</strong> (Android AICore / Gemini Nano)</td>
+                                <td>No — inference runs on-device via Android's AICore framework</td>
+                                <td>Fully private</td>
+                                <td>Google Android Privacy Policy</td>
                             </tr>
                             <tr>
                                 <td><strong>Local Model</strong> (Gemma via MediaPipe)</td>
-                                <td>No — model runs 100% offline</td>
+                                <td>No — model runs 100% offline after download</td>
+                                <td>Fully private (no internet required after setup)</td>
                                 <td>No external data transfer</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
 
+                <h3>What is sent to Cloud AI providers</h3>
+                <p>When Cloud AI is enabled, the following data is included in API requests to your chosen provider:</p>
+                <ul>
+                    <li>Transaction amount and currency</li>
+                    <li>Merchant/description text (from manual entry, SMS, or notification)</li>
+                    <li>Proposed or existing category</li>
+                    <li>Contextual instructions (prompt text authored by FlowSense)</li>
+                </ul>
                 <div class="policy-highlight policy-highlight--warning">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                    <div>When using Cloud AI mode, do not include highly sensitive personal information (social security numbers, account passwords, etc.) in transaction notes. Only transaction amounts, merchant names, and categories are necessary for AI processing.</div>
+                    <div><strong>Never include</strong> full account numbers, credit card numbers, government ID numbers, passwords, or PINs in transaction notes. Cloud AI requests contain only what you enter as a transaction description — keep sensitive identifiers out of that field.</div>
                 </div>
 
-                <h2 id="permissions">4. Permissions Explained</h2>
-                <p>FlowSense requests the following Android permissions. All permissions are optional — you can use the app without granting any of them, though some features will be unavailable.</p>
+                <h3>Cloud AI provider privacy policies</h3>
+                <ul>
+                    <li><strong>Anthropic (Claude):</strong> anthropic.com/privacy</li>
+                    <li><strong>Google (Gemini):</strong> policies.google.com/privacy</li>
+                    <li><strong>OpenAI (ChatGPT):</strong> openai.com/policies/privacy-policy</li>
+                    <li><strong>DeepSeek:</strong> deepseek.com/privacy</li>
+                </ul>
+                <p><strong>Important:</strong> FlowSense does not act as a proxy or intermediary for Cloud AI calls. Requests go directly from your device to the provider's API endpoint using the API key you supplied. FlowSense never sees, logs, or stores these API calls.</p>
 
-                <div class="permission-list">
-                    <div class="permission-item">
-                        <div class="permission-icon">📷</div>
-                        <div>
-                            <strong>Camera</strong>
-                            <p>Used only for OCR receipt scanning. Images are processed locally using ML Kit and are never uploaded.</p>
-                        </div>
-                    </div>
-                    <div class="permission-item">
-                        <div class="permission-icon">💬</div>
-                        <div>
-                            <strong>Read SMS / Receive SMS</strong>
-                            <p>Used to detect banking transaction SMS messages. SMS content is processed locally and is never sent to any server.</p>
-                        </div>
-                    </div>
-                    <div class="permission-item">
-                        <div class="permission-icon">🔔</div>
-                        <div>
-                            <strong>Notification Listener Access</strong>
-                            <p>Monitors notifications from banking apps (e.g., Chase, PayPal) to detect transactions. Only notifications from recognized banking apps are read.</p>
-                        </div>
-                    </div>
-                    <div class="permission-item">
-                        <div class="permission-icon">📍</div>
-                        <div>
-                            <strong>Location (Fine, Coarse, Background)</strong>
-                            <p>Optionally geo-tags transactions for the Store Map feature. Location data stays on-device.</p>
-                        </div>
-                    </div>
-                    <div class="permission-item">
-                        <div class="permission-icon">🎙️</div>
-                        <div>
-                            <strong>Record Audio</strong>
-                            <p>Used only for the Voice Transaction feature. Audio is processed locally using Android's SpeechRecognizer and is not recorded or stored.</p>
-                        </div>
-                    </div>
-                    <div class="permission-item">
-                        <div class="permission-icon">🌐</div>
-                        <div>
-                            <strong>Internet</strong>
-                            <p>Required for: live exchange rate lookups, Cloud AI API calls (if configured), and downloading optional local AI models.</p>
-                        </div>
-                    </div>
-                    <div class="permission-item">
-                        <div class="permission-icon">🔔</div>
-                        <div>
-                            <strong>Post Notifications</strong>
-                            <p>Used to send budget alerts when you approach or exceed your spending limits.</p>
-                        </div>
-                    </div>
+                <!-- §9 -->
+                <h2 id="third-party">9. Third-Party SDKs &amp; Services</h2>
+                <div class="policy-table-wrap">
+                    <table class="policy-table">
+                        <thead>
+                            <tr>
+                                <th>SDK / Service</th>
+                                <th>Purpose</th>
+                                <th>Data Sent Externally</th>
+                                <th>Privacy Reference</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Google ML Kit Text Recognition</strong></td>
+                                <td>On-device OCR for receipt scanning</td>
+                                <td>None — runs entirely on-device</td>
+                                <td>Google's Privacy Policy</td>
+                            </tr>
+                            <tr>
+                                <td><strong>MediaPipe (Google)</strong></td>
+                                <td>On-device LLM inference for Local Model AI mode</td>
+                                <td>None — runs entirely on-device</td>
+                                <td>Google's Privacy Policy</td>
+                            </tr>
+                            <tr>
+                                <td><strong>osmdroid + OpenStreetMap</strong></td>
+                                <td>Interactive map tiles for Store Map</td>
+                                <td>Your public IP address in standard tile request HTTP headers; no personal data</td>
+                                <td>openstreetmap.org/privacy</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ExchangeRate-API / open.er-api.com</strong></td>
+                                <td>Live global currency exchange rates</td>
+                                <td>Your public IP address in standard HTTP request; currency code in query; no personal data</td>
+                                <td>exchangerate-api.com/privacy</td>
+                            </tr>
+                            <tr>
+                                <td><strong>rate.am</strong></td>
+                                <td>Armenian bank average exchange rates</td>
+                                <td>Your public IP address; no personal data</td>
+                                <td>rate.am (Armenian)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Google Play Billing</strong></td>
+                                <td>In-app subscription management</td>
+                                <td>Governed by Google's billing infrastructure; FlowSense receives only subscription status (active/expired), not payment details</td>
+                                <td>Google Play Terms of Service</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Android WorkManager (Jetpack)</strong></td>
+                                <td>Background job scheduling for salary &amp; recurring expenses</td>
+                                <td>None</td>
+                                <td>Google's Android Privacy Policy</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Glance (Jetpack)</strong></td>
+                                <td>Home screen widget rendering</td>
+                                <td>None</td>
+                                <td>Google's Android Privacy Policy</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Vico Charts</strong></td>
+                                <td>Compose-based chart rendering in Reports</td>
+                                <td>None — open source library (Apache 2.0), no network calls</td>
+                                <td>Open source, no privacy policy needed</td>
+                            </tr>
+                            <tr>
+                                <td><strong>HuggingFace Hub</strong></td>
+                                <td>Download Gemma model files for Local Model AI</td>
+                                <td>Your HuggingFace access token (used for authentication); model file download from HuggingFace CDN</td>
+                                <td>huggingface.co/privacy</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
+                <p>No advertising SDKs, analytics SDKs (Firebase Analytics, Mixpanel, etc.), or crash reporting SDKs (Crashlytics, Sentry, etc.) are integrated into FlowSense.</p>
 
-                <h2 id="third-party">5. Third-Party Services</h2>
-                <p>FlowSense uses the following third-party services, each with their own privacy policies:</p>
+
+                <!-- §10 -->
+                <h2 id="billing">10. In-App Purchases &amp; Billing</h2>
+                <p>FlowSense offers a Premium subscription that unlocks advanced features. All billing is handled exclusively through <strong>Google Play Billing</strong>. FlowSense does not process, store, or have access to any payment card information.</p>
+                <h3>Subscription details</h3>
                 <ul>
-                    <li><strong>Open Exchange Rates / ExchangeRate-API</strong> — for live currency conversion (no personal data sent)</li>
-                    <li><strong>OpenStreetMap / osmdroid</strong> — for map tiles (IP address may be logged by OSM servers)</li>
-                    <li><strong>Google Play Billing</strong> — for in-app subscriptions (governed by Google's privacy policy)</li>
-                    <li><strong>Google ML Kit</strong> — OCR runs locally, no data sent to Google</li>
-                    <li><strong>Cloud AI Providers</strong> — see Section 3 above</li>
+                    <li>Available as <strong>monthly</strong> and <strong>yearly</strong> subscription plans.</li>
+                    <li>New subscribers receive a <strong>3-day free trial</strong> — the subscription begins automatically at the end of the trial unless cancelled at least 24 hours before.</li>
+                    <li>Subscriptions <strong>auto-renew</strong> unless cancelled at least 24 hours before the end of the current period.</li>
+                    <li>To manage or cancel: open Google Play → Account → Payments &amp; subscriptions → Subscriptions → FlowSense.</li>
+                </ul>
+                <h3>What FlowSense receives from Google Play</h3>
+                <p>FlowSense receives only a <strong>subscription status token</strong> from Google Play — indicating whether your subscription is active, expired, or in trial — along with the plan name. We receive no payment card details, billing address, or purchase price information.</p>
+                <h3>Premium features</h3>
+                <ul>
+                    <li>Cloud AI (Claude, Gemini, ChatGPT, DeepSeek)</li>
+                    <li>Application Scanner — discover &amp; connect banking apps</li>
+                    <li>Budget Threshold alerts</li>
+                    <li>Salary Scheduler</li>
+                    <li>Scheduled Expenses</li>
+                    <li>Custom Categories</li>
                 </ul>
 
-                <h2 id="your-rights">6. Your Rights</h2>
-                <p>Since all data is stored locally on your device, you have full control:</p>
+                <!-- §11 -->
+                <h2 id="sharing">11. Data Sharing &amp; Disclosure</h2>
+                <p>FlowSense does <strong>not sell, rent, or trade</strong> your personal information. Your financial data is not shared with third parties except in the specific, limited circumstances described below:</p>
                 <ul>
-                    <li><strong>Access:</strong> Your data is always accessible in Settings → Data Management</li>
-                    <li><strong>Export:</strong> Export your full dataset as a JSON file at any time</li>
-                    <li><strong>Delete:</strong> Clear all data via Settings → Data Management → Clear All Data</li>
-                    <li><strong>Portability:</strong> The exported JSON file is human-readable and portable</li>
+                    <li><strong>Cloud AI providers (user-initiated):</strong> If you configure Cloud AI mode, transaction text is sent to your chosen provider (Anthropic, Google, OpenAI, or DeepSeek) using your own API key. This sharing is entirely at your discretion and controlled by you. You can switch to local AI at any time to stop this sharing.</li>
+                    <li><strong>OpenStreetMap CDN:</strong> Map tile requests include your public IP address — a standard aspect of fetching any web resource. No financial data is included.</li>
+                    <li><strong>Exchange rate APIs:</strong> Rate fetch requests include your public IP and the currency code — no personal or financial data.</li>
+                    <li><strong>Google Play Billing:</strong> Subscription-related interactions are handled by Google's billing infrastructure per Google's terms.</li>
+                    <li><strong>Legal requirements:</strong> We may disclose information if required by applicable law, regulation, legal process, or governmental request. Since we store no personal data on our servers, any such request would yield nothing from FlowSense infrastructure — only data you hold on your own device.</li>
                 </ul>
-                <p>If you are in the EU/EEA, you have additional rights under GDPR. Since we do not store your data on our servers, most GDPR obligations are fulfilled by your device's local data controls.</p>
+                <p>There are no other circumstances under which FlowSense shares user data.</p>
 
-                <h2 id="children">7. Children's Privacy</h2>
-                <p>FlowSense is not directed at children under 13. We do not knowingly collect personal information from children. If you believe a child has provided personal information, please contact us and we will take appropriate action.</p>
+                <!-- §12 -->
+                <h2 id="retention">12. Data Retention &amp; Deletion</h2>
+                <p>Because all data is stored locally on your device, <strong>you are in full control of retention and deletion</strong>:</p>
+                <ul>
+                    <li><strong>Active use:</strong> Data is retained indefinitely until you delete it or uninstall the app.</li>
+                    <li><strong>Delete all data:</strong> Settings → Storage → Clear All Data. This permanently and immediately deletes your JSON data file.</li>
+                    <li><strong>Delete specific transactions:</strong> Long-press any transaction → Move to Trash. Trash items can be permanently deleted from the Trash screen.</li>
+                    <li><strong>Uninstall:</strong> Uninstalling FlowSense removes all app data from your device (Android standard behavior) unless you use Google's backup mechanism.</li>
+                    <li><strong>Local AI model files:</strong> Settings → AI Engine → select model → Delete. Immediately frees the storage space.</li>
+                </ul>
+                <p>FlowSense does not retain any copy of your data on external servers, so there is no remote deletion request process. Everything you delete in the app is deleted immediately and permanently.</p>
 
-                <h2 id="changes">8. Changes to This Policy</h2>
-                <p>We may update this Privacy Policy from time to time. Changes will be reflected by updating the "Last updated" date at the top of this page. We encourage you to review this policy periodically. Continued use of FlowSense after changes constitutes acceptance of the updated policy.</p>
+                <!-- §13 -->
+                <h2 id="security">13. Security Measures</h2>
+                <p>FlowSense implements the following measures to protect your financial data:</p>
+                <ul>
+                    <li><strong>Android sandboxing:</strong> The app's private storage directory is inaccessible to all other apps on the device (enforced by the Android OS).</li>
+                    <li><strong>Device encryption:</strong> On Android 12+, device-level encryption is enabled by default. Your data file is encrypted at rest whenever your screen is locked.</li>
+                    <li><strong>Automatic write backups:</strong> A backup copy of the data file is created before every write operation. This prevents data corruption if the app is interrupted during a save.</li>
+                    <li><strong>Thread-safe writes:</strong> A mutex (SemaphoreSlim) ensures that concurrent write operations cannot corrupt the JSON file.</li>
+                    <li><strong>No API key logging:</strong> API keys you enter are stored only in the private JSON file and are never included in log output, crash reports, or debug information.</li>
+                    <li><strong>HTTPS for all network calls:</strong> All external requests (exchange rates, Cloud AI, model downloads) use HTTPS with the provider's TLS certificate validated by the Android system.</li>
+                    <li><strong>No network transmission of financial data</strong> from FlowSense infrastructure — there is no FlowSense server to attack.</li>
+                    <li><strong>Strict Android permission model:</strong> FlowSense targets Android 12+ (API 31), which enforces tighter restrictions on background location, exact alarms, and Bluetooth than older Android versions.</li>
+                </ul>
+                <p>While we implement strong protections, no security system is perfect. We encourage you to keep your device's operating system up to date and use a lock screen PIN or biometric authentication.</p>
 
-                <h2 id="contact">9. Contact Us</h2>
-                <p>If you have questions about this Privacy Policy or FlowSense's privacy practices, please reach out via the feedback section on our <a href="/#feedback">home page</a> or through the Google Play Store listing.</p>
+                <!-- §14 -->
+                <h2 id="rights">14. Your Privacy Rights</h2>
+                <p>Because FlowSense stores all personal data locally on your device, most privacy rights are exercisable directly within the app without contacting us.</p>
+                <h3>Rights and how to exercise them</h3>
+                <div class="policy-table-wrap">
+                    <table class="policy-table">
+                        <thead>
+                            <tr><th>Right</th><th>How to Exercise in FlowSense</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Right to Access</strong></td><td>Your full data is always visible and navigable within the app. Export a complete copy via Settings → Import &amp; Export → Export Data as JSON.</td></tr>
+                            <tr><td><strong>Right to Rectification</strong></td><td>Edit any transaction by tapping it → Edit. Update any field at any time.</td></tr>
+                            <tr><td><strong>Right to Erasure (Right to be Forgotten)</strong></td><td>Delete individual transactions or all data via Settings → Storage → Clear All Data. There is no remote copy to delete.</td></tr>
+                            <tr><td><strong>Right to Data Portability</strong></td><td>Export your full dataset as a human-readable JSON file at any time. The format is open and self-explanatory.</td></tr>
+                            <tr><td><strong>Right to Restrict Processing</strong></td><td>Disable SMS detection, notification monitoring, AI categorization, and location geo-tagging individually via Settings → Data Sources.</td></tr>
+                            <tr><td><strong>Right to Object</strong></td><td>Disable any data processing feature via the relevant Settings toggle. Uninstall the app to stop all processing.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <h3>GDPR (EU/EEA users)</h3>
+                <p>If you are located in the European Union or European Economic Area, you have rights under the General Data Protection Regulation (GDPR). Our legal basis for processing your data is <strong>legitimate interest</strong> (providing you with a functional expense tracker) and <strong>your explicit consent</strong> for optional permissions (location, SMS, camera, etc.). All processing occurs locally on your device. For Cloud AI, the legal basis is your consent — you opt in by configuring a cloud provider and entering your API key.</p>
+                <h3>CCPA (California users)</h3>
+                <p>If you are a California resident, you have rights under the California Consumer Privacy Act (CCPA). FlowSense does not sell personal information. We do not share personal information for cross-context behavioral advertising. Since we store no personal information on our servers, CCPA access and deletion requests are fulfilled entirely through in-app controls.</p>
+
+                <!-- §15 -->
+                <h2 id="children">15. Children's Privacy</h2>
+                <p>FlowSense is not directed at, designed for, or intended for use by children under the age of 13 (or the applicable age of digital consent in your jurisdiction). The app is rated for users aged 13 and older on Google Play.</p>
+                <p>We do not knowingly collect personal information from children under 13. Because FlowSense collects no personal information on any servers — from users of any age — there is no risk of children's data being stored in our systems.</p>
+                <p>If you are a parent or guardian and believe your child under 13 has used FlowSense and stored financial data on a shared device, you can delete that data by opening the app on the device and using Settings → Storage → Clear All Data. Please also contact us (see Section 18) if you have concerns.</p>
+
+                <!-- §16 -->
+                <h2 id="regional">16. Regional Disclosures</h2>
+                <h3>European Union &amp; European Economic Area</h3>
+                <p>FlowSense processes personal data (location, transaction text for Cloud AI) in accordance with the GDPR. As described in Section 14, all rights are exercisable in-app. There are no cross-border data transfers to FlowSense servers because we maintain no servers. Cloud AI providers are subject to their own transfer mechanisms as described in their privacy policies.</p>
+                <h3>United Kingdom</h3>
+                <p>FlowSense complies with the UK GDPR as retained in UK law following Brexit. The same rights and protections described in this policy apply to UK users.</p>
+                <h3>California (CCPA/CPRA)</h3>
+                <p>We do not sell or share personal information as defined by the CCPA. We have no financial incentive programs tied to personal data. Your CCPA rights are described in Section 14.</p>
+                <h3>Armenia</h3>
+                <p>FlowSense includes dedicated support for the Armenian Dram (AMD) and rate.am for local exchange rates, acknowledging the significant use of the app in Armenia. Data handling is identical regardless of geographic location.</p>
+                <h3>All other regions</h3>
+                <p>We apply the same privacy-by-default principles globally. If your local law provides additional rights not described here, please contact us.</p>
+
+                <!-- §17 -->
+                <h2 id="changes">17. Changes to This Privacy Policy</h2>
+                <p>We may update this Privacy Policy from time to time to reflect changes in the app's features, applicable law, or our practices. We will indicate changes by updating the "effective date" at the top of this page.</p>
+                <p>For <strong>material changes</strong> — such as the introduction of new data collection practices or new third-party sharing — we will provide additional notice on our website or through the Google Play Store listing description.</p>
+                <p>Your continued use of FlowSense after changes are posted constitutes acceptance of the updated policy. If you do not agree with any update, you should stop using the app and delete your local data.</p>
+
+                <!-- §18 -->
+                <h2 id="contact">18. Contact Us</h2>
+                <p>For privacy-related questions, requests, or concerns, please reach out through:</p>
+                <ul>
+                    <li><strong>Feedback form:</strong> <a href="/#feedback">Leave a message on this website</a> — we respond within 30 days.</li>
+                    <li><strong>Google Play:</strong> Use the "Contact developer" link on FlowSense's Play Store listing.</li>
+                </ul>
+                <p>Because FlowSense stores no personal data on our servers, most privacy requests (access, deletion, portability) can be fulfilled immediately and independently using the in-app controls described in Section 14. We are happy to answer questions or provide guidance even for self-service requests.</p>
 
                 <hr class="policy-divider" id="terms" />
 
                 <h2>Terms of Use</h2>
-                <p>By downloading and using FlowSense, you agree to these terms.</p>
+                <p>By downloading, installing, or using FlowSense, you agree to these Terms of Use. If you do not agree, please uninstall the app.</p>
 
-                <h3>License</h3>
-                <p>FlowSense grants you a personal, non-exclusive, non-transferable license to use the app on your Android device. You may not copy, modify, distribute, sell, or reverse engineer the app.</p>
+                <h3>License Grant</h3>
+                <p>FlowSense grants you a personal, non-exclusive, non-transferable, revocable license to install and use the FlowSense application on Android devices you own or control, solely for your personal, non-commercial financial management purposes.</p>
+
+                <h3>Prohibited Uses</h3>
+                <p>You agree not to:</p>
+                <ul>
+                    <li>Copy, modify, distribute, sell, sublicense, or reverse-engineer the app or any part of it.</li>
+                    <li>Use the app for any unlawful purpose or in violation of any applicable law or regulation.</li>
+                    <li>Attempt to circumvent or disable any security feature of the app.</li>
+                    <li>Use the app to process financial data belonging to other persons without their consent.</li>
+                    <li>Remove or alter any copyright, trademark, or other proprietary notice from the app.</li>
+                </ul>
+
+                <h3>AI-Generated Content Disclaimer</h3>
+                <p>The AI features in FlowSense (categorization, insights, chat responses) are generated by machine learning models and may occasionally be inaccurate. FlowSense is a personal finance <em>helper</em>, not a certified financial advisor, accountant, or tax professional. Do not rely solely on AI-generated suggestions for important financial decisions. Always verify AI categorizations against your actual bank statements.</p>
 
                 <h3>Disclaimer of Warranties</h3>
-                <p>FlowSense is provided "as is" without warranty of any kind. We make no guarantees about the accuracy of AI categorizations, currency exchange rates, or financial reports. FlowSense is a personal finance helper, not a certified financial advisor.</p>
+                <p>FlowSense is provided <strong>"as is"</strong> and <strong>"as available"</strong> without warranties of any kind, express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, accuracy, or non-infringement. We do not warrant that the app will be error-free, uninterrupted, or free of viruses or other harmful components. Exchange rate data provided by third-party APIs may be delayed or inaccurate — do not use it for trading or critical financial decisions.</p>
 
                 <h3>Limitation of Liability</h3>
-                <p>To the maximum extent permitted by law, FlowSense and its developers shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the app.</p>
+                <p>To the maximum extent permitted by applicable law, FlowSense and its developers shall not be liable for any indirect, incidental, special, consequential, exemplary, or punitive damages, including but not limited to: loss of data, loss of profits, financial loss arising from reliance on AI categorizations or exchange rates, or damages arising from unauthorized access to your device. Our total liability for any claim arising from your use of FlowSense shall not exceed the amount you paid for the app or subscription in the 12 months preceding the claim.</p>
+
+                <h3>Indemnification</h3>
+                <p>You agree to indemnify and hold harmless FlowSense and its developers from and against any claims, damages, losses, costs, and expenses (including reasonable legal fees) arising from your use of the app, your violation of these Terms, or your violation of any third party's rights.</p>
 
                 <h3>Governing Law</h3>
-                <p>These terms are governed by applicable law in the jurisdiction where the app developer is located.</p>
+                <p>These Terms of Use are governed by the laws of the jurisdiction in which the app developer is located, without regard to conflict-of-law principles. Any disputes shall be resolved in the competent courts of that jurisdiction. If any provision of these Terms is found to be unenforceable, the remaining provisions will continue in full force and effect.</p>
+
+                <h3>Entire Agreement</h3>
+                <p>These Terms of Use and the Privacy Policy above constitute the entire agreement between you and FlowSense regarding your use of the application, and supersede all prior agreements, representations, or understandings.</p>
 
             </article>
         </div>
