@@ -1,0 +1,15 @@
+@page "/Error"
+@model ErrorModel
+@{
+    ViewData["Title"] = "Error";
+}
+<section class="section" style="min-height: 60vh; display:flex; align-items:center;">
+    <div class="container" style="text-align:center;">
+        <div class="badge" style="margin-bottom:16px;">Oops</div>
+        <h1 class="section-title">Something went wrong</h1>
+        <p class="section-sub" style="margin-bottom:32px;">
+            An unexpected error occurred. Please try again or return home.
+        </p>
+        <a href="/" class="btn btn-primary">Back to Home</a>
+    </div>
+</section>
