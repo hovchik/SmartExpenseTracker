@@ -240,7 +240,64 @@ Premium features:
 
 ---
 
-## 12. Store Listing Assets Checklist
+## 12. Location Permissions Declaration (Play Console Form)
+
+> Fill in these answers exactly as written when Google Play asks about
+> `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, and
+> `ACCESS_BACKGROUND_LOCATION`.
+
+---
+
+### Question 1 — What is the main purpose of your app?
+
+> **Answer to enter in Play Console:**
+
+FlowSense is a personal finance and expense tracking app. It automatically
+captures transactions from bank SMS messages, banking app notifications, and
+receipt photos (OCR), then organises them into categories, budgets, and
+AI-generated spending reports. All data is stored locally on the device; no
+financial data is sent to any server except when the user optionally enables
+a third-party Cloud AI feature.
+
+---
+
+### Question 2 — Describe 1 location-based feature that needs access to location in the background
+
+> **Answer to enter in Play Console:**
+
+**Feature: Automatic geo-tagging of SMS-captured banking transactions**
+
+When a banking SMS arrives (e.g. "Chase: $42.00 at Starbucks"), FlowSense's
+SMS broadcast receiver automatically parses and logs the transaction in the
+background. At the same moment it reads the device's last-known GPS fix and
+attaches the coordinates to that transaction record. These coordinates are
+then used to create or match a merchant pin on the in-app Store Map, giving
+the user a visual map of where they spend money. This entire flow — receiving
+the SMS, parsing it, capturing location, and creating the map pin — happens
+in the background without requiring the user to open the app.
+
+Background location (`ACCESS_BACKGROUND_LOCATION`) is required because
+Android 10+ prevents foreground-only location apps from reading location
+inside a broadcast receiver or a notification listener service, both of which
+run while the app is not in the foreground.
+
+**Summary of all three permissions:**
+
+| Permission | Why needed |
+|-----------|-----------|
+| `ACCESS_FINE_LOCATION` | Precise GPS coordinates for transaction geo-tagging and merchant map pins |
+| `ACCESS_COARSE_LOCATION` | Network-based fallback location when GPS is unavailable |
+| `ACCESS_BACKGROUND_LOCATION` | Required on Android 10+ to read location inside the SMS broadcast receiver and banking notification listener service — both run in the background |
+
+**Location data handling:**
+- Stored locally on-device only as transaction metadata
+- Never transmitted to FlowSense servers or any third party
+- User can disable by revoking location permission in Android Settings at any time
+- Location capture is optional; the app functions fully without it
+
+---
+
+## 13. Store Listing Assets Checklist
 
 > The following assets need to be created separately (not text):
 
