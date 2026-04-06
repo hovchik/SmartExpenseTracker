@@ -118,7 +118,7 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.9.0")
 
     // Google Play Billing for subscriptions & one-time purchases
-    implementation("com.android.billingclient:billing-ktx:7.1.1")
+    implementation("com.android.billingclient:billing-ktx:8.0.0")
 
     // Testing
     testImplementation("junit:junit:4.13.2")

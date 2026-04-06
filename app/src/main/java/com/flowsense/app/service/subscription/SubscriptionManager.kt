@@ -61,7 +61,6 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
 
     private var billingClient: BillingClient = BillingClient.newBuilder(context)
         .setListener(this)
-        .enablePendingPurchases()
         .build()
 
     private var isClientReady = false
