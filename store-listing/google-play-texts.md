@@ -263,23 +263,9 @@ a third-party Cloud AI feature.
 
 ### Question 2 — Describe 1 location-based feature that needs access to location in the background
 
-> **Answer to enter in Play Console:**
+> **Answer to enter in Play Console (exactly 500 characters):**
 
-**Feature: Automatic geo-tagging of SMS-captured banking transactions**
-
-When a banking SMS arrives (e.g. "Chase: $42.00 at Starbucks"), FlowSense's
-SMS broadcast receiver automatically parses and logs the transaction in the
-background. At the same moment it reads the device's last-known GPS fix and
-attaches the coordinates to that transaction record. These coordinates are
-then used to create or match a merchant pin on the in-app Store Map, giving
-the user a visual map of where they spend money. This entire flow — receiving
-the SMS, parsing it, capturing location, and creating the map pin — happens
-in the background without requiring the user to open the app.
-
-Background location (`ACCESS_BACKGROUND_LOCATION`) is required because
-Android 10+ prevents foreground-only location apps from reading location
-inside a broadcast receiver or a notification listener service, both of which
-run while the app is not in the foreground.
+When a banking SMS arrives (e.g. "Chase: $42.00 at Starbucks"), FlowSense's SMS broadcast receiver parses the transaction in the background and simultaneously reads the device's last-known GPS location. These coordinates are saved with the transaction record and used to automatically place a merchant map pin on the in-app Store Map, all without the user opening the app. ACCESS_BACKGROUND_LOCATION is required on Android 10+ to read location inside a broadcast receiver that runs in the background.
 
 **Summary of all three permissions:**
 
