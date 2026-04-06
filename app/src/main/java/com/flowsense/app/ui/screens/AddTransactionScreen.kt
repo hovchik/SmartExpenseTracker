@@ -70,7 +70,7 @@ fun AddTransactionScreen(
 
     // Editable items list — populated from OCR items when available
     var editableItems by remember(ocrParsedData) {
-        mutableStateOf(
+        mutableStateOf<List<Triple<Int, String, String>>>(
             ocrParsedData?.items?.mapIndexed { idx, (name, price) ->
                 Triple(idx, name, String.format("%.2f", price))
             } ?: emptyList()
