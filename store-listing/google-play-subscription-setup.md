@@ -1,6 +1,6 @@
-# Google Play Console — Subscription & In-App Product Setup Guide
+# Google Play Console — Subscription Setup Guide
 
-This guide walks through creating the subscription products and in-app purchase
+This guide walks through creating the subscription products
 required by FlowSense (SmartExpenseTracker) in the Google Play Console.
 
 ---
@@ -9,23 +9,21 @@ required by FlowSense (SmartExpenseTracker) in the Google Play Console.
 
 - A Google Play Developer account ($25 one-time registration fee).
 - The app must be published (at least to an internal testing track) before you
-  can create in-app products or subscriptions.
+  can create subscriptions.
 - A signed release APK/AAB uploaded to at least one testing track.
 - A Google merchant account linked in **Play Console → Settings → Payments profile**.
 
 ---
 
-## Overview of Products to Create
+## Overview of Subscriptions to Create
 
 | # | Product ID | Type | Price | Billing Period |
 |---|-----------|------|-------|----------------|
-| 1 | `flowsense_premium_monthly` | Subscription | $1.99 | 1 month |
-| 2 | `flowsense_premium_6months` | Subscription | $10.00 | 6 months |
-| 3 | `flowsense_premium_annual` | Subscription | $18.00 | 1 year |
-| 4 | `flowsense_premium_lifetime` | Managed product (in-app) | $40.00 | One-time |
+| 1 | `flowsense-premium-monthly` | Subscription | $1.99 | 1 month |
+| 2 | `flowsense-premium-6months` | Subscription | $10.00 | 6 months |
+| 3 | `flowsense-premium-annual` | Subscription | $18.00 | 1 year |
 
-Products 1–3 are auto-renewing subscriptions. Product 4 is a one-time in-app
-purchase (lifetime access).
+All three are auto-renewing subscriptions.
 
 ---
 
@@ -40,10 +38,10 @@ Console, each as a separate **base plan**.
 2. Select **your app** → **Monetize** → **Products** → **Subscriptions**.
 3. Click **Create subscription**.
 4. Fill in:
-   - **Product ID**: `flowsense_premium_monthly`
+   - **Product ID**: `flowsense-premium-monthly`
      > Note: The product ID for the subscription container can match your
      > first base plan. Alternatively, you can use a generic ID like
-     > `flowsense_premium` and set individual base plan IDs. The app code
+     > `flowsense-premium` and set individual base plan IDs. The app code
      > queries each product ID separately, so each plan needs its own
      > subscription entry OR its own base plan within a shared subscription.
    - **Name**: `FlowSense Premium — Monthly`
@@ -74,7 +72,7 @@ Create a new subscription (or add a base plan to an existing one):
 
 1. Go to **Monetize** → **Products** → **Subscriptions** → **Create subscription**.
 2. Fill in:
-   - **Product ID**: `flowsense_premium_6months`
+   - **Product ID**: `flowsense-premium-6months`
    - **Name**: `FlowSense Premium — 6 Months`
    - **Description**: `6-month premium access. Save 16% compared to monthly.`
 3. Add a base plan:
@@ -85,7 +83,7 @@ Create a new subscription (or add a base plan to an existing one):
 ### Step 4: Repeat for Annual Plan
 
 1. **Create subscription**:
-   - **Product ID**: `flowsense_premium_annual`
+   - **Product ID**: `flowsense-premium-annual`
    - **Name**: `FlowSense Premium — Annual`
    - **Description**: `Annual premium access. Best value — save 25% compared to monthly.`
 2. Add a base plan:
@@ -95,24 +93,7 @@ Create a new subscription (or add a base plan to an existing one):
 
 ---
 
-## Part B — Create the Lifetime In-App Product
-
-The lifetime plan is a **managed product** (one-time purchase), not a
-subscription.
-
-1. Go to **Monetize** → **Products** → **In-app products**.
-2. Click **Create product**.
-3. Fill in:
-   - **Product ID**: `flowsense_premium_lifetime`
-   - **Name**: `FlowSense Premium — Lifetime`
-   - **Description**: `One-time purchase. Unlock all premium features forever.`
-   - **Default price**: **$40.00 USD**
-4. Set **Status** to **Active**.
-5. Click **Save** and then **Activate**.
-
----
-
-## Part C — Configure Grace Period & Resubscribe Settings
+## Part B — Configure Grace Period & Resubscribe Settings
 
 For each subscription, configure these recommended settings:
 
@@ -127,7 +108,7 @@ For each subscription, configure these recommended settings:
 
 ---
 
-## Part D — Testing Setup
+## Part C — Testing Setup
 
 ### License Testers
 
@@ -150,10 +131,9 @@ values in the app source code:
 ```
 File: app/src/main/java/com/flowsense/app/service/subscription/SubscriptionPlan.kt
 
-MONTHLY     → "flowsense_premium_monthly"
-SEMI_ANNUAL → "flowsense_premium_6months"
-ANNUAL      → "flowsense_premium_annual"
-LIFETIME    → "flowsense_premium_lifetime"
+MONTHLY     → "flowsense-premium-monthly"
+SEMI_ANNUAL → "flowsense-premium-6months"
+ANNUAL      → "flowsense-premium-annual"
 ```
 
 If there is a mismatch, the billing client will return no product details and
@@ -161,14 +141,13 @@ the purchase flow will fail silently.
 
 ---
 
-## Part E — Checklist
+## Part D — Checklist
 
 - [ ] Merchant account linked in Play Console
 - [ ] App uploaded to at least internal testing track
-- [ ] Subscription created: `flowsense_premium_monthly` ($1.99/month)
-- [ ] Subscription created: `flowsense_premium_6months` ($10.00/6 months)
-- [ ] Subscription created: `flowsense_premium_annual` ($18.00/year)
-- [ ] In-app product created: `flowsense_premium_lifetime` ($40.00 one-time)
+- [ ] Subscription created: `flowsense-premium-monthly` ($1.99/month)
+- [ ] Subscription created: `flowsense-premium-6months` ($10.00/6 months)
+- [ ] Subscription created: `flowsense-premium-annual` ($18.00/year)
 - [ ] All base plans activated
 - [ ] Grace period enabled (7 days recommended)
 - [ ] Account hold enabled (30 days recommended)
