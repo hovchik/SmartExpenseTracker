@@ -34,13 +34,26 @@ object CurrencyUtils {
         }
     }
 
+    /** Number of decimal places for the currency (0 for JPY/KRW, 2 for most, 3 for BHD, etc.). */
+    private fun fractionDigitsFor(currencyCode: String): Int {
+        return try {
+            Currency.getInstance(currencyCode).defaultFractionDigits.coerceAtLeast(0)
+        } catch (_: Exception) {
+            2
+        }
+    }
+
+    private fun safeAmount(amount: Double): Double = if (amount.isFinite()) amount else 0.0
+
     /** Format an amount using the current app currency code. Falls back to USD. */
     fun format(amount: Double, currencyCode: String = "USD"): String {
+        val value = safeAmount(amount)
         return try {
-            formatterFor(currencyCode).format(amount)
+            formatterFor(currencyCode).format(value)
         } catch (_: Exception) {
             val info = currencyInfoFor(currencyCode)
-            "${info.symbol}${String.format("%.2f", amount)}"
+            val digits = fractionDigitsFor(currencyCode)
+            "${info.symbol}${String.format("%.${digits}f", value)}"
         }
     }
 
@@ -48,12 +61,14 @@ object CurrencyUtils {
     fun formatCompact(amount: Double, currencyCode: String = "USD"): String {
         val info = currencyInfoFor(currencyCode)
         val sym = info.symbol
-        val abs = abs(amount)
-        val sign = if (amount < 0) "-" else ""
+        val value = safeAmount(amount)
+        val abs = abs(value)
+        val sign = if (value < 0) "-" else ""
+        val digits = fractionDigitsFor(currencyCode)
         return when {
             abs >= 1_000_000 -> "${sign}${sym}${String.format("%.1fM", abs / 1_000_000)}"
             abs >= 1_000     -> "${sign}${sym}${String.format("%.1fK", abs / 1_000)}"
-            else             -> "${sign}${sym}${String.format("%.2f", abs)}"
+            else             -> "${sign}${sym}${String.format("%.${digits}f", abs)}"
         }
     }
 

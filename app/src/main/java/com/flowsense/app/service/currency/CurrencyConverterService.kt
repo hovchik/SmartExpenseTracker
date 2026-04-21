@@ -103,13 +103,12 @@ object CurrencyConverterService {
                 val code = conn.responseCode
                 if (code == HttpURLConnection.HTTP_OK) {
                     val body = conn.inputStream.bufferedReader().readText()
-                    conn.disconnect()
                     val json = JSONObject(body)
                     val ratesObj = json.optJSONObject("rates") ?: continue
                     val map = mutableMapOf<String, Double>()
                     ratesObj.keys().forEach { key ->
                         val rate = ratesObj.optDouble(key, Double.NaN)
-                        if (rate.isFinite()) {
+                        if (rate.isFinite() && rate > 0.0) {
                             map[key] = rate
                         }
                     }
@@ -223,6 +222,10 @@ object CurrencyConverterService {
 
         // rateCollector values are "AMD per 1 unit of currency" midpoints
         val amdPerUsd = rateCollector["USD"]!!.average()
+        if (!amdPerUsd.isFinite() || amdPerUsd <= 0.0) {
+            Log.w(TAG, "rate.am: invalid AMD/USD rate $amdPerUsd")
+            return null
+        }
 
         // Build USD-based rate map (same format as API sources)
         val result = mutableMapOf<String, Double>()
@@ -231,9 +234,12 @@ object CurrencyConverterService {
         for ((rateAmCode, appCode) in RATE_AM_CURRENCIES) {
             if (rateAmCode == "USD") continue
             val amdPerUnit = rateCollector[rateAmCode]?.average() ?: continue
-            if (amdPerUnit > 0) {
+            if (amdPerUnit.isFinite() && amdPerUnit > 0.0) {
                 // 1 USD = (amdPerUsd / amdPerUnit) units of this currency
-                result[appCode] = amdPerUsd / amdPerUnit
+                val cross = amdPerUsd / amdPerUnit
+                if (cross.isFinite() && cross > 0.0) {
+                    result[appCode] = cross
+                }
             }
         }
 

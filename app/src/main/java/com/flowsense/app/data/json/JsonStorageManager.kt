@@ -93,26 +93,49 @@ class JsonStorageManager(private val context: Context) {
         val backupFile = getBackupFile()
         val tempFile = File(context.filesDir, "$fileName.tmp")
 
-        // Create backup of existing data
-        if (file.exists()) {
-            file.copyTo(backupFile, overwrite = true)
-        }
-
-        // Atomic write: write to temp file first, then rename.
-        // This prevents data corruption if the app crashes mid-write.
+        // Atomic write: serialize to temp file first, validate, then swap.
+        // The previous live file becomes the backup only after the swap
+        // succeeds, so a crash mid-write leaves the existing backup intact.
         val json = gson.toJson(data)
         tempFile.writeText(json)
-        // Validate the temp file before replacing the real file
-        if (tempFile.length() > 0) {
-            if (!tempFile.renameTo(file)) {
-                // renameTo can fail on some filesystems; fall back to copy + delete
+        if (tempFile.length() <= 0) {
+            tempFile.delete()
+            return
+        }
+
+        val priorExists = file.exists()
+        val stagedBackup = if (priorExists) {
+            File(context.filesDir, "$backupFileName.tmp").also {
+                file.copyTo(it, overwrite = true)
+            }
+        } else null
+
+        val swapped = tempFile.renameTo(file) || run {
+            // renameTo can fail across filesystems / when the destination exists.
+            try {
                 tempFile.copyTo(file, overwrite = true)
                 tempFile.delete()
+                true
+            } catch (_: Exception) {
+                false
             }
-        } else {
-            // Temp file is empty — don't overwrite real data
-            tempFile.delete()
         }
+
+        if (!swapped) {
+            stagedBackup?.delete()
+            tempFile.delete()
+            return
+        }
+
+        // Promote the staged copy of the previous file to be the new backup.
+        if (stagedBackup != null) {
+            if (backupFile.exists()) backupFile.delete()
+            if (!stagedBackup.renameTo(backupFile)) {
+                stagedBackup.copyTo(backupFile, overwrite = true)
+                stagedBackup.delete()
+            }
+        }
+
         cachedData = data
     }
 

@@ -90,12 +90,15 @@ object DateUtils {
         return cal.timeInMillis
     }
 
+    /** Upper bound on [getDaysInRange] to prevent OOM from pathological inputs. */
+    private const val MAX_DAYS_IN_RANGE = 10 * 366
+
     fun getDaysInRange(start: Long, end: Long): List<Long> {
         if (start > end) return emptyList()
-        val days = mutableListOf<Long>()
+        val days = ArrayList<Long>(64)
         val cal = Calendar.getInstance()
         cal.timeInMillis = start
-        while (cal.timeInMillis <= end) {
+        while (cal.timeInMillis <= end && days.size < MAX_DAYS_IN_RANGE) {
             days.add(cal.timeInMillis)
             cal.add(Calendar.DAY_OF_YEAR, 1)
         }

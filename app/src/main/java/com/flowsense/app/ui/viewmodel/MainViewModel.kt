@@ -2562,7 +2562,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val fallbackRate = withContext(Dispatchers.IO) {
                     CurrencyConverterService.convert(1.0, oldCurrency, newCurrency)
                 }
-                if (fallbackRate != null && fallbackRate > 0) {
+                if (fallbackRate != null && fallbackRate.isFinite() && fallbackRate > 0) {
                     // Collect all distinct original currencies that need rates
                     val origCurrencies = repository.appData.value.transactions
                         .filter { it.originalAmount > 0.0 && it.originalCurrencyCode.orEmpty().isNotEmpty() }
@@ -2576,7 +2576,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         val r = withContext(Dispatchers.IO) {
                             CurrencyConverterService.convert(1.0, oc, newCurrency)
                         }
-                        if (r != null) origRates[oc] = r
+                        if (r != null && r.isFinite() && r > 0.0) origRates[oc] = r
                     }
 
                     repository.convertAmounts(
