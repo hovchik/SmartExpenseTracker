@@ -50,6 +50,7 @@ object LocationProvider {
      * Call this whenever the app obtains a fresh fix in the foreground.
      */
     fun cacheLocation(context: Context, location: LatLng) {
+        if (!isValidLatLng(location.latitude, location.longitude)) return
         context.applicationContext
             .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
@@ -68,10 +69,16 @@ object LocationProvider {
             .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val time = prefs.getLong(KEY_TIME, 0L)
         if (time == 0L || System.currentTimeMillis() - time > MAX_CACHE_AGE_MS) return null
+        if (!prefs.contains(KEY_LAT) || !prefs.contains(KEY_LNG)) return null
         val lat = Double.fromBits(prefs.getLong(KEY_LAT, 0L))
         val lng = Double.fromBits(prefs.getLong(KEY_LNG, 0L))
-        if (lat == 0.0 && lng == 0.0) return null
+        if (!isValidLatLng(lat, lng)) return null
         return LatLng(lat, lng)
+    }
+
+    private fun isValidLatLng(lat: Double, lng: Double): Boolean {
+        return lat.isFinite() && lng.isFinite() &&
+            lat in -90.0..90.0 && lng in -180.0..180.0
     }
 
     /**
@@ -108,6 +115,8 @@ object LocationProvider {
             }
         }
 
-        return best?.let { LatLng(it.latitude, it.longitude) }
+        return best
+            ?.takeIf { isValidLatLng(it.latitude, it.longitude) }
+            ?.let { LatLng(it.latitude, it.longitude) }
     }
 }

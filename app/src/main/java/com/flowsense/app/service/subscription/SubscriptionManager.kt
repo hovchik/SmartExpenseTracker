@@ -447,14 +447,16 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
      * @param plan the plan that was purchased, or null if activating manually.
      */
     fun activate(expiryMillis: Long = 0L, plan: SubscriptionPlan? = null) {
-        prefs.edit()
+        val editor = prefs.edit()
             .putBoolean(KEY_IS_SUBSCRIBED, true)
             .putLong(KEY_SUBSCRIPTION_EXPIRY, expiryMillis)
             .putBoolean(KEY_IS_TRIAL, false) // real purchase clears trial state
-            .apply {
-                if (plan != null) putString(KEY_ACTIVE_PLAN_ID, plan.productId)
-            }
-            .apply()
+        if (plan != null) {
+            editor.putString(KEY_ACTIVE_PLAN_ID, plan.productId)
+        } else {
+            editor.remove(KEY_ACTIVE_PLAN_ID)
+        }
+        editor.apply()
         _isSubscribed.value = true
         _isTrialActive.value = false
         _activePlan.value = plan

@@ -60,6 +60,34 @@ class ModelDownloadManager(private val context: Context) {
     /** App-private directory for model files. */
     fun modelsDir(): File = File(context.filesDir, "ai_models").also { it.mkdirs() }
 
+    /**
+     * Derives a safe filename for a model, avoiding any path traversal from the
+     * download URL (e.g., a redirect whose last path segment decodes to "../x").
+     * Falls back to `<modelId>.task` when the URL yields nothing usable.
+     */
+    private fun safeFileNameFor(model: LocalAiModel): String {
+        val raw = try {
+            java.net.URLDecoder.decode(
+                model.downloadUrl.substringBefore('?').substringBefore('#'),
+                Charsets.UTF_8.name()
+            )
+        } catch (_: Exception) {
+            model.downloadUrl
+        }
+        val candidate = raw.substringAfterLast('/').substringAfterLast('\\')
+        // Strip any path-separator characters and null bytes, keep only
+        // conservative filename characters. Drop leading dots to avoid hidden files.
+        val cleaned = candidate
+            .replace(Regex("[\\u0000/\\\\]"), "")
+            .replace(Regex("[^A-Za-z0-9._-]"), "_")
+            .trimStart('.')
+            .take(200)
+        return cleaned.ifBlank {
+            val safeId = model.modelId.replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "model" }
+            "$safeId.task"
+        }
+    }
+
     /** HuggingFace token for gated repos (set from AppSettings.huggingFaceToken). */
     var huggingFaceToken: String = ""
 
@@ -291,8 +319,7 @@ class ModelDownloadManager(private val context: Context) {
             return@withContext null
         }
 
-        val fileName = model.downloadUrl.substringAfterLast("/")
-            .ifBlank { "${model.modelId}.task" }
+        val fileName = safeFileNameFor(model)
         val destFile = File(modelsDir(), fileName)
         val tempFile = File(modelsDir(), "$fileName.tmp")
 
@@ -460,8 +487,7 @@ class ModelDownloadManager(private val context: Context) {
      * Deletes a downloaded model file.
      */
     fun deleteModelFile(model: LocalAiModel): Boolean {
-        val fileName = model.downloadUrl.substringAfterLast("/")
-            .ifBlank { "${model.modelId}.task" }
+        val fileName = safeFileNameFor(model)
         val file = File(modelsDir(), fileName)
         val temp = File(modelsDir(), "$fileName.tmp")
         temp.delete()
@@ -472,8 +498,7 @@ class ModelDownloadManager(private val context: Context) {
      * Returns the local path for a model if it's downloaded.
      */
     fun getModelPath(model: LocalAiModel): String? {
-        val fileName = model.downloadUrl.substringAfterLast("/")
-            .ifBlank { "${model.modelId}.task" }
+        val fileName = safeFileNameFor(model)
         val file = File(modelsDir(), fileName)
         return if (file.exists() && file.length() > 1024 * 1024) file.absolutePath else null
     }
