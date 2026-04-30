@@ -3,10 +3,10 @@ package com.flowsense.app.ai.setupwizard
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,7 +23,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.flowsense.app.ai.benchmark.LocalAiBenchmarkRunner
 import com.flowsense.app.ai.capability.DeviceAiCapabilityDetector
-import com.flowsense.app.ai.capability.DeviceAiCapabilityDetector.Companion.PerformanceClass
 import com.flowsense.app.ai.capability.DeviceAiCapabilityDetector.RecommendedAiMode
 import com.flowsense.app.ai.modelmanager.InstallState
 import com.flowsense.app.ai.modelmanager.LocalAiModel
@@ -31,79 +30,28 @@ import com.flowsense.app.ai.modelmanager.ModelDownloadManager
 import com.flowsense.app.data.model.AiModePreference
 
 /**
- * Wizard step enumeration.
+ * Simplified wizard steps - reduced from 7 to 4 essential steps.
  */
 enum class WizardStep {
-    INTRO,
-    DEVICE_COMPATIBILITY,
-    RECOMMENDED_MODE,
-    MODEL_INSTALL_OPTIONS,
-    MODEL_DOWNLOAD,
-    IMPORT_MODEL,
-    LOCAL_AI_READY
+    SMART_SETUP,        // Combines: intro + device scan + recommendation
+    MODEL_SELECTION,    // Simplified model picker
+    DOWNLOADING,        // Download progress
+    READY               // Success screen
 }
 
-// ─── Intro Screen ────────────────────────────────────────────────────────────
+// ─── Smart Setup Screen (Combined Intro + Device Scan + Recommendation) ──────
 
 @Composable
-fun LocalAiIntroScreen(onNext: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp)
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            Icons.Default.Psychology,
-            contentDescription = null,
-            modifier = Modifier.size(80.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
-
-        Spacer(Modifier.height(24.dp))
-
-        Text(
-            "Local AI Setup",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(Modifier.height(16.dp))
-
-        Text(
-            "FlowSense supports three AI modes:\n\n" +
-                    "1. Cloud AI — Powered by Claude for best quality\n" +
-                    "2. System AI — Uses your device's built-in AI\n" +
-                    "3. Local Model — Download a small AI model\n\n" +
-                    "This wizard will check your device and recommend the best option.",
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(Modifier.height(32.dp))
-
-        Button(
-            onClick = onNext,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Check My Device")
-            Spacer(Modifier.width(8.dp))
-            Icon(Icons.Default.ArrowForward, contentDescription = null)
-        }
-    }
-}
-
-// ─── Device Compatibility Screen ─────────────────────────────────────────────
-
-@Composable
-fun DeviceCompatibilityScreen(
+fun SmartSetupScreen(
     capability: DeviceAiCapabilityDetector.DeviceCapability?,
     isScanning: Boolean,
-    onNext: () -> Unit,
+    onUseSystemAi: () -> Unit,
+    onDownloadModel: () -> Unit,
+    onUseCloudAi: () -> Unit,
     onBack: () -> Unit
 ) {
+    var showDeviceDetails by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -111,91 +59,202 @@ fun DeviceCompatibilityScreen(
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            "Device Compatibility",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
+        // Hero icon
+        Icon(
+            Icons.Default.Psychology,
+            contentDescription = null,
+            modifier = Modifier.size(72.dp),
+            tint = MaterialTheme.colorScheme.primary
         )
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(16.dp))
 
+        Text(
+            "Set Up On-Device AI",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        Text(
+            "Analyze expenses privately without sending data to the cloud",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(Modifier.height(32.dp))
+
+        // Scanning or recommendation
         if (isScanning || capability == null) {
-            CircularProgressIndicator()
-            Spacer(Modifier.height(16.dp))
-            Text("Scanning device capabilities...")
-        } else {
-            // Device info card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    CapabilityRow("Device", "${capability.manufacturer} ${capability.model}")
-                    CapabilityRow("Android", "${capability.androidVersionName} (API ${capability.androidVersion})")
-                    CapabilityRow("RAM", "${capability.totalRamMb} MB (${capability.ramTier.label})")
-                    CapabilityRow("Free Storage", "${capability.freeStorageMb} MB")
-                    CapabilityRow("Performance", capability.performanceClass.label)
-
-                    Spacer(Modifier.height(12.dp))
-
-                    CapabilityCheckRow("AICore", capability.aiCoreAvailable)
-                    CapabilityCheckRow("ML Kit GenAI", capability.mlKitGenAiAvailable)
-                    CapabilityCheckRow("System AI Support", capability.supportsSystemAi)
-                    CapabilityCheckRow("Local Model Support", capability.supportsCustomLocalModel)
-                    CapabilityCheckRow("Sufficient Storage", capability.hasEnoughStorage)
+                Row(
+                    modifier = Modifier.padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(16.dp))
+                    Text("Checking your device...")
                 }
             }
-
-            Spacer(Modifier.height(24.dp))
-
-            // Capability message
-            val (containerColor, messageIcon) = when (capability.recommendedMode) {
-                RecommendedAiMode.SYSTEM_AI ->
-                    MaterialTheme.colorScheme.primaryContainer to Icons.Default.CheckCircle
-                RecommendedAiMode.CUSTOM_LOCAL ->
-                    MaterialTheme.colorScheme.secondaryContainer to Icons.Default.Info
-                RecommendedAiMode.CLOUD_ONLY ->
-                    MaterialTheme.colorScheme.errorContainer to Icons.Default.Warning
-            }
+        } else {
+            // Recommendation card based on device capability
+            val (recommendationTitle, recommendationDesc, recommendationIcon, containerColor) =
+                when (capability.recommendedMode) {
+                    RecommendedAiMode.SYSTEM_AI -> Quadruple(
+                        "Your device has built-in AI!",
+                        "Use the fast, system-level AI engine — no download needed.",
+                        Icons.Default.CheckCircle,
+                        MaterialTheme.colorScheme.primaryContainer
+                    )
+                    RecommendedAiMode.CUSTOM_LOCAL -> Quadruple(
+                        "Ready for local AI",
+                        "Download a small AI model (500 MB – 2 GB) to run on your device.",
+                        Icons.Default.Download,
+                        MaterialTheme.colorScheme.secondaryContainer
+                    )
+                    RecommendedAiMode.CLOUD_ONLY -> Quadruple(
+                        "Cloud AI recommended",
+                        "Your device works best with cloud-based AI for optimal performance.",
+                        Icons.Default.Cloud,
+                        MaterialTheme.colorScheme.tertiaryContainer
+                    )
+                }
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = containerColor)
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(messageIcon, contentDescription = null)
-                    Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            recommendationIcon,
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            recommendationTitle,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
                     Text(
-                        when (capability.recommendedMode) {
-                            RecommendedAiMode.SYSTEM_AI ->
-                                "This device supports built-in on-device AI. The app can use the system AI engine."
-                            RecommendedAiMode.CUSTOM_LOCAL ->
-                                "This device does not expose built-in AI to apps, but it can run a downloadable local model."
-                            RecommendedAiMode.CLOUD_ONLY ->
-                                "This device is not ideal for local AI. Cloud AI is recommended."
-                        },
+                        recommendationDesc,
                         style = MaterialTheme.typography.bodyMedium
                     )
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            // Main action buttons based on recommendation
+            when (capability.recommendedMode) {
+                RecommendedAiMode.SYSTEM_AI -> {
+                    Button(
+                        onClick = onUseSystemAi,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Bolt, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Use System AI")
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    OutlinedButton(
+                        onClick = onDownloadModel,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Or download a custom model")
+                    }
+                }
+                RecommendedAiMode.CUSTOM_LOCAL -> {
+                    Button(
+                        onClick = onDownloadModel,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Choose & Download Model")
+                    }
+                }
+                RecommendedAiMode.CLOUD_ONLY -> {
+                    Button(
+                        onClick = onUseCloudAi,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Cloud, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Set Up Cloud AI")
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    OutlinedButton(
+                        onClick = onDownloadModel,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Try local AI anyway")
+                    }
+                }
+            }
+
+            // Expandable device details
+            Spacer(Modifier.height(24.dp))
+
+            TextButton(
+                onClick = { showDeviceDetails = !showDeviceDetails }
+            ) {
+                Icon(
+                    if (showDeviceDetails) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(if (showDeviceDetails) "Hide device info" else "Show device info")
+            }
+
+            AnimatedVisibility(visible = showDeviceDetails) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        DeviceInfoRow("Device", "${capability.manufacturer} ${capability.model}")
+                        DeviceInfoRow("RAM", "${capability.totalRamMb / 1024} GB")
+                        DeviceInfoRow("Free Storage", "${capability.freeStorageMb / 1024} GB")
+                        DeviceInfoRow("System AI", if (capability.supportsSystemAi) "Available" else "Not available")
+                    }
                 }
             }
         }
 
         Spacer(Modifier.weight(1f))
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            OutlinedButton(onClick = onBack) { Text("Back") }
-            Button(onClick = onNext, enabled = capability != null) { Text("Next") }
+        // Back button
+        TextButton(onClick = onBack) {
+            Text("Cancel")
         }
     }
 }
 
+// Helper data class for quadruple values
+private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
 @Composable
-private fun CapabilityRow(label: String, value: String) {
+private fun DeviceInfoRow(label: String, value: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -207,169 +266,13 @@ private fun CapabilityRow(label: String, value: String) {
     }
 }
 
-@Composable
-private fun CapabilityCheckRow(label: String, available: Boolean) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(label, style = MaterialTheme.typography.bodySmall)
-        Icon(
-            if (available) Icons.Default.CheckCircle else Icons.Default.Cancel,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-            tint = if (available) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.error
-        )
-    }
-}
-
-// ─── Recommended AI Mode Screen ──────────────────────────────────────────────
+// ─── Simplified Model Selection Screen ───────────────────────────────────────
 
 @Composable
-fun RecommendedAiModeScreen(
-    recommendedMode: RecommendedAiMode?,
-    onSelectMode: (AiModePreference) -> Unit,
-    onBack: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp)
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            "Choose AI Mode",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(Modifier.height(8.dp))
-
-        Text(
-            "Select how the app should perform AI analysis:",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Spacer(Modifier.height(24.dp))
-
-        // System AI option
-        AiModeOption(
-            title = "System AI",
-            description = "Uses your device's built-in AI engine (if available)",
-            icon = Icons.Default.PhoneAndroid,
-            recommended = recommendedMode == RecommendedAiMode.SYSTEM_AI,
-            enabled = recommendedMode == RecommendedAiMode.SYSTEM_AI ||
-                    recommendedMode == RecommendedAiMode.CUSTOM_LOCAL,
-            onClick = { onSelectMode(AiModePreference.SYSTEM_AI) }
-        )
-
-        Spacer(Modifier.height(12.dp))
-
-        // Local Model option
-        AiModeOption(
-            title = "Local Model",
-            description = "Download a small AI model to run on-device",
-            icon = Icons.Default.Storage,
-            recommended = recommendedMode == RecommendedAiMode.CUSTOM_LOCAL,
-            enabled = recommendedMode != RecommendedAiMode.CLOUD_ONLY,
-            onClick = { onSelectMode(AiModePreference.LOCAL_MODEL) }
-        )
-
-        Spacer(Modifier.height(12.dp))
-
-        // Cloud AI option
-        AiModeOption(
-            title = "Cloud AI (Claude)",
-            description = "Best quality — requires internet and API key",
-            icon = Icons.Default.Cloud,
-            recommended = recommendedMode == RecommendedAiMode.CLOUD_ONLY,
-            enabled = true,
-            onClick = { onSelectMode(AiModePreference.CLOUD_AI) }
-        )
-
-        Spacer(Modifier.weight(1f))
-
-        OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-            Text("Back")
-        }
-    }
-}
-
-@Composable
-private fun AiModeOption(
-    title: String,
-    description: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    recommended: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit
-) {
-    Card(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (recommended) MaterialTheme.colorScheme.primaryContainer
-            else MaterialTheme.colorScheme.surfaceVariant,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(32.dp))
-            Spacer(Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    if (recommended) {
-                        Spacer(Modifier.width(8.dp))
-                        Surface(
-                            color = MaterialTheme.colorScheme.primary,
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
-                            Text(
-                                "Recommended",
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                        }
-                    }
-                }
-                Text(
-                    description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant
-                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                )
-                if (!enabled) {
-                    Text(
-                        "Not supported on this device",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-            Icon(Icons.Default.ChevronRight, contentDescription = null)
-        }
-    }
-}
-
-// ─── Model Install Options Screen ────────────────────────────────────────────
-
-@Composable
-fun ModelInstallOptionsScreen(
+fun SimpleModelSelectionScreen(
     catalogModels: List<LocalAiModel>,
+    deviceRamMb: Int,
     hasHuggingFaceToken: Boolean,
-    huggingFaceUsername: String?,
     onDownloadModel: (LocalAiModel) -> Unit,
     onSaveToken: (String) -> Unit,
     onImportModel: () -> Unit,
@@ -378,9 +281,15 @@ fun ModelInstallOptionsScreen(
     val context = LocalContext.current
     var showTokenDialog by remember { mutableStateOf(false) }
     var pendingGatedModel by remember { mutableStateOf<LocalAiModel?>(null) }
+    var showAllModels by remember { mutableStateOf(false) }
 
-    val ungatedModels = catalogModels.filter { !it.isGated }
-    val gatedModels = catalogModels.filter { it.isGated }
+    // Filter models that fit in device RAM and categorize them
+    val compatibleModels = catalogModels.filter { it.requiredRamMb <= deviceRamMb }
+    val recommendedModel = compatibleModels
+        .filter { !it.isGated } // Prefer ungated for quick start
+        .sortedByDescending { it.sizeMb }
+        .firstOrNull { it.recommendedRamMb <= deviceRamMb }
+        ?: compatibleModels.firstOrNull()
 
     Column(
         modifier = Modifier
@@ -390,7 +299,7 @@ fun ModelInstallOptionsScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            "Install AI Model",
+            "Choose AI Model",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
@@ -398,163 +307,94 @@ fun ModelInstallOptionsScreen(
         Spacer(Modifier.height(8.dp))
 
         Text(
-            "Choose a model to download or import your own:",
+            "Select a model based on your needs",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Spacer(Modifier.height(24.dp))
 
-        // ── Ungated models section ──
-        if (ungatedModels.isNotEmpty()) {
+        // Recommended model (if available)
+        if (recommendedModel != null) {
             Text(
-                "Free Models (no account needed)",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
+                "Recommended for your device",
+                style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.fillMaxWidth()
             )
-
             Spacer(Modifier.height(8.dp))
 
-            ungatedModels.forEach { model ->
-                ModelCatalogCard(
+            SimpleModelCard(
+                model = recommendedModel,
+                isRecommended = true,
+                onDownload = { onDownloadModel(recommendedModel) }
+            )
+
+            Spacer(Modifier.height(20.dp))
+        }
+
+        // Quick picks - show 2-3 models in different tiers
+        val quickPicks = getQuickPicks(compatibleModels, recommendedModel)
+        if (quickPicks.isNotEmpty()) {
+            Text(
+                "Other options",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+
+            quickPicks.forEach { model ->
+                SimpleModelCard(
                     model = model,
-                    onDownload = { onDownloadModel(model) }
+                    isRecommended = false,
+                    onDownload = {
+                        if (model.isGated && !hasHuggingFaceToken) {
+                            pendingGatedModel = model
+                            showTokenDialog = true
+                        } else {
+                            onDownloadModel(model)
+                        }
+                    }
                 )
+                Spacer(Modifier.height(8.dp))
             }
         }
 
-        // ── Gated models section ──
-        if (gatedModels.isNotEmpty()) {
-            Spacer(Modifier.height(20.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        // Show all models toggle
+        if (catalogModels.size > (quickPicks.size + 1)) {
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = { showAllModels = !showAllModels }) {
                 Icon(
-                    Icons.Default.Lock,
+                    if (showAllModels) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    modifier = Modifier.size(18.dp)
                 )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    "Official Google Models (HuggingFace token required)",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Spacer(Modifier.width(4.dp))
+                Text(if (showAllModels) "Show fewer models" else "Show all ${catalogModels.size} models")
             }
 
-            Spacer(Modifier.height(4.dp))
-
-            // Token status banner
-            if (hasHuggingFaceToken && huggingFaceUsername != null) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "Signed in as $huggingFaceUsername",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
-            } else {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Info, contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "These models require a free HuggingFace account and access token.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
-
-            // Gemma 4 guide banner (if Gemma 4 models are present)
-            val hasGemma4Models = gatedModels.any { it.modelId.contains("gemma4") }
-            if (hasGemma4Models) {
-                Spacer(Modifier.height(4.dp))
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                    )
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.AutoAwesome,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onTertiaryContainer
+            AnimatedVisibility(visible = showAllModels) {
+                Column {
+                    catalogModels
+                        .filter { it != recommendedModel && it !in quickPicks }
+                        .forEach { model ->
+                            SimpleModelCard(
+                                model = model,
+                                isRecommended = false,
+                                isCompatible = model.requiredRamMb <= deviceRamMb,
+                                onDownload = {
+                                    if (model.isGated && !hasHuggingFaceToken) {
+                                        pendingGatedModel = model
+                                        showTokenDialog = true
+                                    } else {
+                                        onDownloadModel(model)
+                                    }
+                                }
                             )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                "Gemma 4 Models Available",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
+                            Spacer(Modifier.height(8.dp))
                         }
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "• Gemma 4 4B: Excellent quality, needs 8+ GB RAM (flagship phones)\n" +
-                            "• Gemma 4 12B: Best quality, needs 16+ GB RAM (tablets/premium flagships only)",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer
-                        )
-                    }
                 }
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            gatedModels.forEach { model ->
-                ModelCatalogCard(
-                    model = model,
-                    onDownload = {
-                        if (hasHuggingFaceToken) {
-                            onDownloadModel(model)
-                        } else {
-                            pendingGatedModel = model
-                            showTokenDialog = true
-                        }
-                    }
-                )
             }
         }
 
@@ -565,19 +405,23 @@ fun ModelInstallOptionsScreen(
             onClick = onImportModel,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Icon(Icons.Default.FolderOpen, contentDescription = null)
+            Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Import Model from Device")
+            Text("Import from device")
         }
 
         Spacer(Modifier.weight(1f))
 
-        OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back") }
+        OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
+            Text("Back")
+        }
     }
 
-    // ── HuggingFace Token Dialog ──
+    // Simplified token dialog
     if (showTokenDialog) {
-        HuggingFaceTokenDialog(
+        SimpleTokenDialog(
+            modelName = pendingGatedModel?.displayName ?: "",
+            licenseUrl = pendingGatedModel?.licenseUrl,
             onDismiss = {
                 showTokenDialog = false
                 pendingGatedModel = null
@@ -585,306 +429,209 @@ fun ModelInstallOptionsScreen(
             onTokenSubmit = { token ->
                 showTokenDialog = false
                 onSaveToken(token)
-                // After saving token, proceed to download the pending model
                 pendingGatedModel?.let { onDownloadModel(it) }
                 pendingGatedModel = null
-            },
-            onOpenBrowser = {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://huggingface.co/settings/tokens"))
-                context.startActivity(intent)
-            },
-            licenseUrl = pendingGatedModel?.licenseUrl?.ifBlank { null }
+            }
         )
     }
 }
 
-/**
- * Returns a device tier label and color based on RAM requirements.
- * Helps users understand what kind of device is needed for each model.
- */
-@Composable
-private fun getDeviceTierInfo(requiredRamMb: Int, recommendedRamMb: Int): Pair<String, androidx.compose.ui.graphics.Color> {
-    return when {
-        // Ultra-large models (12+ GB RAM) — flagships only
-        recommendedRamMb >= 16384 || requiredRamMb >= 12288 -> 
-            "Flagship only (16+ GB RAM)" to MaterialTheme.colorScheme.error
-        // Large models (10-12 GB) — high-end flagships
-        recommendedRamMb >= 10240 || requiredRamMb >= 8192 -> 
-            "High-end flagship (12+ GB RAM)" to MaterialTheme.colorScheme.tertiary
-        // Medium-large models (6-8 GB) — flagship phones
-        recommendedRamMb >= 8192 || requiredRamMb >= 6144 -> 
-            "Flagship devices (8+ GB RAM)" to MaterialTheme.colorScheme.secondary
-        // Medium models (4-6 GB) — mid-to-high range
-        recommendedRamMb >= 4096 || requiredRamMb >= 3072 -> 
-            "Mid-range+ devices (6+ GB RAM)" to MaterialTheme.colorScheme.primary
-        // Small models (2-4 GB) — most modern phones
-        recommendedRamMb >= 2048 || requiredRamMb >= 1536 -> 
-            "Most devices (4+ GB RAM)" to MaterialTheme.colorScheme.primary
-        // Tiny models — any device
-        else -> 
-            "Any device (2+ GB RAM)" to MaterialTheme.colorScheme.primary
-    }
+/** Returns 2-3 quick pick models in different size tiers */
+private fun getQuickPicks(models: List<LocalAiModel>, excludeModel: LocalAiModel?): List<LocalAiModel> {
+    val filtered = models.filter { it != excludeModel }
+
+    // Get one small, one medium model (if available)
+    val small = filtered.filter { it.sizeMb < 600 && !it.isGated }.firstOrNull()
+    val medium = filtered.filter { it.sizeMb in 600..2000 && !it.isGated }.firstOrNull()
+    val large = filtered.filter { it.sizeMb > 2000 && !it.isGated }.firstOrNull()
+
+    return listOfNotNull(small, medium, large).take(3)
 }
 
-/** Single model card used in both ungated and gated sections. */
+/** Simplified model card with quality tier instead of technical specs */
 @Composable
-private fun ModelCatalogCard(
+private fun SimpleModelCard(
     model: LocalAiModel,
+    isRecommended: Boolean,
+    isCompatible: Boolean = true,
     onDownload: () -> Unit
 ) {
-    val (deviceTierLabel, tierColor) = getDeviceTierInfo(model.requiredRamMb, model.recommendedRamMb)
-    // Consider models needing 10+ GB recommended RAM as "heavy"
-    val isHeavyModel = model.recommendedRamMb >= 10240 || model.requiredRamMb >= 8192
-    
+    val qualityTier = getQualityTier(model.sizeMb)
+
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = when {
+                isRecommended -> MaterialTheme.colorScheme.primaryContainer
+                !isCompatible -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                else -> MaterialTheme.colorScheme.surfaceVariant
+            }
         )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Quality indicator
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = qualityTier.color.copy(alpha = 0.15f),
+                modifier = Modifier.size(48.dp)
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            model.displayName,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        if (model.isGated) {
-                            Spacer(Modifier.width(6.dp))
-                            Icon(
-                                Icons.Default.Lock,
-                                contentDescription = "Requires token",
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    // Model description (if available)
-                    if (model.description.isNotBlank()) {
-                        Text(
-                            model.description,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2
-                        )
-                        Spacer(Modifier.height(4.dp))
-                    }
-                    Text(
-                        "${model.sizeMb} MB | ${model.quantization} | ${model.runtimeType.label}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    // Device tier badge
-                    Spacer(Modifier.height(4.dp))
-                    Surface(
-                        color = tierColor.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(4.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                if (isHeavyModel) Icons.Default.PhoneAndroid else Icons.Default.Smartphone,
-                                contentDescription = null,
-                                modifier = Modifier.size(12.dp),
-                                tint = tierColor
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                deviceTierLabel,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = tierColor
-                            )
-                        }
-                    }
-                }
-            }
-            
-            // Warning for very large models
-            if (isHeavyModel) {
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                            shape = RoundedCornerShape(4.dp)
-                        )
-                        .padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        Icons.Default.Warning,
+                        qualityTier.icon,
                         contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        if (model.requiredRamMb >= 12288)
-                            "Requires flagship device with 16+ GB RAM. May not work on most phones."
-                        else
-                            "Large model — ensure your device has sufficient RAM before downloading.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer
+                        tint = qualityTier.color,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        model.displayName.replace(Regex("\\s*\\(.*?\\)\\s*"), "").trim(), // Remove technical suffix
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (model.isGated) {
+                        Spacer(Modifier.width(6.dp))
+                        Icon(
+                            Icons.Default.Lock,
+                            contentDescription = "Requires sign-in",
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Text(
+                    "${qualityTier.label} • ${formatSize(model.sizeMb)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                if (!isCompatible) {
+                    Text(
+                        "May be too large for your device",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
 
             if (model.installState == InstallState.INSTALLED) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text("Installed", style = MaterialTheme.typography.labelMedium)
-                }
-            } else {
-                Button(
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = "Installed",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+            } else if (isCompatible) {
+                FilledTonalButton(
                     onClick = onDownload,
-                    modifier = Modifier.fillMaxWidth()
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                 ) {
-                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Download (${model.sizeMb} MB)")
+                    Text("Get")
                 }
             }
         }
     }
 }
 
-// ─── HuggingFace Token Dialog ────────────────────────────────────────────────
+private data class QualityTier(
+    val label: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val color: androidx.compose.ui.graphics.Color
+)
 
-/**
- * Dialog that guides the user through obtaining and entering a HuggingFace token.
- * Provides a "Get Token" button that opens HuggingFace in the browser,
- * and a text field for pasting the token back.
- */
 @Composable
-fun HuggingFaceTokenDialog(
+private fun getQualityTier(sizeMb: Int): QualityTier {
+    return when {
+        sizeMb < 300 -> QualityTier("Ultra-fast", Icons.Default.Bolt, MaterialTheme.colorScheme.tertiary)
+        sizeMb < 800 -> QualityTier("Fast", Icons.Default.Speed, MaterialTheme.colorScheme.primary)
+        sizeMb < 2000 -> QualityTier("Balanced", Icons.Default.Balance, MaterialTheme.colorScheme.secondary)
+        sizeMb < 4000 -> QualityTier("High quality", Icons.Default.AutoAwesome, MaterialTheme.colorScheme.primary)
+        else -> QualityTier("Best quality", Icons.Default.Star, MaterialTheme.colorScheme.tertiary)
+    }
+}
+
+private fun formatSize(sizeMb: Int): String {
+    return if (sizeMb >= 1024) {
+        String.format("%.1f GB", sizeMb / 1024f)
+    } else {
+        "$sizeMb MB"
+    }
+}
+
+// ─── Simplified Token Dialog ─────────────────────────────────────────────────
+
+@Composable
+fun SimpleTokenDialog(
+    modelName: String,
+    licenseUrl: String?,
     onDismiss: () -> Unit,
-    onTokenSubmit: (String) -> Unit,
-    onOpenBrowser: () -> Unit,
-    /** Optional URL to the model's license agreement page. */
-    licenseUrl: String? = null
+    onTokenSubmit: (String) -> Unit
 ) {
     val context = LocalContext.current
     var token by remember { mutableStateOf("") }
-    var currentStep by remember { mutableIntStateOf(1) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.Key, contentDescription = null) },
-        title = { Text("HuggingFace Token") },
+        icon = { Icon(Icons.Default.Lock, contentDescription = null) },
+        title = { Text("Sign in required") },
         text = {
             Column {
-                // Step 1: Create account
-                TokenStep(
-                    stepNumber = 1,
-                    title = "Create a free HuggingFace account",
-                    description = "If you don't have one already, sign up at huggingface.co",
-                    isActive = currentStep == 1
+                Text(
+                    "$modelName requires a free HuggingFace account.",
+                    style = MaterialTheme.typography.bodyMedium
                 )
 
-                // "Sign Up" button
+                Spacer(Modifier.height(16.dp))
+
+                // Step 1: Get token
                 OutlinedButton(
                     onClick = {
-                        currentStep = 2
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://huggingface.co/join"))
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://huggingface.co/settings/tokens/new?tokenType=fineGrained"))
                         context.startActivity(intent)
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 6.dp, bottom = 4.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Sign Up / Log In")
+                    Text("Get access token")
                 }
 
-                Spacer(Modifier.height(8.dp))
+                if (licenseUrl != null) {
+                    Spacer(Modifier.height(8.dp))
 
-                // Step 2: Accept model license
-                TokenStep(
-                    stepNumber = 2,
-                    title = "Accept the model license",
-                    description = if (licenseUrl != null)
-                        "Open the model page below and click \"Agree and access repository\""
-                    else
-                        "Visit the model page on HuggingFace and accept the usage terms",
-                    isActive = currentStep == 2
-                )
-
-                // "Accept License" button
-                OutlinedButton(
-                    onClick = {
-                        currentStep = 3
-                        val url = licenseUrl ?: "https://huggingface.co/litert-community/Gemma3-1B-IT"
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                        context.startActivity(intent)
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 6.dp, bottom = 4.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Icon(Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Open Model Page & Accept License")
+                    OutlinedButton(
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(licenseUrl))
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Policy, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Accept model license")
+                    }
                 }
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(16.dp))
 
-                // Step 3: Create token
-                TokenStep(
-                    stepNumber = 3,
-                    title = "Create an access token",
-                    description = "Go to Settings > Access Tokens and create a token with 'Read' permission",
-                    isActive = currentStep == 3
-                )
-
-                // "Get Token" button
-                OutlinedButton(
-                    onClick = {
-                        currentStep = 3
-                        onOpenBrowser()
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 6.dp, bottom = 4.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Icon(Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Open Token Page")
-                }
-
-                Spacer(Modifier.height(12.dp))
-
-                // Token input field
                 OutlinedTextField(
                     value = token,
                     onValueChange = { token = it.trim() },
-                    label = { Text("Paste token here") },
+                    label = { Text("Paste token") },
                     placeholder = { Text("hf_...") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    leadingIcon = { Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 if (token.isNotBlank() && !token.startsWith("hf_")) {
@@ -902,7 +649,7 @@ fun HuggingFaceTokenDialog(
                 onClick = { onTokenSubmit(token) },
                 enabled = token.startsWith("hf_") && token.length > 8
             ) {
-                Text("Save & Download")
+                Text("Download")
             }
         },
         dismissButton = {
@@ -913,51 +660,106 @@ fun HuggingFaceTokenDialog(
     )
 }
 
+// ─── Legacy Token Dialog (for SettingsScreen compatibility) ─────────────────
+
+/**
+ * HuggingFace token dialog with legacy API for backward compatibility.
+ * Used by SettingsScreen for general token management.
+ */
 @Composable
-private fun TokenStep(
-    stepNumber: Int,
-    title: String,
-    description: String,
-    isActive: Boolean
+fun HuggingFaceTokenDialog(
+    onDismiss: () -> Unit,
+    onTokenSubmit: (String) -> Unit,
+    onOpenBrowser: () -> Unit,
+    licenseUrl: String? = null
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top
-    ) {
-        Surface(
-            shape = RoundedCornerShape(50),
-            color = if (isActive) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.size(24.dp)
-        ) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+    val context = LocalContext.current
+    var token by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.Key, contentDescription = null) },
+        title = { Text("HuggingFace Token") },
+        text = {
+            Column {
                 Text(
-                    "$stepNumber",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (isActive) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.onSurfaceVariant
+                    "Enter your HuggingFace access token to download gated models.",
+                    style = MaterialTheme.typography.bodyMedium
                 )
+
+                Spacer(Modifier.height(16.dp))
+
+                OutlinedButton(
+                    onClick = onOpenBrowser,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Get access token")
+                }
+
+                if (licenseUrl != null) {
+                    Spacer(Modifier.height(8.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(licenseUrl))
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Policy, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Accept model license")
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = token,
+                    onValueChange = { token = it.trim() },
+                    label = { Text("Paste token") },
+                    placeholder = { Text("hf_...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (token.isNotBlank() && !token.startsWith("hf_")) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Token should start with \"hf_\"",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onTokenSubmit(token) },
+                enabled = token.startsWith("hf_") && token.length > 8
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
             }
         }
-        Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-            Text(description, style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
+    )
 }
 
-// ─── Model Download Screen ───────────────────────────────────────────────────
+// ─── Simplified Download Screen ──────────────────────────────────────────────
 
 @Composable
-fun ModelDownloadScreen(
+fun SimpleDownloadScreen(
     downloadState: ModelDownloadManager.DownloadState,
     modelName: String,
-    /** License URL for the model being downloaded (for GatedRepo redirect). */
     licenseUrl: String? = null,
     onCancel: () -> Unit,
-    onRetry: () -> Unit = {},
+    onRetry: () -> Unit,
     onDone: () -> Unit
 ) {
     val context = LocalContext.current
@@ -985,134 +787,147 @@ fun ModelDownloadScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(
-            if (downloadState.error != null) {
-                if (isGatedRepoError) "License Agreement Required"
-                else "Download Failed"
-            } else if (downloadState.progress >= 1f) "Download Complete"
-            else "Downloading Model",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(Modifier.height(8.dp))
-
-        Text(modelName, style = MaterialTheme.typography.bodyLarge)
-
-        Spacer(Modifier.height(32.dp))
-
-        if (isGatedRepoError) {
-            // ── GatedRepo: license acceptance flow ──
-            Icon(
-                Icons.Default.Lock,
-                contentDescription = null,
-                modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.height(16.dp))
-            Text(
-                "This model requires you to accept its license on HuggingFace before downloading.",
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Tap the button below to open the model page, click \"Agree and access repository\", then come back. The download will restart automatically.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(Modifier.height(24.dp))
-
-            Button(
-                onClick = {
-                    sentToBrowser = true
-                    val url = licenseUrl ?: "https://huggingface.co"
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                    context.startActivity(intent)
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Accept License on HuggingFace")
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            OutlinedButton(
-                onClick = onRetry,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("I've Accepted — Retry Download")
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            TextButton(onClick = onDone) {
-                Text("Back to Model List")
-            }
-
-        } else if (downloadState.error != null) {
-            // ── Generic error ──
-            Icon(
-                Icons.Default.Error,
-                contentDescription = null,
-                modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.error
-            )
-            Spacer(Modifier.height(16.dp))
-            Text(
-                downloadState.error,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-                textAlign = TextAlign.Center
-            )
-        } else if (downloadState.progress >= 1f) {
-            Icon(
-                Icons.Default.CheckCircle,
-                contentDescription = null,
-                modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.height(16.dp))
-            Text("Model ready to use!", style = MaterialTheme.typography.bodyMedium)
-        } else {
-            LinearProgressIndicator(
-                progress = { downloadState.progress },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(16.dp))
-
-            val downloadedMb = downloadState.downloadedBytes / (1024 * 1024)
-            val totalMb = downloadState.totalBytes / (1024 * 1024)
-            val speedMbps = downloadState.speedBytesPerSec / (1024.0 * 1024.0)
-            val pct = (downloadState.progress * 100).toInt()
-
-            Text(
-                "$downloadedMb / $totalMb MB ($pct%)",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            if (speedMbps > 0.01) {
+        when {
+            isGatedRepoError -> {
+                // License required
+                Icon(
+                    Icons.Default.Policy,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(24.dp))
                 Text(
-                    "${String.format("%.1f", speedMbps)} MB/s",
-                    style = MaterialTheme.typography.bodySmall,
+                    "Accept license first",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "This model requires you to accept its license on HuggingFace.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            }
-        }
-
-        if (!isGatedRepoError) {
-            Spacer(Modifier.height(32.dp))
-
-            if (downloadState.progress >= 1f || downloadState.error != null) {
-                Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (downloadState.error != null) "Try Again" else "Continue")
+                Spacer(Modifier.height(24.dp))
+                Button(
+                    onClick = {
+                        sentToBrowser = true
+                        val url = licenseUrl ?: "https://huggingface.co"
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.OpenInBrowser, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Accept License")
                 }
-            } else {
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
+                    Text("I've accepted — retry")
+                }
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = onDone) {
+                    Text("Cancel")
+                }
+            }
+            downloadState.error != null -> {
+                // Error state
+                Icon(
+                    Icons.Default.ErrorOutline,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.error
+                )
+                Spacer(Modifier.height(24.dp))
+                Text(
+                    "Download failed",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    downloadState.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.error
+                )
+                Spacer(Modifier.height(24.dp))
+                Button(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
+                    Text("Try again")
+                }
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = onDone) {
+                    Text("Choose different model")
+                }
+            }
+            downloadState.progress >= 1f -> {
+                // Success
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(24.dp))
+                Text(
+                    "Download complete!",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    modelName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(24.dp))
+                Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
+                    Text("Continue")
+                }
+            }
+            else -> {
+                // Downloading
+                Text(
+                    "Downloading...",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    modelName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(32.dp))
+
+                LinearProgressIndicator(
+                    progress = { downloadState.progress },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(16.dp))
+
+                val downloadedMb = downloadState.downloadedBytes / (1024 * 1024)
+                val totalMb = downloadState.totalBytes / (1024 * 1024)
+                val pct = (downloadState.progress * 100).toInt()
+
+                Text(
+                    "$downloadedMb / $totalMb MB ($pct%)",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                val speedMbps = downloadState.speedBytesPerSec / (1024.0 * 1024.0)
+                if (speedMbps > 0.01) {
+                    Text(
+                        String.format("%.1f MB/s", speedMbps),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Spacer(Modifier.height(32.dp))
+
                 OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
                     Text("Cancel")
                 }
@@ -1121,10 +936,128 @@ fun ModelDownloadScreen(
     }
 }
 
-// ─── Import Model Screen ─────────────────────────────────────────────────────
+// ─── Simple Ready Screen ─────────────────────────────────────────────────────
 
 @Composable
-fun ImportModelScreen(
+fun SimpleReadyScreen(
+    providerName: String,
+    benchmarkResult: LocalAiBenchmarkRunner.BenchmarkResult?,
+    isRunningBenchmark: Boolean,
+    onRunBenchmark: () -> Unit,
+    onFinish: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            Icons.Default.CheckCircle,
+            contentDescription = null,
+            modifier = Modifier.size(80.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+
+        Spacer(Modifier.height(24.dp))
+
+        Text(
+            "You're all set!",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        Text(
+            "AI is ready: $providerName",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.primary
+        )
+
+        Spacer(Modifier.height(24.dp))
+
+        // Privacy message
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            )
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.Security,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    "All analysis happens on your device. Your data stays private.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
+
+        // Optional benchmark
+        if (isRunningBenchmark) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(12.dp))
+                Text("Testing performance...", style = MaterialTheme.typography.bodyMedium)
+            }
+        } else if (benchmarkResult != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "Performance test",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Speed: ${String.format("%.1f", benchmarkResult.approximateTokensPerSecond)} tokens/sec",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "Latency: ${benchmarkResult.averageLatencyMs}ms average",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        } else {
+            TextButton(onClick = onRunBenchmark) {
+                Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Test performance")
+            }
+        }
+
+        Spacer(Modifier.weight(1f))
+
+        Button(
+            onClick = onFinish,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Done")
+        }
+    }
+}
+
+// ─── Import Model Screen (Simplified) ────────────────────────────────────────
+
+@Composable
+fun SimpleImportScreen(
     importMessage: String?,
     onPickFile: () -> Unit,
     onBack: () -> Unit,
@@ -1133,8 +1066,7 @@ fun ImportModelScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp)
-            .verticalScroll(rememberScrollState()),
+            .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -1148,19 +1080,17 @@ fun ImportModelScreen(
         Spacer(Modifier.height(24.dp))
 
         Text(
-            "Import Model File",
+            "Import Model",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
 
         Text(
-            "Select a compatible model file from your device.\n\n" +
-                    "Supported formats: .task, .bin, .tflite\n" +
-                    "The file will be copied to app storage.",
+            "Select a .task, .bin, or .tflite file",
             style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Spacer(Modifier.height(24.dp))
@@ -1168,13 +1098,12 @@ fun ImportModelScreen(
         Button(onClick = onPickFile, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.FileOpen, contentDescription = null)
             Spacer(Modifier.width(8.dp))
-            Text("Choose File")
+            Text("Choose file")
         }
 
         if (importMessage != null) {
             Spacer(Modifier.height(16.dp))
             Card(
-                modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
                     containerColor = if (importMessage.contains("success", ignoreCase = true))
                         MaterialTheme.colorScheme.primaryContainer
@@ -1196,7 +1125,7 @@ fun ImportModelScreen(
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.weight(1f))
 
         OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
             Text("Back")
@@ -1204,127 +1133,7 @@ fun ImportModelScreen(
     }
 }
 
-// ─── Local AI Ready Screen ───────────────────────────────────────────────────
-
-@Composable
-fun LocalAiReadyScreen(
-    providerName: String,
-    benchmarkResult: LocalAiBenchmarkRunner.BenchmarkResult?,
-    isRunningBenchmark: Boolean,
-    onRunBenchmark: () -> Unit,
-    onFinish: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp)
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(
-            Icons.Default.CheckCircle,
-            contentDescription = null,
-            modifier = Modifier.size(80.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
-
-        Spacer(Modifier.height(24.dp))
-
-        Text(
-            "AI is Ready!",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(Modifier.height(8.dp))
-
-        Text(
-            "Active: $providerName",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.primary
-        )
-
-        Spacer(Modifier.height(16.dp))
-
-        // Privacy message for local providers
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
-        ) {
-            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    "All analysis is performed locally on your device. No data is sent to external servers.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        // Benchmark section
-        Text("Performance Test", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-
-        Spacer(Modifier.height(12.dp))
-
-        if (isRunningBenchmark) {
-            CircularProgressIndicator()
-            Spacer(Modifier.height(8.dp))
-            Text("Running benchmark...", style = MaterialTheme.typography.bodySmall)
-        } else if (benchmarkResult != null) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    BenchmarkRow("Avg Latency", "${benchmarkResult.averageLatencyMs} ms")
-                    BenchmarkRow("Min / Max", "${benchmarkResult.minLatencyMs} / ${benchmarkResult.maxLatencyMs} ms")
-                    BenchmarkRow("Tokens/sec", String.format("%.1f", benchmarkResult.approximateTokensPerSecond))
-                    BenchmarkRow("Memory", "${benchmarkResult.memoryEstimateMb} MB")
-                    BenchmarkRow("Success", "${benchmarkResult.successfulPrompts}/${benchmarkResult.promptsRun}")
-                }
-            }
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        OutlinedButton(
-            onClick = onRunBenchmark,
-            enabled = !isRunningBenchmark,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(Icons.Default.Speed, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text(if (benchmarkResult != null) "Re-run Benchmark" else "Run Benchmark")
-        }
-
-        Spacer(Modifier.weight(1f))
-
-        Button(onClick = onFinish, modifier = Modifier.fillMaxWidth()) {
-            Text("Finish Setup")
-        }
-    }
-}
-
-@Composable
-private fun BenchmarkRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-    }
-}
-
-// ─── Main Wizard Composable ──────────────────────────────────────────────────
+// ─── Main Wizard Composable (Simplified) ─────────────────────────────────────
 
 @Composable
 fun LocalAiSetupWizardScreen(
@@ -1348,18 +1157,19 @@ fun LocalAiSetupWizardScreen(
     onFinish: () -> Unit,
     onBack: () -> Unit
 ) {
-    var currentStep by remember { mutableStateOf(WizardStep.INTRO) }
+    var currentStep by remember { mutableStateOf(WizardStep.SMART_SETUP) }
     var pendingDownloadModel by remember { mutableStateOf<LocalAiModel?>(null) }
+    var showImportScreen by remember { mutableStateOf(false) }
 
-    // Trigger device scan when entering compatibility step
-    LaunchedEffect(currentStep) {
-        if (currentStep == WizardStep.DEVICE_COMPATIBILITY && capability == null) {
+    // Trigger device scan when entering
+    LaunchedEffect(Unit) {
+        if (capability == null) {
             onScanDevice()
         }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Progress indicator
+        // Simplified progress indicator (4 steps)
         val stepIndex = WizardStep.entries.indexOf(currentStep)
         LinearProgressIndicator(
             progress = { (stepIndex + 1).toFloat() / WizardStep.entries.size },
@@ -1367,72 +1177,70 @@ fun LocalAiSetupWizardScreen(
         )
 
         AnimatedContent(
-            targetState = currentStep,
+            targetState = if (showImportScreen) "import" else currentStep.name,
             transitionSpec = { fadeIn() togetherWith fadeOut() },
             label = "wizard_step"
         ) { step ->
             when (step) {
-                WizardStep.INTRO -> LocalAiIntroScreen(
-                    onNext = { currentStep = WizardStep.DEVICE_COMPATIBILITY }
+                "import" -> SimpleImportScreen(
+                    importMessage = importMessage,
+                    onPickFile = onImportModel,
+                    onBack = { showImportScreen = false },
+                    onDone = {
+                        showImportScreen = false
+                        currentStep = WizardStep.READY
+                    }
                 )
-                WizardStep.DEVICE_COMPATIBILITY -> DeviceCompatibilityScreen(
+                WizardStep.SMART_SETUP.name -> SmartSetupScreen(
                     capability = capability,
                     isScanning = isScanning,
-                    onNext = { currentStep = WizardStep.RECOMMENDED_MODE },
-                    onBack = { currentStep = WizardStep.INTRO }
-                )
-                WizardStep.RECOMMENDED_MODE -> RecommendedAiModeScreen(
-                    recommendedMode = capability?.recommendedMode,
-                    onSelectMode = { mode ->
-                        onSelectMode(mode)
-                        when (mode) {
-                            AiModePreference.LOCAL_MODEL -> currentStep = WizardStep.MODEL_INSTALL_OPTIONS
-                            AiModePreference.SYSTEM_AI -> currentStep = WizardStep.LOCAL_AI_READY
-                            AiModePreference.CLOUD_AI -> onFinish()
-                            AiModePreference.AUTO -> currentStep = WizardStep.LOCAL_AI_READY
-                        }
+                    onUseSystemAi = {
+                        onSelectMode(AiModePreference.SYSTEM_AI)
+                        currentStep = WizardStep.READY
                     },
-                    onBack = { currentStep = WizardStep.DEVICE_COMPATIBILITY }
+                    onDownloadModel = {
+                        onSelectMode(AiModePreference.LOCAL_MODEL)
+                        currentStep = WizardStep.MODEL_SELECTION
+                    },
+                    onUseCloudAi = {
+                        onSelectMode(AiModePreference.CLOUD_AI)
+                        onFinish()
+                    },
+                    onBack = onBack
                 )
-                WizardStep.MODEL_INSTALL_OPTIONS -> ModelInstallOptionsScreen(
+                WizardStep.MODEL_SELECTION.name -> SimpleModelSelectionScreen(
                     catalogModels = catalogModels,
+                    deviceRamMb = (capability?.totalRamMb ?: 4096L).toInt(),
                     hasHuggingFaceToken = hasHuggingFaceToken,
-                    huggingFaceUsername = huggingFaceUsername,
                     onDownloadModel = { model ->
                         pendingDownloadModel = model
                         onDownloadModel(model)
-                        currentStep = WizardStep.MODEL_DOWNLOAD
+                        currentStep = WizardStep.DOWNLOADING
                     },
                     onSaveToken = onSaveHuggingFaceToken,
-                    onImportModel = { currentStep = WizardStep.IMPORT_MODEL },
-                    onBack = { currentStep = WizardStep.RECOMMENDED_MODE }
+                    onImportModel = { showImportScreen = true },
+                    onBack = { currentStep = WizardStep.SMART_SETUP }
                 )
-                WizardStep.MODEL_DOWNLOAD -> ModelDownloadScreen(
+                WizardStep.DOWNLOADING.name -> SimpleDownloadScreen(
                     downloadState = downloadState,
-                    modelName = downloadState.modelId,
+                    modelName = pendingDownloadModel?.displayName ?: downloadState.modelId,
                     licenseUrl = pendingDownloadModel?.licenseUrl?.ifBlank { null },
                     onCancel = {
                         onCancelDownload()
-                        currentStep = WizardStep.MODEL_INSTALL_OPTIONS
+                        currentStep = WizardStep.MODEL_SELECTION
                     },
                     onRetry = {
                         pendingDownloadModel?.let { onDownloadModel(it) }
                     },
                     onDone = {
-                        if (downloadState.error != null) {
-                            currentStep = WizardStep.MODEL_INSTALL_OPTIONS
+                        if (downloadState.progress >= 1f) {
+                            currentStep = WizardStep.READY
                         } else {
-                            currentStep = WizardStep.LOCAL_AI_READY
+                            currentStep = WizardStep.MODEL_SELECTION
                         }
                     }
                 )
-                WizardStep.IMPORT_MODEL -> ImportModelScreen(
-                    importMessage = importMessage,
-                    onPickFile = onImportModel,
-                    onBack = { currentStep = WizardStep.MODEL_INSTALL_OPTIONS },
-                    onDone = { currentStep = WizardStep.LOCAL_AI_READY }
-                )
-                WizardStep.LOCAL_AI_READY -> LocalAiReadyScreen(
+                WizardStep.READY.name -> SimpleReadyScreen(
                     providerName = activeProviderName,
                     benchmarkResult = benchmarkResult,
                     isRunningBenchmark = isRunningBenchmark,
