@@ -441,7 +441,7 @@ fun ModelInstallOptionsScreen(
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    "Gated Models (HuggingFace token required)",
+                    "Official Google Models (HuggingFace token required)",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -497,6 +497,45 @@ fun ModelInstallOptionsScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            // Gemma 4 guide banner (if Gemma 4 models are present)
+            val hasGemma4Models = gatedModels.any { it.modelId.contains("gemma4") }
+            if (hasGemma4Models) {
+                Spacer(Modifier.height(4.dp))
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Gemma 4 Models Available",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "• Gemma 4 4B: Excellent quality, needs 8+ GB RAM (flagship phones)\n" +
+                            "• Gemma 4 12B: Best quality, needs 16+ GB RAM (tablets/premium flagships only)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
                         )
                     }
                 }
@@ -559,12 +598,44 @@ fun ModelInstallOptionsScreen(
     }
 }
 
+/**
+ * Returns a device tier label and color based on RAM requirements.
+ * Helps users understand what kind of device is needed for each model.
+ */
+@Composable
+private fun getDeviceTierInfo(requiredRamMb: Int, recommendedRamMb: Int): Pair<String, androidx.compose.ui.graphics.Color> {
+    return when {
+        // Ultra-large models (12+ GB RAM) — flagships only
+        recommendedRamMb >= 16384 || requiredRamMb >= 12288 -> 
+            "Flagship only (16+ GB RAM)" to MaterialTheme.colorScheme.error
+        // Large models (10-12 GB) — high-end flagships
+        recommendedRamMb >= 10240 || requiredRamMb >= 8192 -> 
+            "High-end flagship (12+ GB RAM)" to MaterialTheme.colorScheme.tertiary
+        // Medium-large models (6-8 GB) — flagship phones
+        recommendedRamMb >= 8192 || requiredRamMb >= 6144 -> 
+            "Flagship devices (8+ GB RAM)" to MaterialTheme.colorScheme.secondary
+        // Medium models (4-6 GB) — mid-to-high range
+        recommendedRamMb >= 4096 || requiredRamMb >= 3072 -> 
+            "Mid-range+ devices (6+ GB RAM)" to MaterialTheme.colorScheme.primary
+        // Small models (2-4 GB) — most modern phones
+        recommendedRamMb >= 2048 || requiredRamMb >= 1536 -> 
+            "Most devices (4+ GB RAM)" to MaterialTheme.colorScheme.primary
+        // Tiny models — any device
+        else -> 
+            "Any device (2+ GB RAM)" to MaterialTheme.colorScheme.primary
+    }
+}
+
 /** Single model card used in both ungated and gated sections. */
 @Composable
 private fun ModelCatalogCard(
     model: LocalAiModel,
     onDownload: () -> Unit
 ) {
+    val (deviceTierLabel, tierColor) = getDeviceTierInfo(model.requiredRamMb, model.recommendedRamMb)
+    // Consider models needing 10+ GB recommended RAM as "heavy"
+    val isHeavyModel = model.recommendedRamMb >= 10240 || model.requiredRamMb >= 8192
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -596,15 +667,75 @@ private fun ModelCatalogCard(
                             )
                         }
                     }
+                    // Model description (if available)
+                    if (model.description.isNotBlank()) {
+                        Text(
+                            model.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2
+                        )
+                        Spacer(Modifier.height(4.dp))
+                    }
                     Text(
                         "${model.sizeMb} MB | ${model.quantization} | ${model.runtimeType.label}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    // Device tier badge
+                    Spacer(Modifier.height(4.dp))
+                    Surface(
+                        color = tierColor.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                if (isHeavyModel) Icons.Default.PhoneAndroid else Icons.Default.Smartphone,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = tierColor
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                deviceTierLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = tierColor
+                            )
+                        }
+                    }
+                }
+            }
+            
+            // Warning for very large models
+            if (isHeavyModel) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                        .padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    Spacer(Modifier.width(6.dp))
                     Text(
-                        "RAM: ${model.requiredRamMb} MB min, ${model.recommendedRamMb} MB recommended",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        if (model.requiredRamMb >= 12288)
+                            "Requires flagship device with 16+ GB RAM. May not work on most phones."
+                        else
+                            "Large model — ensure your device has sufficient RAM before downloading.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer
                     )
                 }
             }
