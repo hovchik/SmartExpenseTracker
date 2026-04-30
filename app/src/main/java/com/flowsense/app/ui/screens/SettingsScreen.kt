@@ -2665,7 +2665,7 @@ fun SettingsScreen(
                         }
                     } else "Free Plan",
                     subtitle = if (isSubscribed) {
-                        if (isTrialActive) "Your 3-day free trial is active"
+                        if (isTrialActive) "Your free trial is active"
                         else "You have full access to all premium features"
                     } else "Upgrade to unlock all premium features",
                     onClick = {

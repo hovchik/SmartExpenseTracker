@@ -38,7 +38,9 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
         private const val KEY_ACTIVE_PLAN_ID = "active_plan_id"
         private const val KEY_FREE_TRIAL_USED = "free_trial_used"
         private const val KEY_IS_TRIAL = "is_trial"
-        private const val FREE_TRIAL_DAYS = 3
+        private const val KEY_AI_TRIAL_USED = "ai_trial_used"
+        private const val FREE_TRIAL_DAYS = 7
+        private const val AI_TRIAL_DAYS = 7
     }
 
     private val prefs: SharedPreferences =
@@ -57,7 +59,10 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
     val isTrialActive: StateFlow<Boolean> = _isTrialActive.asStateFlow()
 
     val isTrialEligible: Boolean
-        get() = !prefs.getBoolean(KEY_FREE_TRIAL_USED, false) && !_isSubscribed.value
+        get() = BuildConfig.DEBUG || (!prefs.getBoolean(KEY_FREE_TRIAL_USED, false) && !_isSubscribed.value)
+
+    val isAiTrialEligible: Boolean
+        get() = BuildConfig.DEBUG || (!prefs.getBoolean(KEY_AI_TRIAL_USED, false) && !_isSubscribed.value)
 
     private var billingClient: BillingClient = BillingClient.newBuilder(context)
         .setListener(this)
@@ -392,12 +397,20 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
     // ─── Free Trial ────────────────────────────────────────────────
 
     /**
-     * Starts a 3-day free trial. Can only be used once per device.
+     * Starts a 7-day free trial. Can only be used once per device.
+     * In debug builds, can be activated anytime for testing.
      * Returns `true` if the trial was started, `false` if already used.
      */
     fun startFreeTrial(): Boolean {
-        if (prefs.getBoolean(KEY_FREE_TRIAL_USED, false)) return false
-        if (_isSubscribed.value) return false
+        // In debug builds, allow trial activation anytime (deactivate first if subscribed)
+        if (BuildConfig.DEBUG) {
+            if (_isSubscribed.value) {
+                deactivate()
+            }
+        } else {
+            if (prefs.getBoolean(KEY_FREE_TRIAL_USED, false)) return false
+            if (_isSubscribed.value) return false
+        }
 
         val expiryMillis = System.currentTimeMillis() + FREE_TRIAL_DAYS * 24L * 60 * 60 * 1000
         prefs.edit()
@@ -410,7 +423,38 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
         _isSubscribed.value = true
         _isTrialActive.value = true
         _activePlan.value = null
-        Log.d(TAG, "Free trial started, expires in $FREE_TRIAL_DAYS days")
+        Log.d(TAG, "Free trial started, expires in $FREE_TRIAL_DAYS days" + if (BuildConfig.DEBUG) " (DEBUG mode)" else "")
+        return true
+    }
+
+    /**
+     * Starts a 7-day AI trial for Cloud AI features. Can only be used once per device.
+     * In debug builds, can be activated anytime for testing.
+     * Returns `true` if the trial was started, `false` if already used.
+     */
+    fun startAiTrial(): Boolean {
+        // In debug builds, allow trial activation anytime (deactivate first if subscribed)
+        if (BuildConfig.DEBUG) {
+            if (_isSubscribed.value) {
+                deactivate()
+            }
+        } else {
+            if (prefs.getBoolean(KEY_AI_TRIAL_USED, false)) return false
+            if (_isSubscribed.value) return false
+        }
+
+        val expiryMillis = System.currentTimeMillis() + AI_TRIAL_DAYS * 24L * 60 * 60 * 1000
+        prefs.edit()
+            .putBoolean(KEY_IS_SUBSCRIBED, true)
+            .putBoolean(KEY_AI_TRIAL_USED, true)
+            .putBoolean(KEY_IS_TRIAL, true)
+            .putLong(KEY_SUBSCRIPTION_EXPIRY, expiryMillis)
+            .remove(KEY_ACTIVE_PLAN_ID)
+            .apply()
+        _isSubscribed.value = true
+        _isTrialActive.value = true
+        _activePlan.value = null
+        Log.d(TAG, "AI trial started, expires in $AI_TRIAL_DAYS days" + if (BuildConfig.DEBUG) " (DEBUG mode)" else "")
         return true
     }
 

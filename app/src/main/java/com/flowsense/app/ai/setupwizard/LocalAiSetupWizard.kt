@@ -45,9 +45,11 @@ enum class WizardStep {
 fun SmartSetupScreen(
     capability: DeviceAiCapabilityDetector.DeviceCapability?,
     isScanning: Boolean,
+    isAiTrialEligible: Boolean = false,
     onUseSystemAi: () -> Unit,
     onDownloadModel: () -> Unit,
     onUseCloudAi: () -> Unit,
+    onStartAiTrial: () -> Unit = {},
     onBack: () -> Unit
 ) {
     var showDeviceDetails by remember { mutableStateOf(false) }
@@ -177,6 +179,15 @@ fun SmartSetupScreen(
                     ) {
                         Text("Or download a custom model")
                     }
+
+                    // 7-day trial option for premium Cloud AI features
+                    if (isAiTrialEligible) {
+                        Spacer(Modifier.height(16.dp))
+                        
+                        TrialBanner(
+                            onStartTrial = onStartAiTrial
+                        )
+                    }
                 }
                 RecommendedAiMode.CUSTOM_LOCAL -> {
                     Button(
@@ -187,8 +198,73 @@ fun SmartSetupScreen(
                         Spacer(Modifier.width(8.dp))
                         Text("Choose & Download Model")
                     }
+
+                    // 7-day trial option as alternative
+                    if (isAiTrialEligible) {
+                        Spacer(Modifier.height(16.dp))
+                        
+                        TrialBanner(
+                            onStartTrial = onStartAiTrial
+                        )
+                    }
                 }
                 RecommendedAiMode.CLOUD_ONLY -> {
+                    // 7-day trial banner
+                    if (isAiTrialEligible) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                            )
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.CardGiftcard,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(24.dp),
+                                        tint = MaterialTheme.colorScheme.tertiary
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            "Try Cloud AI free for 7 days",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            "Full access to premium AI features — no card required.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(12.dp))
+                                Button(
+                                    onClick = onStartAiTrial,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.tertiary
+                                    )
+                                ) {
+                                    Icon(Icons.Default.PlayArrow, contentDescription = null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Start 7-Day Free Trial")
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+
+                        Text(
+                            "Or continue without trial",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(Modifier.height(8.dp))
+                    }
+
                     Button(
                         onClick = onUseCloudAi,
                         modifier = Modifier.fillMaxWidth()
@@ -263,6 +339,54 @@ private fun DeviceInfoRow(label: String, value: String) {
     ) {
         Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+    }
+}
+
+/**
+ * Reusable 7-day trial banner component.
+ */
+@Composable
+private fun TrialBanner(
+    onStartTrial: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.CardGiftcard,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.tertiary
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Or try Cloud AI free",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    "7 days, no card required",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            FilledTonalButton(
+                onClick = onStartTrial,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text("Try Free", style = MaterialTheme.typography.labelMedium)
+            }
+        }
     }
 }
 
@@ -1147,6 +1271,7 @@ fun LocalAiSetupWizardScreen(
     activeProviderName: String,
     hasHuggingFaceToken: Boolean,
     huggingFaceUsername: String?,
+    isAiTrialEligible: Boolean = false,
     onScanDevice: () -> Unit,
     onSelectMode: (AiModePreference) -> Unit,
     onDownloadModel: (LocalAiModel) -> Unit,
@@ -1154,6 +1279,7 @@ fun LocalAiSetupWizardScreen(
     onCancelDownload: () -> Unit,
     onImportModel: () -> Unit,
     onRunBenchmark: () -> Unit,
+    onStartAiTrial: () -> Unit = {},
     onFinish: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -1194,6 +1320,7 @@ fun LocalAiSetupWizardScreen(
                 WizardStep.SMART_SETUP.name -> SmartSetupScreen(
                     capability = capability,
                     isScanning = isScanning,
+                    isAiTrialEligible = isAiTrialEligible,
                     onUseSystemAi = {
                         onSelectMode(AiModePreference.SYSTEM_AI)
                         currentStep = WizardStep.READY
@@ -1203,6 +1330,11 @@ fun LocalAiSetupWizardScreen(
                         currentStep = WizardStep.MODEL_SELECTION
                     },
                     onUseCloudAi = {
+                        onSelectMode(AiModePreference.CLOUD_AI)
+                        onFinish()
+                    },
+                    onStartAiTrial = {
+                        onStartAiTrial()
                         onSelectMode(AiModePreference.CLOUD_AI)
                         onFinish()
                     },

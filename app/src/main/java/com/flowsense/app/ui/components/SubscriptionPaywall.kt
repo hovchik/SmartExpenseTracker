@@ -150,7 +150,7 @@ fun SubscriptionPaywallDialog(
                         Spacer(modifier = Modifier.width(8.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "Try Premium free for 3 days",
+                                "Try Premium free for 7 days",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color(0xFF2E7D32)
@@ -178,7 +178,7 @@ fun SubscriptionPaywallDialog(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Start 3-Day Free Trial", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text("Start 7-Day Free Trial", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
