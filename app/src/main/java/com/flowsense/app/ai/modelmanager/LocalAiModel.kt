@@ -72,6 +72,8 @@ enum class InstallState(val label: String) {
  * Sources (gated — require HuggingFace token):
  *  - google/gemma-3-1b-it (official Gemma 3 1B)
  *  - google/gemma-2-2b-it (official Gemma 2 2B)
+ *  - google/gemma-4-4b-it-litert-preview (official Gemma 4 4B preview)
+ *  - google/gemma-4-12b-it-litert-preview (official Gemma 4 12B preview)
  *  - google/gemma-3n-E4B-it (official Gemma 3n E4B)
  */
 object ModelCatalog {
@@ -295,6 +297,46 @@ object ModelCatalog {
             description = "Official Google Gemma 2 2B (2.71 GB). Requires HuggingFace token.",
             isGated = true,
             licenseUrl = "https://huggingface.co/litert-community/Gemma2-2B-IT"
+        ),
+
+        LocalAiModel(
+            modelId = "gemma4-4b-it-int4-official",
+            displayName = "Gemma 4 4B IT (int4) [Official]",
+            runtimeType = RuntimeType.MEDIAPIPE,
+            fileFormat = ".task",
+            quantization = "int4",
+            requiredRamMb = 6144,
+            recommendedRamMb = 10240,
+            sizeMb = 5200,
+            supportsTextGeneration = true,
+            supportsStructuredJson = false,
+            supportsStreaming = true,
+            version = "4.0",
+            downloadUrl = "https://huggingface.co/google/gemma-4-4b-it-litert-preview/resolve/main/gemma-4-4b-it-int4.task",
+            description = "Official Gemma 4 4B preview. Higher quality than Gemma 3 1B. Requires HuggingFace token.",
+            isGated = true,
+            licenseUrl = "https://huggingface.co/google/gemma-4-4b-it-litert-preview",
+            maxTokens = 1024 // Preview model naming has no ekv marker, keep safe default
+        ),
+
+        LocalAiModel(
+            modelId = "gemma4-12b-it-int4-official",
+            displayName = "Gemma 4 12B IT (int4) [Official]",
+            runtimeType = RuntimeType.MEDIAPIPE,
+            fileFormat = ".task",
+            quantization = "int4",
+            requiredRamMb = 12288,
+            recommendedRamMb = 16384,
+            sizeMb = 11200,
+            supportsTextGeneration = true,
+            supportsStructuredJson = false,
+            supportsStreaming = true,
+            version = "4.0",
+            downloadUrl = "https://huggingface.co/google/gemma-4-12b-it-litert-preview/resolve/main/gemma-4-12b-it-int4.task",
+            description = "Official Gemma 4 12B preview. Best local Gemma quality, for flagship devices. Requires HuggingFace token.",
+            isGated = true,
+            licenseUrl = "https://huggingface.co/google/gemma-4-12b-it-litert-preview",
+            maxTokens = 1024 // Preview model naming has no ekv marker, keep safe default
         ),
 
         LocalAiModel(
