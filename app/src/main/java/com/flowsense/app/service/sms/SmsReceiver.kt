@@ -64,17 +64,6 @@ class SmsReceiver : BroadcastReceiver() {
         "перевод", "покупка", "снятие", "пополнение"
     )
 
-    /**
-     * Pre-authorisation keywords – these messages must be silently ignored.
-     * The real charge arrives in a separate "approved"/"completion" message.
-     */
-    private val preAuthKeywords = listOf(
-        "pre-auth", "pre auth", "preauth", "pre-authorization", "pre authorization",
-        "preauthorization", "authorisation hold", "authorization hold", "auth hold",
-        "card authorised", "card authorized", "temporary hold", "temp hold",
-        "pending authorization", "pending authorisation"
-    )
-
     override fun onReceive(context: Context, intent: Intent) {
         try {
             if (intent.action != SMS_RECEIVED) return
@@ -105,9 +94,10 @@ class SmsReceiver : BroadcastReceiver() {
             val sender = messages.firstOrNull()?.originatingAddress ?: "unknown"
 
             if (fullMessage.isBlank()) return
-            // Drop pre-auth / authorisation-hold messages before any further processing
-            val lower = fullMessage.lowercase()
-            if (preAuthKeywords.any { lower.contains(it) }) {
+            // Drop pre-auth / authorisation-hold messages before any further processing.
+            // Uses the shared list from AiExpenseEngine so the receiver and parser stay
+            // in sync if the keyword set is updated.
+            if (AiExpenseEngine.isPreAuthMessage(fullMessage)) {
                 Log.d(TAG, "Pre-auth SMS ignored from $sender")
                 return
             }
@@ -253,22 +243,25 @@ class SmsReceiver : BroadcastReceiver() {
                             Log.d(TAG, "Skipped duplicate: ${parsed.amount}")
                         }
                     } else {
-                        // Fallback: own storage instance
+                        // Fallback: own storage instance. Use the user's saved currency
+                        // (loaded from disk) rather than hardcoding a region-specific one.
                         val storage = com.flowsense.app.data.json.JsonStorageManager(context)
                         val fallbackRepo = com.flowsense.app.data.repository.ExpenseRepository(storage)
                         fallbackRepo.initialize()
+                        val fallbackSettings = fallbackRepo.appData.value.settings
+                        val fbAppCurrency = fallbackSettings.currencyCode
                         val fallbackCatNames = fallbackRepo.appData.value.categories
                             .filter { !it.isDefault }.map { it.name }
                         val fbLocation = LocationProvider.getLastKnownLocation(context)
-                        val fbCurrency = parsed.currency.ifEmpty { "AMD" }
-                        val fbIsForeign = fbCurrency != "AMD"
+                        val fbCurrency = parsed.currency.ifEmpty { fbAppCurrency }
+                        val fbIsForeign = fbCurrency.isNotEmpty() && fbCurrency != fbAppCurrency
 
                         var fbFinal = parsed.amount
                         var fbOrigAmt = 0.0
                         var fbOrigCode = ""
                         var fbRate = 0.0
                         if (fbIsForeign) {
-                            val c = CurrencyConverterService.convert(parsed.amount, fbCurrency, "AMD")
+                            val c = CurrencyConverterService.convert(parsed.amount, fbCurrency, fbAppCurrency)
                             if (c != null && parsed.amount > 0) {
                                 fbRate = c / parsed.amount
                                 fbOrigAmt = parsed.amount
@@ -277,7 +270,6 @@ class SmsReceiver : BroadcastReceiver() {
                             }
                         }
 
-                        val fbCategoryNames = fallbackRepo.appData.value.categories.map { it.name }
                         val ruleEngine = com.flowsense.app.service.ai.AiExpenseEngine()
                         val fbCategory = ruleEngine.categorize(
                             parsed.description.ifEmpty { fullMessage },
@@ -291,7 +283,7 @@ class SmsReceiver : BroadcastReceiver() {
                             source = TransactionSource.SMS,
                             merchantName = parsed.merchantName,
                             notes = dedupKey,
-                            currencyCode = "AMD",
+                            currencyCode = fbAppCurrency,
                             originalAmount = fbOrigAmt,
                             originalCurrencyCode = fbOrigCode,
                             exchangeRate = fbRate,

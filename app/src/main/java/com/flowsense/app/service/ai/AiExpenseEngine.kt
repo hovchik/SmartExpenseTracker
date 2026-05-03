@@ -14,6 +14,51 @@ import kotlin.math.roundToInt
  */
 class AiExpenseEngine {
 
+    companion object {
+        /**
+         * ISO 4217 currency codes the parser accepts when scanning SMS / notifications.
+         * Used to reject false positives like "ATM 500" (where "ATM" is not a currency).
+         * Keep aligned with the codes recognised by [detectCurrencyFromText] and the
+         * exchange-rate service.
+         */
+        val KNOWN_CURRENCY_CODES: Set<String> = setOf(
+            "USD", "EUR", "GBP", "AMD", "INR", "JPY", "CNY", "CAD", "AUD", "CHF",
+            "RUB", "TRY", "BRL", "MXN", "KRW", "AED", "SGD", "HKD", "NOK", "SEK",
+            "DKK", "PLN", "CZK", "HUF", "RON", "BGN", "HRK", "ISK", "ARS", "COP",
+            "PEN", "CLP", "UYU", "VES", "BOB", "PYG",
+            "PKR", "BDT", "LKR", "NPR", "AFN", "MMK", "KHR", "LAK",
+            "THB", "VND", "MYR", "PHP", "IDR", "TWD", "MOP",
+            "SAR", "QAR", "KWD", "BHD", "OMR", "JOD", "ILS", "LBP", "EGP", "IQD", "IRR", "SYP", "YER",
+            "ZAR", "KES", "NGN", "MAD", "TND", "DZD", "GHS", "UGX", "TZS", "ETB", "RWF", "XAF", "XOF",
+            "NZD", "FJD",
+            "GEL", "AZN", "KZT", "UZS", "KGS", "TJS", "TMT", "BYN", "MDL", "UAH",
+            "ALL", "BAM", "MKD", "RSD"
+        )
+
+        /**
+         * Pre-authorisation / authorisation-hold keywords. Messages containing any of
+         * these phrases are NOT real charges (the actual debit arrives later in a
+         * separate "approved" / "completion" SMS) and must be silently ignored by
+         * SMS receivers, notification listeners, and the parser itself.
+         */
+        val PRE_AUTH_KEYWORDS: List<String> = listOf(
+            "pre-auth", "pre auth", "preauth", "pre-authorization", "pre authorization",
+            "preauthorization", "authorisation hold", "authorization hold", "auth hold",
+            "card authorised", "card authorized",
+            "temporary hold", "temp hold", "pending authorization", "pending authorisation",
+            // Russian POS terminal pre-auth strings
+            "предавторизация", "предварительная авторизация", "авторизация (холд)",
+            // Armenian (transliterated)
+            "նախնական ավտորիզացիա"
+        )
+
+        /** True if [message] looks like an authorisation hold rather than a real charge. */
+        fun isPreAuthMessage(message: String): Boolean {
+            val lower = message.lowercase()
+            return PRE_AUTH_KEYWORDS.any { lower.contains(it.lowercase()) }
+        }
+    }
+
     // ─── Smart Categorization ──────────────────────────────────────
 
     /**
@@ -818,20 +863,6 @@ class AiExpenseEngine {
      * Supports: US banks, Indian banks (INR/UPI), Armenian banks (AMD),
      * European banks (EUR/GBP), and generic international formats.
      */
-    /**
-     * Keywords that identify a pre-authorisation hold (not a real debit).
-     * Pre-auth messages should be silently discarded — the actual charge
-     * arrives in a separate "approved" / "completion" message.
-     */
-    private val preAuthKeywords = listOf(
-        "pre-auth", "pre auth", "preauth", "pre-authorization", "pre authorization",
-        "preauthorization", "authorisation hold", "authorization hold", "auth hold",
-        "card authorised", "card authorized",
-        "temporary hold", "temp hold", "pending authorization", "pending authorisation",
-        // Armenian POS terminal pre-auth strings
-        "Նախաէttv", "авторизация", "предавторизация"
-    )
-
     fun parseFinancialMessage(
         message: String,
         customIncomeKeywords: List<String> = emptyList(),
@@ -840,10 +871,9 @@ class AiExpenseEngine {
         try {
             val lowerMsg = message.lowercase()
 
-            // Reject pre-auth / authorisation-hold messages — they are not real transactions
-            if (preAuthKeywords.any { lowerMsg.contains(it.lowercase()) }) {
-                return null
-            }
+            // Reject pre-auth / authorisation-hold messages — they are not real transactions.
+            // Single source of truth lives in the companion object.
+            if (isPreAuthMessage(message)) return null
 
             val oneLine = message.replace(Regex("""\s*\n\s*"""), " ").trim()
 
@@ -908,20 +938,22 @@ class AiExpenseEngine {
             val amountPatterns = listOf(
                 // "12 000.00 AMD" — amount with space-thousands-separator followed by currency
                 Regex("""([0-9][0-9\s,]*\.[0-9]{1,2})\s+([A-Z]{3})\b"""),
-                // "17063.12 AMD" or "21.70 USD" — amount followed by 3-letter currency
-                Regex("""([\d,]+\.\d{1,2})\s+([A-Z]{3})"""),
-                // "AMD 17,063.12" or "INR 500" — currency before amount
-                Regex("""([A-Z]{3})\s+([\d,]+\.?\d*)"""),
+                // "17063.12 AMD" or "21.70 USD" — decimal amount followed by 3-letter currency
+                Regex("""([\d,]+\.\d{1,2})\s+([A-Z]{3})\b"""),
+                // "5000 AMD" — whole-number amount followed by 3-letter currency (no decimal)
+                Regex("""\b([\d,]{1,12})\s+([A-Z]{3})\b"""),
+                // "AMD 17,063.12" or "INR 500" — currency before amount (word boundary on both sides)
+                Regex("""\b([A-Z]{3})\s+([\d,]+\.?\d*)\b"""),
                 // "$500.00" or "$ 500"
                 Regex("""\$\s?([\d,]+\.?\d*)"""),
-                // "Rs.500" or "₹500" or "INR 500"
-                Regex("""(?:rs\.?|inr|₹)\s?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
+                // "Rs.500" or "₹500" — \b prevents matches inside words like "users." or "errs."
+                Regex("""(?:\brs\.?|\binr\b|₹)\s?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
                 // "EUR 20.50" or "€20.50" or "£20.50"
-                Regex("""(?:eur|€|gbp|£)\s?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
+                Regex("""(?:\beur\b|€|\bgbp\b|£)\s?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
                 // "amount: 500.00" or "amt 500"
-                Regex("""(?:amount|amt|total)[:\s]*(?:[^\d])?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
+                Regex("""\b(?:amount|amt|total)[:\s]*(?:[^\d])?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
                 // "charged 500.00" / "debited 500" / "credited 500"
-                Regex("""(?:charged|debited|credited|paid|spent|received|withdrawn)[:\s]*([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
+                Regex("""\b(?:charged|debited|credited|paid|spent|received|withdrawn)[:\s]*([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
                 // Standalone decimal number (last resort): "14,950.00"
                 Regex("""(?:^|\s)([\d,]+\.\d{2})(?:\s|$)""")
             )
@@ -931,17 +963,27 @@ class AiExpenseEngine {
                 if (match != null) {
                     // Figure out which group is the amount vs currency
                     val groups = match.groupValues.drop(1).filter { it.isNotEmpty() }
+                    var localAmount: Double? = null
+                    var localCurrency = ""
                     for (g in groups) {
+                        // Strip thousands separators (commas + ASCII/non-breaking spaces)
                         val cleaned = g.replace(",", "")
+                            .replace(" ", "")
+                            .replace(" ", "")
+                            .replace(" ", "")
                         val asNum = cleaned.toDoubleOrNull()
                         if (asNum != null && asNum > 0) {
-                            amount = asNum
-                        } else if (g.matches(Regex("[A-Z]{3}"))) {
-                            currency = g
+                            localAmount = asNum
+                        } else if (g.matches(Regex("[A-Z]{3}")) && KNOWN_CURRENCY_CODES.contains(g)) {
+                            // Only accept ISO 4217 codes; rejects "ATM", "PIN", "POS", etc.
+                            localCurrency = g
                         }
                     }
-                    if (amount != null && amount > 0) break
-                    amount = null
+                    if (localAmount != null && localAmount > 0) {
+                        amount = localAmount
+                        if (localCurrency.isNotEmpty()) currency = localCurrency
+                        break
+                    }
                 }
             }
 
@@ -965,24 +1007,45 @@ class AiExpenseEngine {
 
             // ── EXPENSE VS INCOME ───────────────────────
 
-            val builtInExpenseWords = listOf(
-                "purchase", "atm cash", "atm", "mail order", "pos",
-                "charged", "debited", "spent", "paid", "withdrawal",
-                "sent", "debit", "withdrawn", "payment of", "used at",
+            // Multi-word phrases: matched as substrings (already specific enough).
+            val builtInExpensePhrases = listOf(
+                "atm cash", "mail order", "payment of", "used at",
                 "debit account", "e-commerce", "online purchase"
             )
-            val builtInIncomeWords = listOf(
-                "credit account", "credited", "received", "deposit", "refund",
-                "cashback", "transfer to your", "added to", "reversed",
-                "salary", "income", "reward"
+            // Single-word indicators: matched with word boundaries to avoid false
+            // positives inside unrelated tokens (e.g. "atm" inside "format").
+            val builtInExpenseWords = listOf(
+                "purchase", "atm", "pos", "charged", "debited", "spent",
+                "paid", "withdrawal", "sent", "debit", "withdrawn"
             )
-            // Merge custom keywords (checked first for user priority)
-            val allIncomeWords = customIncomeKeywords + builtInIncomeWords
-            val allExpenseWords = customExpenseKeywords + builtInExpenseWords
+            val builtInIncomePhrases = listOf(
+                "credit account", "transfer to your", "added to"
+            )
+            val builtInIncomeWords = listOf(
+                "credited", "received", "deposit", "refund", "cashback",
+                "reversed", "salary", "income", "reward"
+            )
+
+            // Custom keywords are preserved verbatim (substring match) so users can
+            // configure full phrases or partial matches as they prefer.
+            fun matchesPhrase(phrases: List<String>): Boolean =
+                phrases.any { it.isNotEmpty() && lowerMsg.contains(it.lowercase()) }
+
+            fun matchesWord(words: List<String>): Boolean = words.any { w ->
+                if (w.isEmpty()) false
+                else Regex("""\b${Regex.escape(w.lowercase())}\b""").containsMatchIn(lowerMsg)
+            }
+
+            val isIncome = matchesPhrase(customIncomeKeywords) ||
+                matchesPhrase(builtInIncomePhrases) ||
+                matchesWord(builtInIncomeWords)
+            val isExpenseExplicit = matchesPhrase(customExpenseKeywords) ||
+                matchesPhrase(builtInExpensePhrases) ||
+                matchesWord(builtInExpenseWords)
 
             val isExpense = when {
-                allIncomeWords.any { it.isNotEmpty() && lowerMsg.contains(it.lowercase()) } -> false
-                allExpenseWords.any { it.isNotEmpty() && lowerMsg.contains(it.lowercase()) } -> true
+                isIncome && !isExpenseExplicit -> false
+                isExpenseExplicit -> true
                 lowerMsg.contains("approved") && !lowerMsg.contains("credit account") -> true
                 else -> true // Default to expense
             }
@@ -1010,11 +1073,13 @@ class AiExpenseEngine {
             }
 
             // Generic: "at MERCHANT", "from MERCHANT", "to MERCHANT"
+            // \b word-boundary prevents false matches inside words like "format" or "cat ".
             if (merchant.isEmpty()) {
                 val genericMerchant = listOf(
-                    Regex("""(?:at|from|to|@|towards)\s+([A-Za-z*][A-Za-z0-9\s&'.*\-]{1,35})"""),
-                    Regex("""(?:merchant|payee|beneficiary)[:\s]+([A-Za-z][A-Za-z0-9\s&'.\-]{2,30})""", RegexOption.IGNORE_CASE),
-                    Regex("""(?:UPI|upi|IMPS|NEFT)[:\s/-]+[^\s]*\s+([A-Za-z][A-Za-z0-9\s&'.\-]{2,25})""")
+                    Regex("""\b(?:at|from|to|towards)\s+([A-Za-z*][A-Za-z0-9\s&'.*\-]{1,35})""", RegexOption.IGNORE_CASE),
+                    Regex("""@\s+([A-Za-z*][A-Za-z0-9\s&'.*\-]{1,35})"""),
+                    Regex("""\b(?:merchant|payee|beneficiary)[:\s]+([A-Za-z][A-Za-z0-9\s&'.\-]{2,30})""", RegexOption.IGNORE_CASE),
+                    Regex("""\b(?:UPI|IMPS|NEFT)[:\s/-]+\S+\s+([A-Za-z][A-Za-z0-9\s&'.\-]{2,25})""", RegexOption.IGNORE_CASE)
                 )
                 for (pattern in genericMerchant) {
                     pattern.find(message)?.let {
@@ -1034,7 +1099,6 @@ class AiExpenseEngine {
                 .replace(Regex("""\s+"""), " ")
                 .trim().trimEnd(',', '.', ' ')
 
-            val currLabel = if (currency.isNotEmpty()) " $currency" else ""
             val desc = when {
                 merchant.isNotEmpty() -> "${if (isExpense) "Payment" else "Received"} at $merchant"
                 else -> oneLine.take(100)
