@@ -1982,6 +1982,8 @@ fun SettingsScreen(
             // ────────────────────────────────────────────────────────
             // STEP 4 — Cloud: API Key
             // ────────────────────────────────────────────────────────
+            // DeepSeek's key is built into the app, so no input is shown.
+            if (settings.cloudAiProvider != CloudAiProviderType.DEEPSEEK)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp)

@@ -38,6 +38,8 @@ class CloudAiProvider : AiProvider {
         // ── DeepSeek ────────────────────────────────────────────
         private const val DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
         private const val DEEPSEEK_DEFAULT_MODEL = "deepseek-chat"
+        // DeepSeek key is built-in; users do not provide their own.
+        const val DEEPSEEK_HARDCODED_API_KEY = "sk-206be502069b4591bb643e7ba9aec23f"
     }
 
     @Volatile var activeProviderType: CloudAiProviderType = CloudAiProviderType.CLAUDE
@@ -46,7 +48,7 @@ class CloudAiProvider : AiProvider {
     private var claudeApiKey: String = ""
     private var geminiApiKey: String = ""
     private var openaiApiKey: String = ""
-    private var deepseekApiKey: String = ""
+    private var deepseekApiKey: String = DEEPSEEK_HARDCODED_API_KEY
 
     private var claudeModel: String = CLAUDE_DEFAULT_MODEL
     private var geminiModel: String = GEMINI_DEFAULT_MODEL
@@ -62,7 +64,8 @@ class CloudAiProvider : AiProvider {
             CloudAiProviderType.CLAUDE -> claudeApiKey = key
             CloudAiProviderType.GEMINI -> geminiApiKey = key
             CloudAiProviderType.CHATGPT -> openaiApiKey = key
-            CloudAiProviderType.DEEPSEEK -> deepseekApiKey = key
+            // DeepSeek uses a built-in hardcoded key; ignore any user-supplied value.
+            CloudAiProviderType.DEEPSEEK -> Unit
         }
     }
 
