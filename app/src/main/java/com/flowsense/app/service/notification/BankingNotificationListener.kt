@@ -2,8 +2,6 @@ package com.flowsense.app.service.notification
 
 import android.app.Notification
 import android.content.pm.PackageManager
-import android.os.Handler
-import android.os.Looper
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
@@ -50,28 +48,20 @@ class BankingNotificationListener : NotificationListenerService() {
 
     @Volatile
     private var isConnected = false
-    private val handler = Handler(Looper.getMainLooper())
-    private val rebindRunnable = Runnable {
-        try {
-            requestRebind(android.content.ComponentName(applicationContext, BankingNotificationListener::class.java))
-        } catch (e: Exception) {
-            Log.w(TAG, "requestRebind failed (expected on older APIs): ${e.message}")
-        }
-    }
 
     override fun onListenerConnected() {
         isConnected = true
-        handler.removeCallbacks(rebindRunnable)
         Log.d(TAG, "Notification listener connected")
     }
 
     override fun onListenerDisconnected() {
+        // The framework rebinds automatically as long as the user has granted
+        // notification access. Manually calling requestRebind() here races with
+        // the system's own rebind cycle (e.g. during package changes) and has
+        // been observed to crash the system server with
+        // "Service not registered" inside ManagedServices.unbindService.
         isConnected = false
-        Log.d(TAG, "Notification listener disconnected, scheduling rebind")
-        // Delay rebind to avoid racing with the system's own unbind/rebind
-        // cycle during package changes (ManagedServices.rebindServices).
-        handler.removeCallbacks(rebindRunnable)
-        handler.postDelayed(rebindRunnable, 3000)
+        Log.d(TAG, "Notification listener disconnected")
     }
 
     // Explicit banking/payment app package whitelist
@@ -125,12 +115,14 @@ class BankingNotificationListener : NotificationListenerService() {
         "am.easypay"
     )
 
-    // Financial keywords to filter non-transaction notifications
+    // Generic "this looks financial" markers — currency symbols / banking
+    // context. Income- and expense-classifier vocabulary lives in
+    // Settings.incomeKeywords / Settings.expenseKeywords (user-customizable)
+    // and is unioned in below before checking the gate.
     private val financialKeywords = listOf(
-        "debited", "credited", "spent", "received", "paid", "charged",
-        "transaction", "payment", "transfer", "withdrawn", "deposit",
-        "\$", "₹", "֏", "rs.", "inr", "usd", "amd", "eur", "gbp", "amt",
-        "approved", "authcode", "purchase", "atm cash", "balance:", "credit account"
+        "transaction", "transfer", "amt", "balance:",
+        "approved", "authcode",
+        "$", "₹", "֏", "rs.", "inr", "usd", "amd", "eur", "gbp"
     )
 
     /** Returns the human-readable app label for a package, or null on failure. */
