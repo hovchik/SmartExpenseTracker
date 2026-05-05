@@ -101,37 +101,20 @@ class SmsReceiver : BroadcastReceiver() {
                 Log.d(TAG, "Pre-auth SMS ignored from $sender")
                 return
             }
-            val app0 = context.applicationContext as? FlowSenseApp
-            val settings0 = app0?.repository?.appData?.value?.settings
 
-            // User-configured keywords also count as financial indicators
-            val userKeywords = settings0?.expenseKeywords.orEmpty() +
-                settings0?.incomeKeywords.orEmpty()
-            if (!isFinancialMessage(sender, fullMessage, userKeywords)) return
+            // Quick pre-filter with built-in banking senders & financial keywords.
+            // Don't rely on user settings here — repo may not be initialized on cold start.
+            if (!isFinancialMessage(sender, fullMessage)) {
+                Log.d(TAG, "SMS skipped: not a financial message (pre-filter)")
+                return
+            }
 
             Log.d(TAG, "Financial SMS detected from: $sender")
 
-            val aiEngine = AiExpenseEngine()
-            val parsed = aiEngine.parseFinancialMessage(
-                fullMessage,
-                customIncomeKeywords = settings0?.incomeKeywords.orEmpty(),
-                customExpenseKeywords = settings0?.expenseKeywords.orEmpty()
-            ) ?: return
-
-            // Only proceed if the message contains at least one configured expense or income keyword
-            val allKeywords = settings0?.expenseKeywords.orEmpty() + settings0?.incomeKeywords.orEmpty()
-            if (allKeywords.isNotEmpty()) {
-                val lowerMsg = fullMessage.lowercase()
-                if (allKeywords.none { it.isNotEmpty() && lowerMsg.contains(it.lowercase()) }) {
-                    Log.d(TAG, "SMS skipped: no configured expense/income keyword found")
-                    return
-                }
-            }
-
-            val dedupKey = "Auto SMS: $sender | ${System.currentTimeMillis() / 60000}"
-
             // goAsync() extends the BroadcastReceiver's process lifetime beyond onReceive()
             // so the coroutine is not killed before the transaction is persisted.
+            // Called early — before any heavy parsing — to prevent the system from
+            // killing the receiver while regex-heavy parseFinancialMessage runs.
             val pendingResult = goAsync()
             CoroutineScope(Dispatchers.IO).launch {
                 try {
@@ -147,6 +130,35 @@ class SmsReceiver : BroadcastReceiver() {
                             return@launch
                         }
                         val settings = repo.appData.value.settings
+
+                        // Respect user toggle — if SMS parsing is disabled, bail out.
+                        if (!settings.smsParsingEnabled) {
+                            Log.d(TAG, "SMS parsing disabled in settings, skipping")
+                            pendingResult.finish()
+                            return@launch
+                        }
+
+                        // Re-check with user-configured keywords (now properly loaded)
+                        val userKeywords = settings.expenseKeywords + settings.incomeKeywords
+                        if (!isFinancialMessage(sender, fullMessage, userKeywords)) {
+                            Log.d(TAG, "SMS skipped: not financial with user keywords")
+                            pendingResult.finish()
+                            return@launch
+                        }
+
+                        val aiEngine = AiExpenseEngine()
+                        val parsed = aiEngine.parseFinancialMessage(
+                            fullMessage,
+                            customIncomeKeywords = settings.incomeKeywords,
+                            customExpenseKeywords = settings.expenseKeywords
+                        )
+                        if (parsed == null) {
+                            Log.d(TAG, "Could not parse financial data from SMS")
+                            pendingResult.finish()
+                            return@launch
+                        }
+
+                        val dedupKey = "Auto SMS: $sender | ${System.currentTimeMillis() / 60000}"
                         val appCurrency = settings.currencyCode
                         val userCatNames = repo.appData.value.categories
                             .filter { !it.isDefault }.map { it.name }
@@ -249,22 +261,42 @@ class SmsReceiver : BroadcastReceiver() {
                         val fallbackRepo = com.flowsense.app.data.repository.ExpenseRepository(storage)
                         fallbackRepo.initialize()
                         val fallbackSettings = fallbackRepo.appData.value.settings
+
+                        if (!fallbackSettings.smsParsingEnabled) {
+                            Log.d(TAG, "SMS parsing disabled in settings (fallback), skipping")
+                            pendingResult.finish()
+                            return@launch
+                        }
+
+                        val fbAiEngine = AiExpenseEngine()
+                        val fbParsed = fbAiEngine.parseFinancialMessage(
+                            fullMessage,
+                            customIncomeKeywords = fallbackSettings.incomeKeywords,
+                            customExpenseKeywords = fallbackSettings.expenseKeywords
+                        )
+                        if (fbParsed == null) {
+                            Log.d(TAG, "Could not parse financial data from SMS (fallback)")
+                            pendingResult.finish()
+                            return@launch
+                        }
+
+                        val fbDedupKey = "Auto SMS: $sender | ${System.currentTimeMillis() / 60000}"
                         val fbAppCurrency = fallbackSettings.currencyCode
                         val fallbackCatNames = fallbackRepo.appData.value.categories
                             .filter { !it.isDefault }.map { it.name }
                         val fbLocation = LocationProvider.getLastKnownLocation(context)
-                        val fbCurrency = parsed.currency.ifEmpty { fbAppCurrency }
+                        val fbCurrency = fbParsed.currency.ifEmpty { fbAppCurrency }
                         val fbIsForeign = fbCurrency.isNotEmpty() && fbCurrency != fbAppCurrency
 
-                        var fbFinal = parsed.amount
+                        var fbFinal = fbParsed.amount
                         var fbOrigAmt = 0.0
                         var fbOrigCode = ""
                         var fbRate = 0.0
                         if (fbIsForeign) {
-                            val c = CurrencyConverterService.convert(parsed.amount, fbCurrency, fbAppCurrency)
-                            if (c != null && parsed.amount > 0) {
-                                fbRate = c / parsed.amount
-                                fbOrigAmt = parsed.amount
+                            val c = CurrencyConverterService.convert(fbParsed.amount, fbCurrency, fbAppCurrency)
+                            if (c != null && fbParsed.amount > 0) {
+                                fbRate = c / fbParsed.amount
+                                fbOrigAmt = fbParsed.amount
                                 fbOrigCode = fbCurrency
                                 fbFinal = c
                             }
@@ -272,17 +304,17 @@ class SmsReceiver : BroadcastReceiver() {
 
                         val ruleEngine = com.flowsense.app.service.ai.AiExpenseEngine()
                         val fbCategory = ruleEngine.categorize(
-                            parsed.description.ifEmpty { fullMessage },
-                            parsed.isExpense, fallbackCatNames
+                            fbParsed.description.ifEmpty { fullMessage },
+                            fbParsed.isExpense, fallbackCatNames
                         )
                         fallbackRepo.addTransaction(Transaction(
                             amount = fbFinal,
-                            description = parsed.description.ifEmpty { fullMessage.take(80) },
+                            description = fbParsed.description.ifEmpty { fullMessage.take(80) },
                             category = fbCategory,
-                            type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
+                            type = if (fbParsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
                             source = TransactionSource.SMS,
-                            merchantName = parsed.merchantName,
-                            notes = dedupKey,
+                            merchantName = fbParsed.merchantName,
+                            notes = fbDedupKey,
                             currencyCode = fbAppCurrency,
                             originalAmount = fbOrigAmt,
                             originalCurrencyCode = fbOrigCode,

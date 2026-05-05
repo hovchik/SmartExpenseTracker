@@ -12,8 +12,8 @@ android {
         applicationId = "com.flowsense.app"
         minSdk = 31   // Android 12 – minimum for Google AICore (Gemini Nano)
         targetSdk = 36 // Android 16 (S24 Ultra target)
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.0.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }

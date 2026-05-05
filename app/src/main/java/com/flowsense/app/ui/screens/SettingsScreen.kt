@@ -1984,11 +1984,11 @@ fun SettingsScreen(
             // ────────────────────────────────────────────────────────
             // DeepSeek and Gemini keys are built into the app, so no input is shown.
             if (settings.cloudAiProvider != CloudAiProviderType.DEEPSEEK &&
-                settings.cloudAiProvider != CloudAiProviderType.GEMINI)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp)
-            ) {
+                settings.cloudAiProvider != CloudAiProviderType.GEMINI) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(
@@ -2059,10 +2059,9 @@ fun SettingsScreen(
                         }
                     }
                 }
-            }
+                }
+            } // end if (not DeepSeek/Gemini)
         }
-
-        // ── Local Model / System AI: Setup & Models ──
         if (settings.aiModePreference == AiModePreference.LOCAL_MODEL ||
             settings.aiModePreference == AiModePreference.SYSTEM_AI) {
 

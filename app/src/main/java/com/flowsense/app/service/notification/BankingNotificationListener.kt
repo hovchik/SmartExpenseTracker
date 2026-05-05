@@ -160,35 +160,18 @@ class BankingNotificationListener : NotificationListenerService() {
             if (fullText.length < 5) return
 
             val lowerText = fullText.lowercase()
-            val app0 = applicationContext as? FlowSenseApp
-            val settings0 = app0?.repository?.appData?.value?.settings
 
-            // User-configured keywords also count as financial indicators
-            val userKeywords = settings0?.expenseKeywords.orEmpty() +
-                settings0?.incomeKeywords.orEmpty()
-            val allFinancialKw = financialKeywords + userKeywords.map { it.lowercase() }
-            if (allFinancialKw.none { it.isNotEmpty() && lowerText.contains(it) }) return
+            // Quick pre-filter with built-in financial keywords (no user settings needed)
+            if (financialKeywords.none { it.isNotEmpty() && lowerText.contains(it) }) return
 
-            val aiEngine = AiExpenseEngine()
-            val parsed = aiEngine.parseFinancialMessage(
-                fullText,
-                customIncomeKeywords = settings0?.incomeKeywords.orEmpty(),
-                customExpenseKeywords = settings0?.expenseKeywords.orEmpty()
-            ) ?: return
-
-            // Only proceed if the text contains at least one configured expense or income keyword
-            val allKeywords = settings0?.expenseKeywords.orEmpty() + settings0?.incomeKeywords.orEmpty()
-            if (allKeywords.isNotEmpty()) {
-                val lowerMsg = fullText.lowercase()
-                if (allKeywords.none { it.isNotEmpty() && lowerMsg.contains(it.lowercase()) }) {
-                    Log.d(TAG, "Notification skipped: no configured expense/income keyword found")
-                    return
-                }
+            // Drop pre-auth / authorisation-hold messages
+            if (AiExpenseEngine.isPreAuthMessage(fullText)) {
+                Log.d(TAG, "Pre-auth notification ignored from $packageName")
+                return
             }
 
             val appName = appLabel(packageName) ?: packageName
-
-            Log.d(TAG, "Financial notification from $appName ($packageName): ${parsed.amount}")
+            Log.d(TAG, "Financial notification from $appName ($packageName)")
 
             CoroutineScope(Dispatchers.IO).launch {
                 try {
@@ -200,6 +183,26 @@ class BankingNotificationListener : NotificationListenerService() {
                         return@launch
                     }
                     val settings = repo.appData.value.settings
+
+                    // Respect user toggle
+                    if (!settings.notificationListenerEnabled) {
+                        Log.d(TAG, "Notification listener disabled in settings, skipping")
+                        return@launch
+                    }
+
+                    val aiEngine = AiExpenseEngine()
+                    val parsed = aiEngine.parseFinancialMessage(
+                        fullText,
+                        customIncomeKeywords = settings.incomeKeywords,
+                        customExpenseKeywords = settings.expenseKeywords
+                    )
+                    if (parsed == null) {
+                        Log.d(TAG, "Could not parse financial data from notification")
+                        return@launch
+                    }
+
+                    Log.d(TAG, "Parsed notification: ${parsed.amount} from $appName")
+
                     val appCurrency = settings.currencyCode
 
                     // ── Detect foreign currency and convert to app currency ──
