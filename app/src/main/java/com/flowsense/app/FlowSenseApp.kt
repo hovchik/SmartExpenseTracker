@@ -73,28 +73,47 @@ class FlowSenseApp : Application() {
         isExpense: Boolean = true,
         userCategoryNames: List<String> = emptyList()
     ): String {
-        val provider = aiProviderSelector
-        if (provider != null && provider.getActiveProvider().isAvailable()) {
-            try {
-                val prompt = promptAdapter.createCategorizationPrompt(
-                    description, categories, isExpense
-                )
-                val result = withContext(Dispatchers.IO) {
-                    provider.getActiveProvider().generateAnalysis(
-                        AnalysisInput(
-                            prompt = prompt,
-                            availableCategories = categories,
-                            isExpense = isExpense,
-                            type = AnalysisType.CATEGORIZE
-                        )
-                    )
+        val selector = aiProviderSelector
+        val prompt = promptAdapter.createCategorizationPrompt(
+            description, categories, isExpense
+        )
+        val analysisInput = AnalysisInput(
+            prompt = prompt,
+            availableCategories = categories,
+            isExpense = isExpense,
+            type = AnalysisType.CATEGORIZE
+        )
+
+        // 1) Active provider (may be local, system, or cloud depending on user preference).
+        if (selector != null) {
+            val active = selector.getActiveProvider()
+            if (active.isAvailable()) {
+                runCatching {
+                    val result = withContext(Dispatchers.IO) { active.generateAnalysis(analysisInput) }
+                    if (result.success && result.text.isNotBlank()) {
+                        val parsed = promptAdapter.parseCategorization(result.text, categories)
+                        if (parsed.category != null) return parsed.category
+                    }
+                }.onFailure {
+                    android.util.Log.w("FlowSenseApp", "AI categorize (active) failed: ${it.message}")
                 }
-                if (result.success && result.text.isNotBlank()) {
-                    val parsed = promptAdapter.parseCategorization(result.text, categories)
-                    if (parsed.category != null) return parsed.category
+            }
+
+            // 2) Universal cloud fallback — when local/system AI didn't categorize, still
+            //    try the cloud provider if it's configured. This ensures background-detected
+            //    transactions (SMS, notifications) get an AI-driven category whenever
+            //    possible, instead of silently dropping to rule-based heuristics.
+            val cloud = selector.cloudProvider
+            if (active !== cloud && cloud.isAvailable()) {
+                runCatching {
+                    val result = withContext(Dispatchers.IO) { cloud.generateAnalysis(analysisInput) }
+                    if (result.success && result.text.isNotBlank()) {
+                        val parsed = promptAdapter.parseCategorization(result.text, categories)
+                        if (parsed.category != null) return parsed.category
+                    }
+                }.onFailure {
+                    android.util.Log.w("FlowSenseApp", "AI categorize (cloud fallback) failed: ${it.message}")
                 }
-            } catch (e: Exception) {
-                android.util.Log.w("FlowSenseApp", "AI categorize failed: ${e.message}")
             }
         }
         return ruleEngine.categorize(description, isExpense, userCategoryNames)
