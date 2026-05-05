@@ -1982,6 +1982,9 @@ fun SettingsScreen(
             // ────────────────────────────────────────────────────────
             // STEP 4 — Cloud: API Key
             // ────────────────────────────────────────────────────────
+            // DeepSeek and Gemini keys are built into the app, so no input is shown.
+            if (settings.cloudAiProvider != CloudAiProviderType.DEEPSEEK &&
+                settings.cloudAiProvider != CloudAiProviderType.GEMINI)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp)
