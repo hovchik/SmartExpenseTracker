@@ -57,6 +57,83 @@ class AiExpenseEngine {
             val lower = message.lowercase()
             return PRE_AUTH_KEYWORDS.any { lower.contains(it.lowercase()) }
         }
+
+        // ── Pre-compiled regex constants used by parseFinancialMessage ──
+        // Compiling these inline on each call was the dominant cost when scanning
+        // hundreds of SMS messages in a row.
+
+        private val NEWLINE_COLLAPSE_REGEX = Regex("""\s*\n\s*""")
+        private val CARD_LAST4_REGEX = Regex("""\d{0,6}\*{2,12}(\d{4})\b""")
+
+        private val ARMENIAN_PATTERN_1 = Regex(
+            """(Purchase|ATM Cash|Mail Order|POS|Online|E-commerce)\s+(?:completion\s+)?approved\s+([\d,]+\.?\d*)\s+([A-Z]{3})[,\s]+\d{4,6}\*{2,6}\d{2,6}\s+[\d.]+\s+[\d:]+\s+(.+?)\s+authcode""",
+            RegexOption.IGNORE_CASE
+        )
+        private val ARMENIAN_PATTERN_2 = Regex(
+            """(Purchase|ATM|Mail Order|POS)\s+(?:completion\s+)?approved\s+\d{4,6}\*{2,6}\d{2,6}\s+[\d.]+\s+[\d:]+\s+([\d,]+\.?\d*)\s+([A-Z]{3})\s+(.+?)\s+authcode""",
+            RegexOption.IGNORE_CASE
+        )
+        private val CREDIT_ACCOUNT_PATTERN = Regex(
+            """(CREDIT|DEBIT)\s+ACCOUNT\s+([\d,]+\.?\d*)\s+([A-Z]{3})\s+\d{4}\*{2,4}\d{4}[,\s]+(.+?)(?:\d{2}\.\d{2}\.\d{2,4}|\s+BALANCE)""",
+            RegexOption.IGNORE_CASE
+        )
+
+        private val AMOUNT_PATTERNS: List<Regex> = listOf(
+            Regex("""([0-9][0-9\s,]*\.[0-9]{1,2})\s+([A-Z]{3})\b"""),
+            Regex("""([\d,]+\.\d{1,2})\s+([A-Z]{3})\b"""),
+            Regex("""\b([\d,]{1,12})\s+([A-Z]{3})\b"""),
+            Regex("""\b([A-Z]{3})\s+([\d,]+\.?\d*)\b"""),
+            Regex("""\$\s?([\d,]+\.?\d*)"""),
+            Regex("""(?:\brs\.?|\binr\b|₹)\s?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
+            Regex("""(?:\beur\b|€|\bgbp\b|£)\s?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
+            Regex("""\b(?:amount|amt|total)[:\s]*(?:[^\d])?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
+            Regex("""\b(?:charged|debited|credited|paid|spent|received|withdrawn)[:\s]*([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
+            Regex("""(?:^|\s)([\d,]+\.\d{2})(?:\s|$)""")
+        )
+
+        private val ISO_CURRENCY_REGEX = Regex("""[A-Z]{3}""")
+
+        private val ARMENIAN_MERCHANT_REGEX = Regex(
+            """\d{2}:\d{2}\s+(.+?)\s+authcode""", RegexOption.IGNORE_CASE
+        )
+        private val ARMENIAN_MERCHANT_PREFIX_CLEANUP = Regex("""^[\d,]+\.?\d*\s+[A-Z]{3}\s+""")
+        private val CREDIT_MERCHANT_REGEX = Regex(
+            """\d{4}\*{2,4}\d{4}[,\s]+(.+?)(?:\d{2}\.\d{2}\.\d{2,4})"""
+        )
+        private val GENERIC_MERCHANT_PATTERNS: List<Regex> = listOf(
+            Regex("""\b(?:at|from|to|towards)\s+([A-Za-z*][A-Za-z0-9\s&'.*\-]{1,35})""", RegexOption.IGNORE_CASE),
+            Regex("""@\s+([A-Za-z*][A-Za-z0-9\s&'.*\-]{1,35})"""),
+            Regex("""\b(?:merchant|payee|beneficiary)[:\s]+([A-Za-z][A-Za-z0-9\s&'.\-]{2,30})""", RegexOption.IGNORE_CASE),
+            Regex("""\b(?:UPI|IMPS|NEFT)[:\s/-]+\S+\s+([A-Za-z][A-Za-z0-9\s&'.\-]{2,25})""", RegexOption.IGNORE_CASE)
+        )
+        private val MERCHANT_TRAILING_TOKENS_REGEX = Regex(
+            """(?:\s+(?:on|for|ref|txn|transaction|authcode|auth)\b).*$""", RegexOption.IGNORE_CASE
+        )
+        private val CARD_NUMBER_CLEANUP = Regex("""\d{4,6}\*{2,6}\d{2,6}""")
+        private val DATE_DDMMYY_CLEANUP = Regex("""\d{2}\.\d{2}\.\d{2,4}""")
+        private val WHITESPACE_COLLAPSE = Regex("""\s+""")
+
+        // Pre-compiled word-boundary regexes for built-in expense/income word lists,
+        // so matchesWord() doesn't re-escape and recompile them per parsed message.
+        private val BUILT_IN_EXPENSE_PHRASES = listOf(
+            "atm cash", "mail order", "payment of", "used at",
+            "debit account", "e-commerce", "online purchase"
+        )
+        private val BUILT_IN_EXPENSE_WORDS = listOf(
+            "purchase", "atm", "pos", "charged", "debited", "spent",
+            "paid", "withdrawal", "sent", "debit", "withdrawn"
+        )
+        private val BUILT_IN_INCOME_PHRASES = listOf(
+            "credit account", "transfer to your", "added to"
+        )
+        private val BUILT_IN_INCOME_WORDS = listOf(
+            "credited", "received", "deposit", "refund", "cashback",
+            "reversed", "salary", "income", "reward"
+        )
+        private val BUILT_IN_EXPENSE_WORD_REGEXES: List<Regex> =
+            BUILT_IN_EXPENSE_WORDS.map { Regex("""\b${Regex.escape(it.lowercase())}\b""") }
+        private val BUILT_IN_INCOME_WORD_REGEXES: List<Regex> =
+            BUILT_IN_INCOME_WORDS.map { Regex("""\b${Regex.escape(it.lowercase())}\b""") }
     }
 
     // ─── Smart Categorization ──────────────────────────────────────
@@ -875,22 +952,17 @@ class AiExpenseEngine {
             // Single source of truth lives in the companion object.
             if (isPreAuthMessage(message)) return null
 
-            val oneLine = message.replace(Regex("""\s*\n\s*"""), " ").trim()
+            val oneLine = message.replace(NEWLINE_COLLAPSE_REGEX, " ").trim()
 
             // ── CARD LAST-4 EXTRACTION ─────────────────────
             // Detect masked card patterns like "************2968", "457890******2968", "4083***1982"
-            val cardLast4 = Regex("""\d{0,6}\*{2,12}(\d{4})\b""")
-                .find(oneLine)?.groupValues?.get(1) ?: ""
+            val cardLast4 = CARD_LAST4_REGEX.find(oneLine)?.groupValues?.get(1) ?: ""
 
             // ── TRY SPECIFIC BANK FORMATS FIRST ─────────────
 
             // 1) Armenian/CIS bank: "Purchase approved 17063.12 AMD, 457890******2968 ..."
             //    Pattern: TYPE approved AMOUNT CURRENCY, CARD DATE TIME MERCHANT authcode CODE
-            val armenianPattern1 = Regex(
-                """(Purchase|ATM Cash|Mail Order|POS|Online|E-commerce)\s+(?:completion\s+)?approved\s+([\d,]+\.?\d*)\s+([A-Z]{3})[,\s]+\d{4,6}\*{2,6}\d{2,6}\s+[\d.]+\s+[\d:]+\s+(.+?)\s+authcode""",
-                RegexOption.IGNORE_CASE
-            )
-            armenianPattern1.find(oneLine)?.let { m ->
+            ARMENIAN_PATTERN_1.find(oneLine)?.let { m ->
                 val txType = m.groupValues[1]
                 val amt = m.groupValues[2].replace(",", "").toDoubleOrNull() ?: return@let
                 val cur = m.groupValues[3]
@@ -900,11 +972,7 @@ class AiExpenseEngine {
             }
 
             // 2) Armenian: "Purchase completion approved CARD DATE TIME AMOUNT AMD MERCHANT authcode"
-            val armenianPattern2 = Regex(
-                """(Purchase|ATM|Mail Order|POS)\s+(?:completion\s+)?approved\s+\d{4,6}\*{2,6}\d{2,6}\s+[\d.]+\s+[\d:]+\s+([\d,]+\.?\d*)\s+([A-Z]{3})\s+(.+?)\s+authcode""",
-                RegexOption.IGNORE_CASE
-            )
-            armenianPattern2.find(oneLine)?.let { m ->
+            ARMENIAN_PATTERN_2.find(oneLine)?.let { m ->
                 val txType = m.groupValues[1]
                 val amt = m.groupValues[2].replace(",", "").toDoubleOrNull() ?: return@let
                 val cur = m.groupValues[3]
@@ -914,11 +982,7 @@ class AiExpenseEngine {
 
             // 3) Armenian multi-line CREDIT/DEBIT ACCOUNT format:
             //    CREDIT ACCOUNT\n14,950.00 AMD\n4083***1982,\nMERCHANT\nDATE TIME\nBALANCE: ...
-            val creditAccountPattern = Regex(
-                """(CREDIT|DEBIT)\s+ACCOUNT\s+([\d,]+\.?\d*)\s+([A-Z]{3})\s+\d{4}\*{2,4}\d{4}[,\s]+(.+?)(?:\d{2}\.\d{2}\.\d{2,4}|\s+BALANCE)""",
-                RegexOption.IGNORE_CASE
-            )
-            creditAccountPattern.find(oneLine)?.let { m ->
+            CREDIT_ACCOUNT_PATTERN.find(oneLine)?.let { m ->
                 val txType = m.groupValues[1]
                 val amt = m.groupValues[2].replace(",", "").toDoubleOrNull() ?: return@let
                 val cur = m.groupValues[3]
@@ -934,31 +998,8 @@ class AiExpenseEngine {
             var amount: Double? = null
             var currency = ""
 
-            // Ordered from most specific to least specific
-            val amountPatterns = listOf(
-                // "12 000.00 AMD" — amount with space-thousands-separator followed by currency
-                Regex("""([0-9][0-9\s,]*\.[0-9]{1,2})\s+([A-Z]{3})\b"""),
-                // "17063.12 AMD" or "21.70 USD" — decimal amount followed by 3-letter currency
-                Regex("""([\d,]+\.\d{1,2})\s+([A-Z]{3})\b"""),
-                // "5000 AMD" — whole-number amount followed by 3-letter currency (no decimal)
-                Regex("""\b([\d,]{1,12})\s+([A-Z]{3})\b"""),
-                // "AMD 17,063.12" or "INR 500" — currency before amount (word boundary on both sides)
-                Regex("""\b([A-Z]{3})\s+([\d,]+\.?\d*)\b"""),
-                // "$500.00" or "$ 500"
-                Regex("""\$\s?([\d,]+\.?\d*)"""),
-                // "Rs.500" or "₹500" — \b prevents matches inside words like "users." or "errs."
-                Regex("""(?:\brs\.?|\binr\b|₹)\s?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
-                // "EUR 20.50" or "€20.50" or "£20.50"
-                Regex("""(?:\beur\b|€|\bgbp\b|£)\s?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
-                // "amount: 500.00" or "amt 500"
-                Regex("""\b(?:amount|amt|total)[:\s]*(?:[^\d])?([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
-                // "charged 500.00" / "debited 500" / "credited 500"
-                Regex("""\b(?:charged|debited|credited|paid|spent|received|withdrawn)[:\s]*([\d,]+\.?\d*)""", RegexOption.IGNORE_CASE),
-                // Standalone decimal number (last resort): "14,950.00"
-                Regex("""(?:^|\s)([\d,]+\.\d{2})(?:\s|$)""")
-            )
-
-            for (pattern in amountPatterns) {
+            // Pre-compiled at the companion-object level — see AMOUNT_PATTERNS.
+            for (pattern in AMOUNT_PATTERNS) {
                 val match = pattern.find(message)
                 if (match != null) {
                     // Figure out which group is the amount vs currency
@@ -974,7 +1015,7 @@ class AiExpenseEngine {
                         val asNum = cleaned.toDoubleOrNull()
                         if (asNum != null && asNum > 0) {
                             localAmount = asNum
-                        } else if (g.matches(Regex("[A-Z]{3}")) && KNOWN_CURRENCY_CODES.contains(g)) {
+                        } else if (g.matches(ISO_CURRENCY_REGEX) && KNOWN_CURRENCY_CODES.contains(g)) {
                             // Only accept ISO 4217 codes; rejects "ATM", "PIN", "POS", etc.
                             localCurrency = g
                         }
@@ -1006,42 +1047,23 @@ class AiExpenseEngine {
             }
 
             // ── EXPENSE VS INCOME ───────────────────────
-
-            // Multi-word phrases: matched as substrings (already specific enough).
-            val builtInExpensePhrases = listOf(
-                "atm cash", "mail order", "payment of", "used at",
-                "debit account", "e-commerce", "online purchase"
-            )
-            // Single-word indicators: matched with word boundaries to avoid false
-            // positives inside unrelated tokens (e.g. "atm" inside "format").
-            val builtInExpenseWords = listOf(
-                "purchase", "atm", "pos", "charged", "debited", "spent",
-                "paid", "withdrawal", "sent", "debit", "withdrawn"
-            )
-            val builtInIncomePhrases = listOf(
-                "credit account", "transfer to your", "added to"
-            )
-            val builtInIncomeWords = listOf(
-                "credited", "received", "deposit", "refund", "cashback",
-                "reversed", "salary", "income", "reward"
-            )
+            // Built-in keyword lists and their pre-compiled word-boundary regexes
+            // live in the companion object so they're not rebuilt per parsed message.
 
             // Custom keywords are preserved verbatim (substring match) so users can
             // configure full phrases or partial matches as they prefer.
             fun matchesPhrase(phrases: List<String>): Boolean =
                 phrases.any { it.isNotEmpty() && lowerMsg.contains(it.lowercase()) }
 
-            fun matchesWord(words: List<String>): Boolean = words.any { w ->
-                if (w.isEmpty()) false
-                else Regex("""\b${Regex.escape(w.lowercase())}\b""").containsMatchIn(lowerMsg)
-            }
+            fun matchesAnyRegex(regexes: List<Regex>): Boolean =
+                regexes.any { it.containsMatchIn(lowerMsg) }
 
             val isIncome = matchesPhrase(customIncomeKeywords) ||
-                matchesPhrase(builtInIncomePhrases) ||
-                matchesWord(builtInIncomeWords)
+                matchesPhrase(BUILT_IN_INCOME_PHRASES) ||
+                matchesAnyRegex(BUILT_IN_INCOME_WORD_REGEXES)
             val isExpenseExplicit = matchesPhrase(customExpenseKeywords) ||
-                matchesPhrase(builtInExpensePhrases) ||
-                matchesWord(builtInExpenseWords)
+                matchesPhrase(BUILT_IN_EXPENSE_PHRASES) ||
+                matchesAnyRegex(BUILT_IN_EXPENSE_WORD_REGEXES)
 
             val isExpense = when {
                 isIncome && !isExpenseExplicit -> false
@@ -1055,18 +1077,16 @@ class AiExpenseEngine {
             var merchant = ""
 
             // Armenian/CIS: text between time (HH:MM) and "authcode"
-            val armenianMerchant = Regex("""\d{2}:\d{2}\s+(.+?)\s+authcode""", RegexOption.IGNORE_CASE)
-            armenianMerchant.find(oneLine)?.let {
+            ARMENIAN_MERCHANT_REGEX.find(oneLine)?.let {
                 val m = it.groupValues[1].trim()
                 // Remove amount+currency if merchant starts with them
-                val cleaned = m.replace(Regex("""^[\d,]+\.?\d*\s+[A-Z]{3}\s+"""), "").trim()
+                val cleaned = m.replace(ARMENIAN_MERCHANT_PREFIX_CLEANUP, "").trim()
                 if (cleaned.length > 1) merchant = cleaned
             }
 
             // Armenian multi-line: merchant is after card number line
             if (merchant.isEmpty()) {
-                val creditMerchant = Regex("""\d{4}\*{2,4}\d{4}[,\s]+(.+?)(?:\d{2}\.\d{2}\.\d{2,4})""")
-                creditMerchant.find(oneLine)?.let {
+                CREDIT_MERCHANT_REGEX.find(oneLine)?.let {
                     val m = it.groupValues[1].trim().trimEnd(',').trim()
                     if (m.length > 1) merchant = m
                 }
@@ -1075,16 +1095,10 @@ class AiExpenseEngine {
             // Generic: "at MERCHANT", "from MERCHANT", "to MERCHANT"
             // \b word-boundary prevents false matches inside words like "format" or "cat ".
             if (merchant.isEmpty()) {
-                val genericMerchant = listOf(
-                    Regex("""\b(?:at|from|to|towards)\s+([A-Za-z*][A-Za-z0-9\s&'.*\-]{1,35})""", RegexOption.IGNORE_CASE),
-                    Regex("""@\s+([A-Za-z*][A-Za-z0-9\s&'.*\-]{1,35})"""),
-                    Regex("""\b(?:merchant|payee|beneficiary)[:\s]+([A-Za-z][A-Za-z0-9\s&'.\-]{2,30})""", RegexOption.IGNORE_CASE),
-                    Regex("""\b(?:UPI|IMPS|NEFT)[:\s/-]+\S+\s+([A-Za-z][A-Za-z0-9\s&'.\-]{2,25})""", RegexOption.IGNORE_CASE)
-                )
-                for (pattern in genericMerchant) {
+                for (pattern in GENERIC_MERCHANT_PATTERNS) {
                     pattern.find(message)?.let {
                         val m = it.groupValues[1].trim()
-                            .replace(Regex("""(?:\s+(?:on|for|ref|txn|transaction|authcode|auth)\b).*$""", RegexOption.IGNORE_CASE), "")
+                            .replace(MERCHANT_TRAILING_TOKENS_REGEX, "")
                             .trim()
                         if (m.length > 1) { merchant = m; return@let }
                     }
@@ -1094,9 +1108,9 @@ class AiExpenseEngine {
 
             // Clean merchant: remove trailing card fragments, dates, commas
             merchant = merchant
-                .replace(Regex("""\d{4,6}\*{2,6}\d{2,6}"""), "")       // card numbers
-                .replace(Regex("""\d{2}\.\d{2}\.\d{2,4}"""), "")       // dates
-                .replace(Regex("""\s+"""), " ")
+                .replace(CARD_NUMBER_CLEANUP, "")
+                .replace(DATE_DDMMYY_CLEANUP, "")
+                .replace(WHITESPACE_COLLAPSE, " ")
                 .trim().trimEnd(',', '.', ' ')
 
             val desc = when {

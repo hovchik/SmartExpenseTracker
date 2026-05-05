@@ -4,7 +4,6 @@ import android.content.Context
 import android.database.Cursor
 import android.net.Uri
 import android.util.Log
-import com.flowsense.app.FlowSenseApp
 import com.flowsense.app.data.model.Transaction
 import com.flowsense.app.data.model.TransactionSource
 import com.flowsense.app.data.model.TransactionType
@@ -14,6 +13,42 @@ class SmsInboxScanner(private val context: Context) {
 
     companion object {
         private const val TAG = "SmsInboxScanner"
+
+        private val DEFAULT_FALLBACK_CATEGORIES = listOf(
+            "Food", "Transport", "Shopping", "Bills",
+            "Entertainment", "Health", "Education", "Other"
+        )
+
+        // Only the columns we actually consume — narrows the IPC payload from
+        // every SMS row to the four fields the parser needs.
+        private val SMS_PROJECTION = arrayOf("body", "address", "date", "type")
+
+        private val FINANCIAL_KEYWORDS = listOf(
+            "transaction", "debit", "credit", "payment", "charged", "spent",
+            "transferred", "withdrawal", "deposit", "balance", "amt", "txn",
+            "debited", "credited", "paid", "received", "purchase", "refund",
+            "cashback", "upi", "neft", "imps", "rtgs", "emi", "loan",
+            "a/c", "acct", "account", "bank", "card",
+            // International banking
+            "approved", "authcode", "auth code", "atm cash", "mail order",
+            "pos", "e-commerce", "completion", "credit account", "debit account"
+        )
+
+        private val BANKING_SENDER_PATTERNS = listOf(
+            "chase", "wellsfargo", "bofa", "citi", "amex", "discover",
+            "capital", "usaa", "ally", "venmo", "paypal", "zelle",
+            "cashapp", "bank", "visa", "mastercard", "alert", "notify",
+            "sbi", "hdfc", "icici", "axis", "kotak", "paytm", "phonepe",
+            "gpay", "upi", "yesbank", "indus", "idbi", "pnb", "canara",
+            "boi", "bob", "federal", "rbl", "idfc",
+            // Armenian/CIS banks
+            "ameria", "ardshin", "inecobank", "converse", "acba", "armswiss",
+            "vtb", "mellat", "araratbank", "armeconombank", "evoca", "fast",
+            "idbank", "unibank", "byblos",
+            // European / other
+            "revolut", "wise", "n26", "monzo", "ing", "bnp", "hsbc",
+            "barclays", "deutsche", "santander", "raiffeisen"
+        )
     }
 
     data class ScanResult(
@@ -30,45 +65,13 @@ class SmsInboxScanner(private val context: Context) {
         val uris = listOf("content://sms/inbox", "content://sms")
         for (uriString in uris) {
             try {
-                val cursor = context.contentResolver.query(
+                context.contentResolver.query(
                     Uri.parse(uriString), arrayOf("_id"), null, null, null
-                )
-                if (cursor != null) {
-                    val count = cursor.count
-                    cursor.close()
-                    return count
-                }
+                )?.use { return it.count }
             } catch (_: Throwable) {}
         }
         return 0
     }
-
-    private val financialKeywords = listOf(
-        "transaction", "debit", "credit", "payment", "charged", "spent",
-        "transferred", "withdrawal", "deposit", "balance", "amt", "txn",
-        "debited", "credited", "paid", "received", "purchase", "refund",
-        "cashback", "upi", "neft", "imps", "rtgs", "emi", "loan",
-        "a/c", "acct", "account", "bank", "card",
-        // International banking
-        "approved", "authcode", "auth code", "atm cash", "mail order",
-        "pos", "e-commerce", "completion", "credit account", "debit account"
-    )
-
-    private val bankingSenderPatterns = listOf(
-        "chase", "wellsfargo", "bofa", "citi", "amex", "discover",
-        "capital", "usaa", "ally", "venmo", "paypal", "zelle",
-        "cashapp", "bank", "visa", "mastercard", "alert", "notify",
-        "sbi", "hdfc", "icici", "axis", "kotak", "paytm", "phonepe",
-        "gpay", "upi", "yesbank", "indus", "idbi", "pnb", "canara",
-        "boi", "bob", "federal", "rbl", "idfc",
-        // Armenian/CIS banks
-        "ameria", "ardshin", "inecobank", "converse", "acba", "armswiss",
-        "vtb", "mellat", "araratbank", "armeconombank", "evoca", "fast",
-        "idbank", "unibank", "byblos",
-        // European / other
-        "revolut", "wise", "n26", "monzo", "ing", "bnp", "hsbc",
-        "barclays", "deutsche", "santander", "raiffeisen"
-    )
 
     suspend fun scanInbox(
         maxMessages: Int = 500,
@@ -79,19 +82,30 @@ class SmsInboxScanner(private val context: Context) {
         customIncomeKeywords: List<String> = emptyList(),
         customExpenseKeywords: List<String> = emptyList()
     ): ScanResult {
-        val aiEngine: AiExpenseEngine
-        try {
-            aiEngine = AiExpenseEngine()
+        val aiEngine: AiExpenseEngine = try {
+            AiExpenseEngine()
         } catch (e: Throwable) {
             Log.e(TAG, "Failed to create AiExpenseEngine", e)
             return ScanResult(0, 0, 0, emptyList(), 1, "Internal error: ${e.message}")
         }
 
-        // Try multiple URIs
-        val uris = listOf("content://sms/inbox", "content://sms")
-        for (uriString in uris) {
+        val categoryNames = userCategoryNames.ifEmpty { DEFAULT_FALLBACK_CATEGORIES }
+
+        for (uriString in listOf("content://sms/inbox", "content://sms")) {
             try {
-                val result = doScan(Uri.parse(uriString), aiEngine, maxMessages, existingTransactionNotes, uriString.contains("inbox"), userCategoryNames, startDate, endDate, customIncomeKeywords, customExpenseKeywords)
+                val result = doScan(
+                    uri = Uri.parse(uriString),
+                    aiEngine = aiEngine,
+                    maxMessages = maxMessages,
+                    existingNotes = existingTransactionNotes,
+                    isInboxUri = uriString.contains("inbox"),
+                    userCategoryNames = userCategoryNames,
+                    fallbackCategoryNames = categoryNames,
+                    startDate = startDate,
+                    endDate = endDate,
+                    customIncomeKeywords = customIncomeKeywords,
+                    customExpenseKeywords = customExpenseKeywords
+                )
                 if (result != null) return result
             } catch (e: Throwable) {
                 Log.w(TAG, "Failed with $uriString: ${e.message}")
@@ -101,8 +115,8 @@ class SmsInboxScanner(private val context: Context) {
     }
 
     /**
-     * Helper to detect whether a newly parsed transaction duplicates an already-
-     * collected one (same amount + same card last-4 within 10 min, or same amount
+     * Detects whether a newly parsed transaction duplicates one already collected
+     * in this batch (same amount + same card last-4 within 10 min, or same amount
      * within 2 min regardless of card).
      */
     private fun isDuplicateInBatch(
@@ -115,26 +129,24 @@ class SmsInboxScanner(private val context: Context) {
             val t = batch[i]
             if (t.amount != candidate.amount) continue
             val timeDiff = kotlin.math.abs(t.timestamp - candidate.timestamp)
-            // Strong match: same card last-4 + amount within 10 min
             if (candidateCard.isNotEmpty() && batchCards[i] == candidateCard && timeDiff < 600_000) return true
-            // Weak match: same amount within 2 min
             if (timeDiff < 120_000) return true
         }
         return false
     }
 
-    private suspend fun doScan(
+    private fun doScan(
         uri: Uri, aiEngine: AiExpenseEngine, maxMessages: Int,
         existingNotes: Set<String>, isInboxUri: Boolean,
-        userCategoryNames: List<String> = emptyList(),
-        startDate: Long? = null, endDate: Long? = null,
-        customIncomeKeywords: List<String> = emptyList(),
-        customExpenseKeywords: List<String> = emptyList()
+        userCategoryNames: List<String>,
+        fallbackCategoryNames: List<String>,
+        startDate: Long?, endDate: Long?,
+        customIncomeKeywords: List<String>,
+        customExpenseKeywords: List<String>
     ): ScanResult? {
         val transactions = mutableListOf<Transaction>()
         val transactionCards = mutableListOf<String>()
         var totalScanned = 0; var financialFound = 0; var errors = 0
-        var cursor: Cursor? = null
 
         // Build date range selection clause
         val selectionParts = mutableListOf<String>()
@@ -147,80 +159,91 @@ class SmsInboxScanner(private val context: Context) {
             selectionParts.add("date <= ?")
             selectionArgs.add(endDate.toString())
         }
-        val selection = if (selectionParts.isNotEmpty()) selectionParts.joinToString(" AND ") else null
-        val selArgs = if (selectionArgs.isNotEmpty()) selectionArgs.toTypedArray() else null
+        val selection = selectionParts.takeIf { it.isNotEmpty() }?.joinToString(" AND ")
+        val selArgs = selectionArgs.takeIf { it.isNotEmpty() }?.toTypedArray()
 
-        try {
-            cursor = context.contentResolver.query(uri, null, selection, selArgs, "date DESC")
+        // Push LIMIT into the SQL sort order so the provider stops yielding rows
+        // once we've consumed enough — avoids loading the full inbox cursor.
+        val sortOrder = "date DESC LIMIT ${maxMessages.coerceAtLeast(1)}"
+
+        val cursor: Cursor? = try {
+            context.contentResolver.query(uri, SMS_PROJECTION, selection, selArgs, sortOrder)
         } catch (e: Throwable) {
             Log.w(TAG, "query() threw for $uri: ${e.message}")
             return null
         }
         if (cursor == null) return null
 
-        try {
-            val columns = try { cursor.columnNames ?: emptyArray() } catch (_: Throwable) { emptyArray() }
-            val bodyIdx = findCol(columns, "body")
-            val addressIdx = findCol(columns, "address")
-            val dateIdx = findCol(columns, "date")
-            val typeIdx = findCol(columns, "type")
-            if (bodyIdx < 0) return null
+        cursor.use { c ->
+            try {
+                val columns = try { c.columnNames ?: emptyArray() } catch (_: Throwable) { emptyArray() }
+                val bodyIdx = findCol(columns, "body")
+                val addressIdx = findCol(columns, "address")
+                val dateIdx = findCol(columns, "date")
+                val typeIdx = findCol(columns, "type")
+                if (bodyIdx < 0) return null
 
-            while (true) {
-                val hasNext = try { cursor.moveToNext() } catch (_: Throwable) { false }
-                if (!hasNext || totalScanned >= maxMessages) break
-                totalScanned++
+                while (totalScanned < maxMessages) {
+                    val hasNext = try { c.moveToNext() } catch (_: Throwable) { false }
+                    if (!hasNext) break
+                    totalScanned++
 
-                try {
-                    val body = safeStr(cursor, bodyIdx) ?: continue
-                    if (body.isBlank()) continue
-                    val sender = safeStr(cursor, addressIdx) ?: "unknown"
-                    val date = safeLong(cursor, dateIdx) ?: System.currentTimeMillis()
+                    try {
+                        val body = safeStr(c, bodyIdx) ?: continue
+                        if (body.isBlank()) continue
 
-                    if (!isInboxUri && typeIdx >= 0) {
-                        val t = safeInt(cursor, typeIdx) ?: 1
-                        if (t != 1) continue
-                    }
+                        // Cheap early filter before any allocation-heavy work.
+                        val sender = safeStr(c, addressIdx) ?: "unknown"
+                        if (!isFinancialMessage(sender, body)) continue
 
-                    if (!isFinancialMessage(sender, body)) continue
-                    financialFound++
+                        if (!isInboxUri && typeIdx >= 0) {
+                            val t = safeInt(c, typeIdx) ?: 1
+                            if (t != 1) continue
+                        }
 
-                    val parsed = try { aiEngine.parseFinancialMessage(body, customIncomeKeywords, customExpenseKeywords) } catch (_: Throwable) { null }
-                        ?: continue
+                        val date = safeLong(c, dateIdx) ?: System.currentTimeMillis()
 
-                    val noteKey = "SMS scan: $sender | $date"
-                    if (existingNotes.contains(noteKey)) continue
+                        // Skip messages already imported from a previous scan.
+                        val noteKey = "SMS scan: $sender | $date"
+                        if (existingNotes.contains(noteKey)) continue
 
-                    val desc = try { parsed.description.ifEmpty { body.take(80) } } catch (_: Throwable) { body.take(80) }
-                    val allCatNames = userCategoryNames.ifEmpty {
-                        listOf("Food", "Transport", "Shopping", "Bills", "Entertainment", "Health", "Education", "Other")
-                    }
-                    val cat = try {
-                        (context.applicationContext as? FlowSenseApp)?.aiCategorize(desc, allCatNames, userCategoryNames = userCategoryNames) ?: "Other"
-                    } catch (_: Throwable) { "Other" }
+                        financialFound++
 
-                    // Store original parsed currency so the review screen can show it
-                    // and confirmSmsScanResults() can convert if needed
-                    val cardNote = if (parsed.cardLastFour.isNotEmpty()) "\ncard:${parsed.cardLastFour}" else ""
-                    val currencyNote = if (parsed.currency.isNotEmpty()) "\nparsedCurrency:${parsed.currency}" else ""
+                        val parsed = try {
+                            aiEngine.parseFinancialMessage(body, customIncomeKeywords, customExpenseKeywords)
+                        } catch (_: Throwable) { null } ?: continue
 
-                    val candidate = Transaction(
-                        amount = parsed.amount, description = desc, category = cat,
-                        type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
-                        source = TransactionSource.SMS, timestamp = date,
-                        merchantName = parsed.merchantName, notes = noteKey + cardNote + currencyNote
-                    )
+                        val desc = parsed.description.ifEmpty { body.take(80) }
 
-                    // Cross-SMS dedup: skip if another SMS in this batch already parsed
-                    // to the same amount + card within a time window
-                    if (isDuplicateInBatch(candidate, parsed.cardLastFour, transactions, transactionCards)) continue
+                        // Rule-based categorization only — calling the AI provider per
+                        // message would be the dominant cost when scanning hundreds of
+                        // SMS. The user can refine categories from the review screen.
+                        val cat = try {
+                            aiEngine.categorize(desc, parsed.isExpense, userCategoryNames)
+                        } catch (_: Throwable) {
+                            fallbackCategoryNames.firstOrNull() ?: "Other"
+                        }
 
-                    transactions.add(candidate)
-                    transactionCards.add(parsed.cardLastFour)
-                } catch (e: Throwable) { errors++ }
-            }
-        } catch (e: Throwable) { errors++ }
-        finally { try { cursor.close() } catch (_: Throwable) {} }
+                        // Store original parsed currency so the review screen can show it
+                        // and confirmSmsScanResults() can convert if needed.
+                        val cardNote = if (parsed.cardLastFour.isNotEmpty()) "\ncard:${parsed.cardLastFour}" else ""
+                        val currencyNote = if (parsed.currency.isNotEmpty()) "\nparsedCurrency:${parsed.currency}" else ""
+
+                        val candidate = Transaction(
+                            amount = parsed.amount, description = desc, category = cat,
+                            type = if (parsed.isExpense) TransactionType.EXPENSE else TransactionType.INCOME,
+                            source = TransactionSource.SMS, timestamp = date,
+                            merchantName = parsed.merchantName, notes = noteKey + cardNote + currencyNote
+                        )
+
+                        if (isDuplicateInBatch(candidate, parsed.cardLastFour, transactions, transactionCards)) continue
+
+                        transactions.add(candidate)
+                        transactionCards.add(parsed.cardLastFour)
+                    } catch (_: Throwable) { errors++ }
+                }
+            } catch (_: Throwable) { errors++ }
+        }
 
         return ScanResult(totalScanned, financialFound, transactions.size, transactions, errors)
     }
@@ -247,8 +270,16 @@ class SmsInboxScanner(private val context: Context) {
     private fun isFinancialMessage(sender: String, body: String): Boolean {
         return try {
             val lower = (sender + " " + body).lowercase()
-            if (bankingSenderPatterns.any { lower.contains(it) }) return true
-            financialKeywords.count { lower.contains(it) } >= 2
+            if (BANKING_SENDER_PATTERNS.any { lower.contains(it) }) return true
+            // Require ≥2 financial keywords to qualify as a non-bank-sender hit.
+            var hits = 0
+            for (kw in FINANCIAL_KEYWORDS) {
+                if (lower.contains(kw)) {
+                    hits++
+                    if (hits >= 2) return true
+                }
+            }
+            false
         } catch (_: Throwable) { false }
     }
 }

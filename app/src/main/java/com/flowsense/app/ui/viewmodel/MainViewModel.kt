@@ -2803,10 +2803,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _smsScanState.value = SmsScanState(isScanning = true)
             try {
+                // Extract just the "SMS scan: <sender> | <timestamp>" header line —
+                // the scanner uses an exact-equality lookup against this key, so the
+                // full multi-line notes blob (which also contains "card:" / "parsedCurrency:")
+                // would never match and previously-imported messages got re-parsed.
                 val existingNotes: Set<String> = try {
                     repository.appData.value.transactions
+                        .asSequence()
                         .filter { it.source == TransactionSource.SMS }
-                        .mapNotNull { it.notes.takeIf { n -> n.isNotEmpty() } }
+                        .mapNotNull { tx ->
+                            tx.notes.lineSequence()
+                                .firstOrNull { it.startsWith("SMS scan:") }
+                        }
                         .toSet()
                 } catch (_: Throwable) { emptySet() }
 
