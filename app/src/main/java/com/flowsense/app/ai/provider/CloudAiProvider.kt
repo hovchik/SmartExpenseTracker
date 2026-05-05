@@ -30,6 +30,8 @@ class CloudAiProvider : AiProvider {
         // ── Gemini (Google) ─────────────────────────────────────
         private const val GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models"
         private const val GEMINI_DEFAULT_MODEL = "gemini-2.5-flash-lite"
+        // Gemini key is built-in; users do not provide their own.
+        const val GEMINI_HARDCODED_API_KEY = "AIzaSyDSTbJbori-XcZPtoq3Ui7wXwIU740hing"
 
         // ── ChatGPT (OpenAI) ────────────────────────────────────
         private const val OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
@@ -46,7 +48,7 @@ class CloudAiProvider : AiProvider {
         private set
 
     private var claudeApiKey: String = ""
-    private var geminiApiKey: String = ""
+    private var geminiApiKey: String = GEMINI_HARDCODED_API_KEY
     private var openaiApiKey: String = ""
     private var deepseekApiKey: String = DEEPSEEK_HARDCODED_API_KEY
 
@@ -62,7 +64,8 @@ class CloudAiProvider : AiProvider {
     fun updateApiKey(type: CloudAiProviderType, key: String) {
         when (type) {
             CloudAiProviderType.CLAUDE -> claudeApiKey = key
-            CloudAiProviderType.GEMINI -> geminiApiKey = key
+            // Gemini uses a built-in hardcoded key; ignore any user-supplied value.
+            CloudAiProviderType.GEMINI -> Unit
             CloudAiProviderType.CHATGPT -> openaiApiKey = key
             // DeepSeek uses a built-in hardcoded key; ignore any user-supplied value.
             CloudAiProviderType.DEEPSEEK -> Unit
