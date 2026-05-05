@@ -1052,24 +1052,36 @@ class AiExpenseEngine {
 
             // Custom keywords are preserved verbatim (substring match) so users can
             // configure full phrases or partial matches as they prefer.
-            fun matchesPhrase(phrases: List<String>): Boolean =
-                phrases.any { it.isNotEmpty() && lowerMsg.contains(it.lowercase()) }
+            // Score = number of distinct phrase / word matches, so when both income
+            // and expense indicators appear in the same SMS we can pick the dominant
+            // signal instead of always defaulting to expense.
+            fun phraseScore(phrases: List<String>): Int =
+                phrases.count { it.isNotEmpty() && lowerMsg.contains(it.lowercase()) }
 
-            fun matchesAnyRegex(regexes: List<Regex>): Boolean =
-                regexes.any { it.containsMatchIn(lowerMsg) }
+            fun regexScore(regexes: List<Regex>): Int =
+                regexes.count { it.containsMatchIn(lowerMsg) }
 
-            val isIncome = matchesPhrase(customIncomeKeywords) ||
-                matchesPhrase(BUILT_IN_INCOME_PHRASES) ||
-                matchesAnyRegex(BUILT_IN_INCOME_WORD_REGEXES)
-            val isExpenseExplicit = matchesPhrase(customExpenseKeywords) ||
-                matchesPhrase(BUILT_IN_EXPENSE_PHRASES) ||
-                matchesAnyRegex(BUILT_IN_EXPENSE_WORD_REGEXES)
+            val incomeScore = phraseScore(customIncomeKeywords) +
+                phraseScore(BUILT_IN_INCOME_PHRASES) +
+                regexScore(BUILT_IN_INCOME_WORD_REGEXES)
+            val expenseScore = phraseScore(customExpenseKeywords) +
+                phraseScore(BUILT_IN_EXPENSE_PHRASES) +
+                regexScore(BUILT_IN_EXPENSE_WORD_REGEXES)
+
+            // "credit account" / "salary" / "transfer to your" are unambiguous
+            // income markers — boost their weight so a stray "charged" / "transaction"
+            // in the same SMS doesn't flip the verdict.
+            val strongIncome = lowerMsg.contains("credit account") ||
+                lowerMsg.contains("salary") ||
+                lowerMsg.contains("transfer to your") ||
+                lowerMsg.contains("added to your")
 
             val isExpense = when {
-                isIncome && !isExpenseExplicit -> false
-                isExpenseExplicit -> true
+                strongIncome && expenseScore <= incomeScore + 1 -> false
+                incomeScore > expenseScore -> false
+                expenseScore > 0 -> true
                 lowerMsg.contains("approved") && !lowerMsg.contains("credit account") -> true
-                else -> true // Default to expense
+                else -> true // Default to expense when nothing matched
             }
 
             // ── MERCHANT EXTRACTION ─────────────────────

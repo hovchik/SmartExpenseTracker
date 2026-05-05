@@ -31,7 +31,12 @@ class SmsInboxScanner(private val context: Context) {
             "a/c", "acct", "account", "bank", "card",
             // International banking
             "approved", "authcode", "auth code", "atm cash", "mail order",
-            "pos", "e-commerce", "completion", "credit account", "debit account"
+            "pos", "e-commerce", "completion", "credit account", "debit account",
+            // Income-side terms (without these, salary/transfer-in SMS that have
+            // only one generic banking word never qualify as financial).
+            "salary", "income", "bonus", "reward", "reversed", "reimbursement",
+            "transfer to your", "added to your", "has been credited",
+            "amount received", "incoming transfer"
         )
 
         private val BANKING_SENDER_PATTERNS = listOf(
@@ -91,6 +96,15 @@ class SmsInboxScanner(private val context: Context) {
 
         val categoryNames = userCategoryNames.ifEmpty { DEFAULT_FALLBACK_CATEGORIES }
 
+        // Combine built-in financial keywords with the user's configured income /
+        // expense keywords so the gate filter accepts everything the parser is
+        // willing to classify (salary terms, custom company names, etc.).
+        val gateKeywords = (FINANCIAL_KEYWORDS +
+            customIncomeKeywords.map { it.lowercase() } +
+            customExpenseKeywords.map { it.lowercase() })
+            .filter { it.isNotEmpty() }
+            .distinct()
+
         for (uriString in listOf("content://sms/inbox", "content://sms")) {
             try {
                 val result = doScan(
@@ -101,6 +115,7 @@ class SmsInboxScanner(private val context: Context) {
                     isInboxUri = uriString.contains("inbox"),
                     userCategoryNames = userCategoryNames,
                     fallbackCategoryNames = categoryNames,
+                    gateKeywords = gateKeywords,
                     startDate = startDate,
                     endDate = endDate,
                     customIncomeKeywords = customIncomeKeywords,
@@ -140,6 +155,7 @@ class SmsInboxScanner(private val context: Context) {
         existingNotes: Set<String>, isInboxUri: Boolean,
         userCategoryNames: List<String>,
         fallbackCategoryNames: List<String>,
+        gateKeywords: List<String>,
         startDate: Long?, endDate: Long?,
         customIncomeKeywords: List<String>,
         customExpenseKeywords: List<String>
@@ -194,7 +210,7 @@ class SmsInboxScanner(private val context: Context) {
 
                         // Cheap early filter before any allocation-heavy work.
                         val sender = safeStr(c, addressIdx) ?: "unknown"
-                        if (!isFinancialMessage(sender, body)) continue
+                        if (!isFinancialMessage(sender, body, gateKeywords)) continue
 
                         if (!isInboxUri && typeIdx >= 0) {
                             val t = safeInt(c, typeIdx) ?: 1
@@ -267,13 +283,20 @@ class SmsInboxScanner(private val context: Context) {
         return try { if (c.isNull(i)) null else c.getInt(i) } catch (_: Throwable) { null }
     }
 
-    private fun isFinancialMessage(sender: String, body: String): Boolean {
+    private fun isFinancialMessage(
+        sender: String,
+        body: String,
+        gateKeywords: List<String>
+    ): Boolean {
         return try {
             val lower = (sender + " " + body).lowercase()
             if (BANKING_SENDER_PATTERNS.any { lower.contains(it) }) return true
-            // Require ≥2 financial keywords to qualify as a non-bank-sender hit.
+            // Require ≥2 keyword hits to qualify as a non-bank-sender financial SMS.
+            // gateKeywords is the union of FINANCIAL_KEYWORDS + the user's configured
+            // income/expense keywords, so configured income terms (e.g. "salary",
+            // "freelance", company name) help income SMS pass the gate.
             var hits = 0
-            for (kw in FINANCIAL_KEYWORDS) {
+            for (kw in gateKeywords) {
                 if (lower.contains(kw)) {
                     hits++
                     if (hits >= 2) return true
