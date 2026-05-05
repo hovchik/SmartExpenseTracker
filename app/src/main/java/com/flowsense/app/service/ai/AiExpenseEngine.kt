@@ -112,28 +112,6 @@ class AiExpenseEngine {
         private val CARD_NUMBER_CLEANUP = Regex("""\d{4,6}\*{2,6}\d{2,6}""")
         private val DATE_DDMMYY_CLEANUP = Regex("""\d{2}\.\d{2}\.\d{2,4}""")
         private val WHITESPACE_COLLAPSE = Regex("""\s+""")
-
-        // Pre-compiled word-boundary regexes for built-in expense/income word lists,
-        // so matchesWord() doesn't re-escape and recompile them per parsed message.
-        private val BUILT_IN_EXPENSE_PHRASES = listOf(
-            "atm cash", "mail order", "payment of", "used at",
-            "debit account", "e-commerce", "online purchase"
-        )
-        private val BUILT_IN_EXPENSE_WORDS = listOf(
-            "purchase", "atm", "pos", "charged", "debited", "spent",
-            "paid", "withdrawal", "sent", "debit", "withdrawn"
-        )
-        private val BUILT_IN_INCOME_PHRASES = listOf(
-            "credit account", "transfer to your", "added to"
-        )
-        private val BUILT_IN_INCOME_WORDS = listOf(
-            "credited", "received", "deposit", "refund", "cashback",
-            "reversed", "salary", "income", "reward"
-        )
-        private val BUILT_IN_EXPENSE_WORD_REGEXES: List<Regex> =
-            BUILT_IN_EXPENSE_WORDS.map { Regex("""\b${Regex.escape(it.lowercase())}\b""") }
-        private val BUILT_IN_INCOME_WORD_REGEXES: List<Regex> =
-            BUILT_IN_INCOME_WORDS.map { Regex("""\b${Regex.escape(it.lowercase())}\b""") }
     }
 
     // ─── Smart Categorization ──────────────────────────────────────
@@ -1047,41 +1025,24 @@ class AiExpenseEngine {
             }
 
             // ── EXPENSE VS INCOME ───────────────────────
-            // Built-in keyword lists and their pre-compiled word-boundary regexes
-            // live in the companion object so they're not rebuilt per parsed message.
+            // Both lists are sourced from Settings (Settings.incomeKeywords /
+            // expenseKeywords) — defaults are populated there and the user can
+            // edit them in the Settings screen. We pick the dominant signal
+            // when both lists match in the same SMS, so adding/removing a term
+            // in settings is the supported way to tune classification.
+            fun score(keywords: List<String>): Int =
+                keywords.count { kw ->
+                    kw.isNotEmpty() && lowerMsg.contains(kw.lowercase())
+                }
 
-            // Custom keywords are preserved verbatim (substring match) so users can
-            // configure full phrases or partial matches as they prefer.
-            // Score = number of distinct phrase / word matches, so when both income
-            // and expense indicators appear in the same SMS we can pick the dominant
-            // signal instead of always defaulting to expense.
-            fun phraseScore(phrases: List<String>): Int =
-                phrases.count { it.isNotEmpty() && lowerMsg.contains(it.lowercase()) }
-
-            fun regexScore(regexes: List<Regex>): Int =
-                regexes.count { it.containsMatchIn(lowerMsg) }
-
-            val incomeScore = phraseScore(customIncomeKeywords) +
-                phraseScore(BUILT_IN_INCOME_PHRASES) +
-                regexScore(BUILT_IN_INCOME_WORD_REGEXES)
-            val expenseScore = phraseScore(customExpenseKeywords) +
-                phraseScore(BUILT_IN_EXPENSE_PHRASES) +
-                regexScore(BUILT_IN_EXPENSE_WORD_REGEXES)
-
-            // "credit account" / "salary" / "transfer to your" are unambiguous
-            // income markers — boost their weight so a stray "charged" / "transaction"
-            // in the same SMS doesn't flip the verdict.
-            val strongIncome = lowerMsg.contains("credit account") ||
-                lowerMsg.contains("salary") ||
-                lowerMsg.contains("transfer to your") ||
-                lowerMsg.contains("added to your")
+            val incomeScore = score(customIncomeKeywords)
+            val expenseScore = score(customExpenseKeywords)
 
             val isExpense = when {
-                strongIncome && expenseScore <= incomeScore + 1 -> false
                 incomeScore > expenseScore -> false
                 expenseScore > 0 -> true
                 lowerMsg.contains("approved") && !lowerMsg.contains("credit account") -> true
-                else -> true // Default to expense when nothing matched
+                else -> true // Default to expense when neither list matched
             }
 
             // ── MERCHANT EXTRACTION ─────────────────────

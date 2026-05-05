@@ -115,12 +115,14 @@ class BankingNotificationListener : NotificationListenerService() {
         "am.easypay"
     )
 
-    // Financial keywords to filter non-transaction notifications
+    // Generic "this looks financial" markers — currency symbols / banking
+    // context. Income- and expense-classifier vocabulary lives in
+    // Settings.incomeKeywords / Settings.expenseKeywords (user-customizable)
+    // and is unioned in below before checking the gate.
     private val financialKeywords = listOf(
-        "debited", "credited", "spent", "received", "paid", "charged",
-        "transaction", "payment", "transfer", "withdrawn", "deposit",
-        "\$", "₹", "֏", "rs.", "inr", "usd", "amd", "eur", "gbp", "amt",
-        "approved", "authcode", "purchase", "atm cash", "balance:", "credit account"
+        "transaction", "transfer", "amt", "balance:",
+        "approved", "authcode",
+        "$", "₹", "֏", "rs.", "inr", "usd", "amd", "eur", "gbp"
     )
 
     /** Returns the human-readable app label for a package, or null on failure. */

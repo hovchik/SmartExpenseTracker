@@ -23,20 +23,15 @@ class SmsInboxScanner(private val context: Context) {
         // every SMS row to the four fields the parser needs.
         private val SMS_PROJECTION = arrayOf("body", "address", "date", "type")
 
+        // Generic "this looks like a banking SMS" markers — currency/transaction
+        // context only. Income- and expense-classifier vocabulary lives in
+        // Settings.incomeKeywords / Settings.expenseKeywords (user-customizable)
+        // and is unioned in by scanInbox() so the gate respects user changes.
         private val FINANCIAL_KEYWORDS = listOf(
-            "transaction", "debit", "credit", "payment", "charged", "spent",
-            "transferred", "withdrawal", "deposit", "balance", "amt", "txn",
-            "debited", "credited", "paid", "received", "purchase", "refund",
-            "cashback", "upi", "neft", "imps", "rtgs", "emi", "loan",
+            "transaction", "txn", "balance", "amt",
             "a/c", "acct", "account", "bank", "card",
-            // International banking
-            "approved", "authcode", "auth code", "atm cash", "mail order",
-            "pos", "e-commerce", "completion", "credit account", "debit account",
-            // Income-side terms (without these, salary/transfer-in SMS that have
-            // only one generic banking word never qualify as financial).
-            "salary", "income", "bonus", "reward", "reversed", "reimbursement",
-            "transfer to your", "added to your", "has been credited",
-            "amount received", "incoming transfer"
+            "approved", "authcode", "auth code", "completion",
+            "upi", "neft", "imps", "rtgs", "emi", "loan", "transfer", "transferred"
         )
 
         private val BANKING_SENDER_PATTERNS = listOf(
