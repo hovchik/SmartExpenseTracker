@@ -1210,7 +1210,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         source: String = "",
         hasLocation: Boolean = false
     ): CategorizationResult {
-        val settings = repository.appData.value.settings
         val userCatNames = repository.appData.value.categories
             .filter { !it.isDefault }.map { it.name }
 
@@ -1225,10 +1224,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return CategorizationResult(providerCategory, byAi = true)
         }
 
-        // Cloud AI fallback — when user selected Cloud AI as their active mode
-        if (settings.aiModePreference == AiModePreference.CLOUD_AI &&
-            aiProviderSelector.cloudProvider.isAvailable()
-        ) {
+        // Universal cloud AI fallback — try cloud whenever it's configured, regardless
+        // of mode preference, so transactions still get an AI-driven category if the
+        // active provider (local model, system AI) failed to produce one.
+        val activeProvider = aiProviderSelector.getActiveProvider()
+        val cloudProvider = aiProviderSelector.cloudProvider
+        val cloudIsAlreadyActive = activeProvider === cloudProvider
+        if (!cloudIsAlreadyActive && cloudProvider.isAvailable()) {
             val cloudCategory = categorizeWithCloudAi(description, isExpense, merchantName, amount)
             if (cloudCategory != null) {
                 repository.ensureCategoryExists(cloudCategory)
@@ -1237,7 +1239,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // Log why the AI provider didn't return a category so we can debug
-        val activeProvider = aiProviderSelector.getActiveProvider()
         Log.d("SmartCategorize", "AI provider '${activeProvider.displayName()}' " +
             "(available=${activeProvider.isAvailable()}) did not categorize '$description', using rule-based")
 

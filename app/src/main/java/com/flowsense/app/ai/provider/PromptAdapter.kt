@@ -40,7 +40,7 @@ class PromptAdapter {
     ): String {
         val categoriesList = categories.joinToString(", ")
         val sb = StringBuilder()
-        sb.appendLine("You are a financial transaction categorizer. Categorize this transaction into the most appropriate category.")
+        sb.appendLine("You are a financial transaction categorizer. Pick the SINGLE most appropriate category for the transaction below.")
         sb.appendLine()
         sb.appendLine("=== Transaction Details ===")
         sb.appendLine("Description: \"$description\"")
@@ -55,13 +55,21 @@ class PromptAdapter {
         if (hasLocation) sb.appendLine("Location: has GPS coordinates (in-store purchase)")
 
         sb.appendLine()
-        sb.appendLine("Existing categories: $categoriesList")
+        sb.appendLine("Existing categories (use these EXACT names when one fits): $categoriesList")
+        sb.appendLine()
+        sb.appendLine("=== Examples ===")
+        sb.appendLine("Description: \"Starbucks coffee\" -> Food & Dining")
+        sb.appendLine("Description: \"Uber ride to airport\" -> Transportation")
+        sb.appendLine("Description: \"Netflix monthly\" -> Entertainment")
+        sb.appendLine("Description: \"Whole Foods groceries\" -> Groceries")
+        sb.appendLine("Description: \"Salary March\" -> Salary")
         sb.appendLine()
         sb.appendLine("Instructions:")
-        sb.appendLine("- If the transaction clearly fits one of the existing categories, reply with that exact category name.")
-        sb.appendLine("- If none of the existing categories fit well, you may suggest a new descriptive category name (e.g. \"Pet Care\", \"Subscriptions\", \"Personal Care\").")
-        sb.appendLine("- Reply with ONLY the category name on the first line, nothing else.")
-        sb.appendLine("- Do not add explanations, punctuation, or extra text.")
+        sb.appendLine("- Match the merchant/description to the most specific existing category. Prefer the longer, more specific name when several could apply (e.g. \"Food & Dining\" over a generic \"Food\").")
+        sb.appendLine("- For income (Type=income), pick an income-appropriate category like Salary, Freelance, Investment, or another income category from the list.")
+        sb.appendLine("- Do NOT pick income-only categories (Salary, Freelance, Investment) for an expense.")
+        sb.appendLine("- Only invent a new category if NONE of the existing categories reasonably fit. New names must be 2-3 words, Title Case, descriptive (e.g. \"Pet Care\", \"Subscriptions\", \"Personal Care\").")
+        sb.appendLine("- Reply with ONLY the category name on a single line. No quotes, no punctuation, no explanation, no \"Category:\" prefix.")
         return sb.toString().trim()
     }
 
@@ -288,12 +296,26 @@ class PromptAdapter {
      * @return A pair of (category, isNew) where isNew indicates the AI suggested a new category.
      */
     fun parseCategorization(response: String, existingCategories: List<String>): CategoryResult {
-        val cleaned = response.trim()
-            .lines().first().trim()                   // Take only the first line
+        // Strip reasoning blocks first (DeepSeek R1 etc.) so we don't pick up category
+        // names mentioned inside the model's chain-of-thought.
+        val withoutThink = response
+            .replace(Regex("<think>[\\s\\S]*?</think>"), "")
+            .replace(Regex("</think>"), "")
+            .trim()
+
+        // Use the last non-blank line — reasoning models often put their answer last.
+        val firstLine = withoutThink.lines()
+            .map { it.trim() }
+            .lastOrNull { it.isNotBlank() }
+            ?: return CategoryResult(null, false)
+
+        val cleaned = firstLine
             .removeSurrounding("\"")
             .removeSurrounding("'")
             .removeSurrounding("*")
-            .replace(Regex("^(Category:\\s*)", RegexOption.IGNORE_CASE), "")
+            .removeSurrounding("`")
+            .replace(Regex("^(Category|Answer)\\s*:\\s*", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\.$"), "")
             .trim()
 
         if (cleaned.isBlank()) return CategoryResult(null, false)
@@ -302,12 +324,19 @@ class PromptAdapter {
         existingCategories.find { it.equals(cleaned, ignoreCase = true) }
             ?.let { return CategoryResult(it, false) }
 
-        // Partial match: AI response contains an existing category
-        existingCategories.find { cleaned.contains(it, ignoreCase = true) }
-            ?.let { return CategoryResult(it, false) }
+        // Sort categories longest-first so more-specific names win partial matches
+        // (e.g. "Food & Dining" before "Food").
+        val byLengthDesc = existingCategories.sortedByDescending { it.length }
 
-        // Reverse: existing category contains the AI response
-        existingCategories.find { it.contains(cleaned, ignoreCase = true) }
+        // Partial match: AI response contains an existing category as a whole word/phrase
+        byLengthDesc.find { cat ->
+            cat.length >= 2 && Regex(
+                "(?i)(^|\\W)" + Regex.escape(cat) + "($|\\W)"
+            ).containsMatchIn(cleaned)
+        }?.let { return CategoryResult(it, false) }
+
+        // Reverse: existing category contains the AI response (response is a known prefix)
+        byLengthDesc.find { it.contains(cleaned, ignoreCase = true) && cleaned.length >= 3 }
             ?.let { return CategoryResult(it, false) }
 
         // AI suggested a new category — validate it's a reasonable name
