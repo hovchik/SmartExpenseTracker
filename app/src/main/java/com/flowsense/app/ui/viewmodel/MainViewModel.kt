@@ -2626,6 +2626,48 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ─── Monthly Report Email ─────────────────────────────────────────
+
+    fun configureMonthlyReport(
+        enabled: Boolean,
+        email: String,
+        dayOfMonth: Int
+    ) {
+        viewModelScope.launch {
+            val settings = repository.appData.value.settings
+            repository.updateSettings(
+                settings.copy(
+                    monthlyReportEnabled = enabled,
+                    monthlyReportEmail = email.trim(),
+                    monthlyReportDayOfMonth = dayOfMonth.coerceIn(1, 28)
+                )
+            )
+            val appContext = getApplication<android.app.Application>().applicationContext
+            if (enabled) {
+                com.flowsense.app.service.scheduler.MonthlyReportWorker.schedule(appContext)
+            } else {
+                com.flowsense.app.service.scheduler.MonthlyReportWorker.cancel(appContext)
+            }
+        }
+    }
+
+    /**
+     * Manually triggers a monthly report generation for the previous month.
+     * Saves the PDF to Downloads and posts a notification.
+     */
+    fun sendMonthlyReportNow() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val inputData = androidx.work.Data.Builder()
+                .putBoolean("force_send", true)
+                .build()
+            val request = androidx.work.OneTimeWorkRequestBuilder<com.flowsense.app.service.scheduler.MonthlyReportWorker>()
+                .setInputData(inputData)
+                .build()
+            androidx.work.WorkManager.getInstance(getApplication<android.app.Application>().applicationContext)
+                .enqueue(request)
+        }
+    }
+
     // ─── Scheduled Expenses (loans, subscriptions) ──────────────────
 
     fun addScheduledExpense(expense: com.flowsense.app.data.model.ScheduledExpense) {

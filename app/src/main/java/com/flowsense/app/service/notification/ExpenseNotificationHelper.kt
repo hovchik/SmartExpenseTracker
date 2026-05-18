@@ -23,9 +23,14 @@ object ExpenseNotificationHelper {
     private const val CHANNEL_NAME_SCHEDULED = "Scheduled Expense Reminders"
     private const val CHANNEL_DESC_SCHEDULED = "Reminders for upcoming loan and subscription payments"
 
+    private const val CHANNEL_ID_MONTHLY_REPORT = "monthly_report"
+    private const val CHANNEL_NAME_MONTHLY_REPORT = "Monthly Reports"
+    private const val CHANNEL_DESC_MONTHLY_REPORT = "Notifications when your monthly PDF report is ready"
+
     private const val NOTIF_ID_BUDGET = 1001
     private const val NOTIF_ID_SALARY = 1002
     private const val NOTIF_ID_SCHEDULED_BASE = 2000
+    private const val NOTIF_ID_MONTHLY_REPORT = 3001
 
     fun createChannels(context: Context) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
@@ -42,6 +47,11 @@ object ExpenseNotificationHelper {
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_ID_SCHEDULED, CHANNEL_NAME_SCHEDULED, NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = CHANNEL_DESC_SCHEDULED
+            }
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_ID_MONTHLY_REPORT, CHANNEL_NAME_MONTHLY_REPORT, NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = CHANNEL_DESC_MONTHLY_REPORT
             }
         )
     }
@@ -149,6 +159,54 @@ object ExpenseNotificationHelper {
         try {
             NotificationManagerCompat.from(context)
                 .notify(NOTIF_ID_SCHEDULED_BASE + index, notification)
+        } catch (_: SecurityException) {
+            // POST_NOTIFICATIONS permission not granted
+        }
+    }
+
+    /**
+     * Posts a notification informing the user that their monthly report PDF
+     * has been saved to Downloads. Tapping opens the PDF viewer.
+     */
+    fun postMonthlyReportNotification(
+        context: Context,
+        monthLabel: String,
+        pdfUri: android.net.Uri? = null
+    ) {
+        val viewIntent = if (pdfUri != null) {
+            Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(pdfUri, "application/pdf")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        } else {
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
+        }
+
+        val pi = PendingIntent.getActivity(
+            context, NOTIF_ID_MONTHLY_REPORT, viewIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID_MONTHLY_REPORT)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("Monthly Report Saved")
+            .setContentText("Your $monthLabel report has been saved to Downloads")
+            .setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    "Your FlowSense financial report for $monthLabel has been generated and saved " +
+                        "to Downloads/FlowSense. Tap to open the PDF."
+                )
+            )
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pi)
+            .setAutoCancel(true)
+            .build()
+
+        try {
+            NotificationManagerCompat.from(context).notify(NOTIF_ID_MONTHLY_REPORT, notification)
         } catch (_: SecurityException) {
             // POST_NOTIFICATIONS permission not granted
         }

@@ -11,6 +11,7 @@ import com.flowsense.app.service.ai.AiExpenseEngine
 import com.flowsense.app.service.notification.ExpenseNotificationHelper
 import com.flowsense.app.service.scheduler.SalarySchedulerWorker
 import com.flowsense.app.service.scheduler.ScheduledExpenseWorker
+import com.flowsense.app.service.scheduler.MonthlyReportWorker
 import com.flowsense.app.service.subscription.SubscriptionManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +58,9 @@ class FlowSenseApp : Application() {
             }
             if (settings.scheduledExpenses.any { it.enabled }) {
                 ScheduledExpenseWorker.schedule(applicationContext)
+            }
+            if (settings.monthlyReportEnabled) {
+                MonthlyReportWorker.schedule(applicationContext)
             }
         }
         // Create notification channels (no-op if already created)

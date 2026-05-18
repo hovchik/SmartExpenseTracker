@@ -118,7 +118,10 @@ fun SettingsScreen(
     tokenValidationError: String? = null,
     // ── Battery monitoring ──
     batteryState: com.flowsense.app.service.battery.BatteryMonitorService.BatteryState =
-        com.flowsense.app.service.battery.BatteryMonitorService.BatteryState()
+        com.flowsense.app.service.battery.BatteryMonitorService.BatteryState(),
+    // ── Monthly Report Email ──
+    onConfigureMonthlyReport: (enabled: Boolean, email: String, dayOfMonth: Int) -> Unit = { _, _, _ -> },
+    onSendMonthlyReportNow: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var showClearDialog by remember { mutableStateOf(false) }
@@ -142,6 +145,13 @@ fun SettingsScreen(
         mutableStateOf(settings.scheduledSalaryDescription)
     }
 
+    // Monthly report state
+    var monthlyReportEnabled by remember(settings.monthlyReportEnabled) { mutableStateOf(settings.monthlyReportEnabled) }
+    var monthlyReportEmail by remember(settings.monthlyReportEmail) { mutableStateOf(settings.monthlyReportEmail) }
+    var monthlyReportDayText by remember(settings.monthlyReportDayOfMonth) {
+        mutableStateOf(settings.monthlyReportDayOfMonth.toString())
+    }
+
     // Category management state
     var newCategoryText by remember { mutableStateOf("") }
 
@@ -154,6 +164,7 @@ fun SettingsScreen(
     var budgetExpanded by remember { mutableStateOf(false) }
     var salaryExpanded by remember { mutableStateOf(false) }
     var scheduledExpensesExpanded by remember { mutableStateOf(false) }
+    var monthlyReportExpanded by remember { mutableStateOf(false) }
     var categoriesExpanded by remember { mutableStateOf(false) }
     var aiEngineExpanded by remember { mutableStateOf(false) }
     // localAiExpanded removed — LOCAL AI section replaced by AI ENGINE
@@ -1664,6 +1675,116 @@ fun SettingsScreen(
                 onUpdate = onUpdateScheduledExpense,
                 onDelete = onDeleteScheduledExpense
             )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ─── Monthly Report Section ────────────────────────────────
+        CollapsibleSectionHeader(
+            title = "MONTHLY PDF REPORT",
+            expanded = monthlyReportExpanded,
+            onToggle = { monthlyReportExpanded = !monthlyReportExpanded }
+        )
+
+        AnimatedVisibility(
+            visible = monthlyReportExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "Automatically generate a PDF report with all transactions and analysis each month. " +
+                            "The report is saved to Downloads/FlowSense on your device.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Enable Monthly Report", fontWeight = FontWeight.Medium)
+                        Switch(
+                            checked = monthlyReportEnabled,
+                            onCheckedChange = { monthlyReportEnabled = it }
+                        )
+                    }
+
+                    if (monthlyReportEnabled) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = monthlyReportDayText,
+                            onValueChange = { v ->
+                                if (v.all { it.isDigit() } && v.length <= 2) monthlyReportDayText = v
+                            },
+                            label = { Text("Day of Month to Generate (1-28)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                val day = monthlyReportDayText.toIntOrNull()?.coerceIn(1, 28) ?: 1
+                                onConfigureMonthlyReport(monthlyReportEnabled, "", day)
+                                Toast.makeText(
+                                    context,
+                                    "Monthly report scheduled for day $day of each month",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary)
+                        ) {
+                            Icon(Icons.Filled.SaveAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Save Report Settings", fontWeight = FontWeight.SemiBold)
+                        }
+                    } else if (settings.monthlyReportEnabled) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = { onConfigureMonthlyReport(false, "", 1) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        ) {
+                            Text("Disable Monthly Report")
+                        }
+                    }
+
+                    if (settings.monthlyReportEnabled) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Active: Report saved on day ${settings.monthlyReportDayOfMonth} of each month " +
+                                "to Downloads/FlowSense",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = GreenPrimary,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = { onSendMonthlyReportNow() },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Filled.PictureAsPdf, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Generate Report Now")
+                        }
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))

@@ -682,7 +682,16 @@ data class AppSettings(
     /** Cached exchange rates for offline use. Nullable for Gson backward compat. */
     val cachedExchangeRates: Map<String, Double>? = emptyMap(),
     /** Timestamp when cached rates were last updated. */
-    val cachedRatesTimestamp: Long = 0
+    val cachedRatesTimestamp: Long = 0,
+    // ── Monthly email report ────────────────────────────────────────
+    /** Whether the monthly PDF report email is enabled. */
+    val monthlyReportEnabled: Boolean = false,
+    /** Email address to send the monthly report to. */
+    val monthlyReportEmail: String = "",
+    /** Day-of-month (1–28) to generate and send the report. */
+    val monthlyReportDayOfMonth: Int = 1,
+    /** Tracks which month (yyyy-MM) was last emailed so we don't send duplicates. */
+    val lastMonthlyReportSentMonth: String = ""
 )
 
 fun defaultCategories(): List<Category> = listOf(

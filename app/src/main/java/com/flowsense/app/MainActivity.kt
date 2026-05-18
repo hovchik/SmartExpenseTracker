@@ -488,7 +488,11 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         onSaveHuggingFaceToken = { token -> viewModel.saveHuggingFaceToken(token) },
                         onRemoveHuggingFaceToken = { viewModel.removeHuggingFaceToken() },
                         tokenValidationError = tokenValidationError,
-                        batteryState = batteryState
+                        batteryState = batteryState,
+                        onConfigureMonthlyReport = { enabled, email, day ->
+                            viewModel.configureMonthlyReport(enabled, email, day)
+                        },
+                        onSendMonthlyReportNow = { viewModel.sendMonthlyReportNow() }
                     )
                     "local_ai_setup" -> com.flowsense.app.ai.setupwizard.LocalAiSetupWizardScreen(
                         capability = deviceCapability,
