@@ -371,6 +371,7 @@ private fun notifIcon(type: InAppNotificationType) = when (type) {
     InAppNotificationType.CATEGORY_CREATED     -> Icons.Filled.Label
     InAppNotificationType.SMS_PARSED           -> Icons.Filled.Sms
     InAppNotificationType.BUDGET_ALERT         -> Icons.Filled.Warning
+    InAppNotificationType.NEW_SOURCE_DETECTED  -> Icons.Filled.FiberNew
 }
 
 @Composable
@@ -379,4 +380,5 @@ private fun notifIconBg(type: InAppNotificationType): Color = when (type) {
     InAppNotificationType.CATEGORY_CREATED     -> PurpleAccent
     InAppNotificationType.SMS_PARSED           -> GreenPrimary
     InAppNotificationType.BUDGET_ALERT         -> OrangeWarning
+    InAppNotificationType.NEW_SOURCE_DETECTED  -> OrangeWarning
 }

@@ -237,8 +237,55 @@ enum class InAppNotificationType {
     TRANSACTION_DETECTED,  // SMS or notification auto-detected a transaction
     CATEGORY_CREATED,      // A new category was auto-created during parsing
     SMS_PARSED,            // Explicit SMS scan found transactions
-    BUDGET_ALERT           // Spending nearing budget limit
+    BUDGET_ALERT,          // Spending nearing budget limit
+    NEW_SOURCE_DETECTED    // A new SMS sender / notification app pattern was discovered
 }
+
+// ─── Message Source Patterns (SMS senders & notification apps) ───
+
+/** Where a message pattern was learned from. */
+enum class PatternKind {
+    SMS,           // An SMS sender (address like "AmeriaBank" or "+374...")
+    NOTIFICATION   // An app posting notifications (package name)
+}
+
+/** User decision for a detected message source. */
+enum class PatternStatus {
+    /** Newly detected — tracked by default until the user decides. */
+    PENDING,
+    /** User confirmed: keep tracking transactions from this source. */
+    INCLUDED,
+    /** User opted out: ignore all messages from this source. */
+    EXCLUDED
+}
+
+/**
+ * A learned pattern describing a source of financial messages: an SMS sender
+ * or an app that posts banking notifications. Patterns are created automatically
+ * the first time a financial message is seen from a new source; the user can
+ * then include (keep tracking) or exclude (ignore) the source.
+ */
+data class MessagePattern(
+    val id: String = UUID.randomUUID().toString(),
+    val kind: PatternKind,
+    /** Normalized match key: lowercased SMS sender address or app package name. */
+    val sourceKey: String,
+    /** Human-readable name: original sender string or app label. */
+    val displayName: String = "",
+    val status: PatternStatus = PatternStatus.PENDING,
+    /** A sample of the message text that created this pattern (truncated). */
+    val sampleText: String = "",
+    /** Number of financial messages matched from this source. */
+    val matchCount: Int = 1,
+    val lastSeen: Long = System.currentTimeMillis(),
+    val createdAt: Long = System.currentTimeMillis()
+) {
+    /** PENDING and INCLUDED sources are tracked; only EXCLUDED is ignored. */
+    val isTracked: Boolean get() = status != PatternStatus.EXCLUDED
+}
+
+/** Normalizes a raw sender/package into the pattern match key. */
+fun patternSourceKey(raw: String): String = raw.trim().lowercase()
 
 /**
  * In-app notification shown in the bell panel (top-right corner).
@@ -331,6 +378,8 @@ data class AppData(
     val aiConversations: List<AiConversation> = emptyList(),
     /** Detected recurring transaction patterns. Nullable for Gson backward compat. */
     val recurringPatterns: List<RecurringPattern>? = emptyList(),
+    /** Learned SMS-sender / notification-app patterns. Nullable for Gson backward compat. */
+    val messagePatterns: List<MessagePattern>? = emptyList(),
     /** Spending streak and achievement tracking. Nullable for Gson backward compat. */
     val spendingStreak: SpendingStreak? = SpendingStreak(),
     val settings: AppSettings = AppSettings(),

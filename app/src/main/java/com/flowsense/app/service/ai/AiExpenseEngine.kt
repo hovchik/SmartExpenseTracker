@@ -112,6 +112,30 @@ class AiExpenseEngine {
         private val CARD_NUMBER_CLEANUP = Regex("""\d{4,6}\*{2,6}\d{2,6}""")
         private val DATE_DDMMYY_CLEANUP = Regex("""\d{2}\.\d{2}\.\d{2,4}""")
         private val WHITESPACE_COLLAPSE = Regex("""\s+""")
+
+        // ── detectCurrencyFromText: pre-compiled patterns ──────────
+        // Priority-ordered ISO codes searched next to amounts. Compiled into two
+        // combined alternation regexes instead of two fresh Regex objects per
+        // code per call (~100 compilations per receipt previously).
+        private val CURRENCY_DETECT_CODES = listOf(
+            "AMD", "USD", "EUR", "RUB", "GBP", "CNY", "JPY", "TRY",
+            "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF", "RON",
+            "BRL", "ARS", "MXN", "COP", "PEN", "CLP",
+            "INR", "PKR", "BDT", "LKR", "NPR",
+            "KRW", "THB", "VND", "MYR", "SGD", "PHP", "IDR",
+            "AED", "SAR", "QAR", "KWD", "BHD", "OMR", "JOD", "ILS",
+            "ZAR", "KES", "NGN", "EGP", "MAD",
+            "AUD", "NZD", "CAD", "HKD", "TWD"
+        )
+        private val CURRENCY_CODE_AFTER_AMOUNT_REGEX =
+            Regex("""[\d,.]+\s*(${CURRENCY_DETECT_CODES.joinToString("|")})\b""")
+        private val CURRENCY_CODE_BEFORE_AMOUNT_REGEX =
+            Regex("""\b(${CURRENCY_DETECT_CODES.joinToString("|")})\s*[\d,.]+""")
+        private val MYR_SYMBOL_REGEX = Regex("""RM\s?\d""")
+        private val BRL_SYMBOL_REGEX = Regex("""R\$\s?\d""")
+        private val INR_RS_REGEX = Regex("""(?i)\bRs\.?\s?\d""")
+        private val SCANDINAVIAN_KR_REGEX = Regex("""(?i)\b\d[\d\s.,]*\s*kr\b""")
+        private val DOLLAR_AMOUNT_REGEX = Regex("""\$\s?\d""")
     }
 
     // ─── Smart Categorization ──────────────────────────────────────
@@ -1110,22 +1134,16 @@ class AiExpenseEngine {
     private fun detectCurrencyFromText(ocrText: String, fallback: String): String? {
         val upper = ocrText.uppercase()
 
-        // Explicit ISO currency codes next to amounts (most reliable)
-        val isoCodes = listOf(
-            "AMD", "USD", "EUR", "RUB", "GBP", "CNY", "JPY", "TRY",
-            "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF", "RON",
-            "BRL", "ARS", "MXN", "COP", "PEN", "CLP",
-            "INR", "PKR", "BDT", "LKR", "NPR",
-            "KRW", "THB", "VND", "MYR", "SGD", "PHP", "IDR",
-            "AED", "SAR", "QAR", "KWD", "BHD", "OMR", "JOD", "ILS",
-            "ZAR", "KES", "NGN", "EGP", "MAD",
-            "AUD", "NZD", "CAD", "HKD", "TWD"
-        )
-        for (code in isoCodes) {
-            if (Regex("""[\d,.]+\s*${code}\b""").containsMatchIn(upper) ||
-                Regex("""\b${code}\s*[\d,.]+""").containsMatchIn(upper)) {
-                return code
-            }
+        // Explicit ISO currency codes next to amounts (most reliable).
+        // Both combined regexes are pre-compiled in the companion object; the
+        // highest-priority code (per CURRENCY_DETECT_CODES order) wins, matching
+        // the behavior of the previous per-code loop.
+        val codeHits = buildSet {
+            CURRENCY_CODE_AFTER_AMOUNT_REGEX.findAll(upper).forEach { add(it.groupValues[1]) }
+            CURRENCY_CODE_BEFORE_AMOUNT_REGEX.findAll(upper).forEach { add(it.groupValues[1]) }
+        }
+        if (codeHits.isNotEmpty()) {
+            CURRENCY_DETECT_CODES.firstOrNull { it in codeHits }?.let { return it }
         }
 
         // Currency symbols (unambiguous first)
@@ -1139,12 +1157,12 @@ class AiExpenseEngine {
         if (ocrText.contains("฿")) return "THB"
         if (ocrText.contains("₱")) return "PHP"
         if (ocrText.contains("₪")) return "ILS"
-        if (ocrText.contains("RM") && Regex("""RM\s?\d""").containsMatchIn(ocrText)) return "MYR"
-        if (ocrText.contains("R$") || Regex("""R\$\s?\d""").containsMatchIn(ocrText)) return "BRL"
+        if (ocrText.contains("RM") && MYR_SYMBOL_REGEX.containsMatchIn(ocrText)) return "MYR"
+        if (ocrText.contains("R$") || BRL_SYMBOL_REGEX.containsMatchIn(ocrText)) return "BRL"
         if (ocrText.contains("Fr.") || ocrText.contains("CHF")) return "CHF"
-        if (Regex("""(?i)\bRs\.?\s?\d""").containsMatchIn(ocrText)) return "INR"
+        if (INR_RS_REGEX.containsMatchIn(ocrText)) return "INR"
         // "kr" for Scandinavian (disambiguation by context)
-        if (Regex("""(?i)\b\d[\d\s.,]*\s*kr\b""").containsMatchIn(ocrText)) {
+        if (SCANDINAVIAN_KR_REGEX.containsMatchIn(ocrText)) {
             return when {
                 upper.contains("SEK") || upper.contains("KVITTO") || upper.contains("MOMS") && upper.contains("SUMMA") -> "SEK"
                 upper.contains("NOK") || upper.contains("KVITTERING") -> "NOK"
@@ -1155,7 +1173,7 @@ class AiExpenseEngine {
         // £ can be GBP or EGP — default GBP
         if (ocrText.contains("£")) return "GBP"
         // $ is ambiguous — could be USD, CAD, AUD, MXN, ARS, COP, etc.
-        if (Regex("""\$\s?\d""").containsMatchIn(ocrText)) {
+        if (DOLLAR_AMOUNT_REGEX.containsMatchIn(ocrText)) {
             return when {
                 upper.contains("CA\$") || upper.contains("CAD") -> "CAD"
                 upper.contains("A\$") || upper.contains("AUD") -> "AUD"

@@ -10,6 +10,7 @@ import com.flowsense.app.FlowSenseApp
 import com.flowsense.app.data.model.GeoLocation
 import com.flowsense.app.data.model.InAppNotification
 import com.flowsense.app.data.model.InAppNotificationType
+import com.flowsense.app.data.model.PatternKind
 import com.flowsense.app.data.model.StoreLocation
 import com.flowsense.app.data.model.Transaction
 import com.flowsense.app.data.model.TransactionSource
@@ -144,6 +145,31 @@ class SmsReceiver : BroadcastReceiver() {
                             Log.d(TAG, "SMS skipped: not financial with user keywords")
                             pendingResult.finish()
                             return@launch
+                        }
+
+                        // ── Source pattern: learn the sender, honor exclusions ──
+                        // New senders start as PENDING (tracked by default); the user can
+                        // exclude them from Settings → Message Sources at any time.
+                        val (pattern, isNewPattern) = repo.recordMessagePattern(
+                            kind = PatternKind.SMS,
+                            rawSource = sender,
+                            displayName = sender,
+                            sampleText = fullMessage
+                        )
+                        if (!pattern.isTracked) {
+                            Log.d(TAG, "SMS skipped: sender $sender is excluded by pattern")
+                            pendingResult.finish()
+                            return@launch
+                        }
+                        if (isNewPattern) {
+                            repo.addInAppNotification(
+                                InAppNotification(
+                                    title = "New SMS source detected",
+                                    message = "Transactions from \"$sender\" are now being tracked. " +
+                                        "Review it under Settings → Message Sources to keep or ignore this sender.",
+                                    type = InAppNotificationType.NEW_SOURCE_DETECTED
+                                )
+                            )
                         }
 
                         val aiEngine = AiExpenseEngine()

@@ -17,6 +17,11 @@ import java.util.Locale
  */
 class ExpenseRepository(private val storage: JsonStorageManager) {
 
+    companion object {
+        /** Pre-compiled once — used inside the per-transaction dedup loop. */
+        private val CARD_REGEX = Regex("""card:(\d{4})""")
+    }
+
     private val _appData = MutableStateFlow(AppData())
     val appData: StateFlow<AppData> = _appData.asStateFlow()
 
@@ -54,7 +59,41 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
      */
     suspend fun addTransaction(transaction: Transaction): Boolean = transactionMutex.withLock {
         val current = _appData.value
-        val isDuplicate = current.transactions.any { t ->
+        if (isDuplicateOf(transaction, current.transactions)) return@withLock false
+        val updated = current.copy(
+            transactions = current.transactions + transaction
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+        return@withLock true
+    }
+
+    /**
+     * Adds many transactions in one pass with a single disk write.
+     * Each candidate is dedup-checked against both existing data and the
+     * candidates accepted earlier in this batch. Returns the number saved.
+     */
+    suspend fun addTransactions(transactions: List<Transaction>): Int = transactionMutex.withLock {
+        if (transactions.isEmpty()) return@withLock 0
+        val current = _appData.value
+        val accepted = mutableListOf<Transaction>()
+        for (candidate in transactions) {
+            if (isDuplicateOf(candidate, current.transactions) ||
+                isDuplicateOf(candidate, accepted)
+            ) continue
+            accepted.add(candidate)
+        }
+        if (accepted.isEmpty()) return@withLock 0
+        val updated = current.copy(transactions = current.transactions + accepted)
+        _appData.value = updated
+        storage.saveData(updated)
+        return@withLock accepted.size
+    }
+
+    private fun isDuplicateOf(transaction: Transaction, existing: List<Transaction>): Boolean {
+        // Extracted once per candidate — not per comparison.
+        val newCard = CARD_REGEX.find(transaction.notes)?.groupValues?.get(1)
+        return existing.any { t ->
             if (t.amount != transaction.amount) return@any false
             val timeDiff = kotlin.math.abs(t.timestamp - transaction.timestamp)
             when (transaction.source) {
@@ -65,9 +104,7 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
                 }
                 TransactionSource.SMS, TransactionSource.NOTIFICATION -> {
                     // Strong match: same card last-4 digits within 10 minutes
-                    val cardRegex = Regex("""card:(\d{4})""")
-                    val newCard = cardRegex.find(transaction.notes)?.groupValues?.get(1)
-                    val existingCard = cardRegex.find(t.notes)?.groupValues?.get(1)
+                    val existingCard = CARD_REGEX.find(t.notes)?.groupValues?.get(1)
                     if (!newCard.isNullOrEmpty() && newCard == existingCard && timeDiff < 600_000) {
                         true
                     } else {
@@ -81,13 +118,6 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
                 TransactionSource.IMPORT -> false
             }
         }
-        if (isDuplicate) return@withLock false
-        val updated = current.copy(
-            transactions = current.transactions + transaction
-        )
-        _appData.value = updated
-        storage.saveData(updated)
-        return@withLock true
     }
 
     suspend fun updateTransaction(transaction: Transaction) {
@@ -489,6 +519,116 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         return true
     }
 
+    /**
+     * Batch version of [ensureCategoryExists]: creates every missing category
+     * with a single disk write and a single summary notification.
+     */
+    suspend fun ensureCategoriesExist(categoryNames: Collection<String>) {
+        val current = _appData.value
+        val existing = current.categories.map { it.name.lowercase() }.toHashSet()
+        val missing = categoryNames
+            .filter { it.isNotBlank() && it.lowercase() !in existing }
+            .distinctBy { it.lowercase() }
+        if (missing.isEmpty()) return
+        val newCategories = missing.map {
+            Category(name = it, icon = "category", color = 0xFF9E9E9E, isDefault = false)
+        }
+        val updated = current.copy(categories = current.categories + newCategories)
+        _appData.value = updated
+        storage.saveData(updated)
+        addInAppNotification(
+            InAppNotification(
+                title = if (missing.size == 1) "New category added" else "${missing.size} new categories added",
+                message = "${missing.joinToString(", ") { "\"$it\"" }} created from your transactions. " +
+                    "You can rename or remove them in Settings.",
+                type = InAppNotificationType.CATEGORY_CREATED,
+                suggestedCategoryName = missing.first()
+            )
+        )
+    }
+
+    // ─── Message Source Patterns ──────────────────────────────────
+
+    /** Returns the pattern for a source, or null if none has been learned yet. */
+    fun findMessagePattern(kind: PatternKind, rawSource: String): MessagePattern? {
+        val key = patternSourceKey(rawSource)
+        return _appData.value.messagePatterns.orEmpty()
+            .find { it.kind == kind && it.sourceKey == key }
+    }
+
+    /**
+     * Records a sighting of a financial message from [rawSource].
+     * Creates a PENDING pattern when the source is new; otherwise bumps its
+     * match count / last-seen and refreshes the sample text.
+     *
+     * @return the up-to-date pattern and `true` when it was newly created.
+     */
+    suspend fun recordMessagePattern(
+        kind: PatternKind,
+        rawSource: String,
+        displayName: String,
+        sampleText: String
+    ): Pair<MessagePattern, Boolean> = transactionMutex.withLock {
+        val key = patternSourceKey(rawSource)
+        val current = _appData.value
+        val patterns = current.messagePatterns.orEmpty()
+        val existing = patterns.find { it.kind == kind && it.sourceKey == key }
+        val sample = sampleText.take(200)
+        if (existing != null) {
+            val bumped = existing.copy(
+                matchCount = existing.matchCount + 1,
+                lastSeen = System.currentTimeMillis(),
+                sampleText = sample.ifBlank { existing.sampleText },
+                displayName = displayName.ifBlank { existing.displayName }
+            )
+            val updated = current.copy(
+                messagePatterns = patterns.map { if (it.id == existing.id) bumped else it }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+            return@withLock bumped to false
+        }
+        val created = MessagePattern(
+            kind = kind,
+            sourceKey = key,
+            displayName = displayName.ifBlank { rawSource },
+            sampleText = sample
+        )
+        val updated = current.copy(messagePatterns = patterns + created)
+        _appData.value = updated
+        storage.saveData(updated)
+        return@withLock created to true
+    }
+
+    /** Sets the user's include/exclude decision for a pattern. */
+    suspend fun setMessagePatternStatus(id: String, status: PatternStatus) {
+        val current = _appData.value
+        val updated = current.copy(
+            messagePatterns = current.messagePatterns.orEmpty().map {
+                if (it.id == id) it.copy(status = status) else it
+            }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    /** Removes a learned pattern entirely (it will be re-detected as PENDING if seen again). */
+    suspend fun deleteMessagePattern(id: String) {
+        val current = _appData.value
+        val updated = current.copy(
+            messagePatterns = current.messagePatterns.orEmpty().filter { it.id != id }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
+    /** Lowercased source keys the user excluded for [kind]. */
+    fun excludedSourceKeys(kind: PatternKind): Set<String> =
+        _appData.value.messagePatterns.orEmpty()
+            .filter { it.kind == kind && it.status == PatternStatus.EXCLUDED }
+            .map { it.sourceKey }
+            .toSet()
+
     // ─── OCR Sections ─────────────────────────────────────────────
 
     suspend fun addOcrSection(section: com.flowsense.app.data.model.OcrSection) {
@@ -576,7 +716,7 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
      * Looks for transactions with similar amounts and descriptions
      * that occur at regular intervals.
      */
-    suspend fun detectRecurringPatterns(): List<RecurringPattern> {
+    suspend fun detectRecurringPatterns(): List<RecurringPattern> = transactionMutex.withLock {
         val current = _appData.value
         val activeTransactions = current.transactions.filter { !it.isDeleted && it.type == TransactionType.EXPENSE }
 
