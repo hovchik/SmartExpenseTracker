@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -349,40 +350,56 @@ fun StatCard(
 
 @Composable
 fun WeeklySpendingChart(data: List<Pair<String, Double>>, currencyCode: String = "USD") {
-    val sym = CurrencyUtils.symbolFor(currencyCode)
     val todayLabel = remember { DateUtils.formatDay(System.currentTimeMillis()) }
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("This Week", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Spacer(modifier = Modifier.height(12.dp))
-            val maxValue = data.maxOfOrNull { it.second } ?: 1.0
+
+            val maxValue = data.maxOfOrNull { it.second }?.takeIf { it > 0.0 } ?: 1.0
+            // Fixed plot area so every bar shares a common bottom baseline. Value
+            // labels sit just above each bar; day labels live in a separate aligned
+            // row below so they never shift with bar height.
+            val plotHeight = 130.dp
+            // Reserve ~18% of the plot for value labels so the tallest bar can't
+            // collide with its own number.
+            val barAreaFraction = 0.82f
+
             Row(
-                modifier = Modifier.fillMaxWidth().height(150.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                modifier = Modifier.fillMaxWidth().height(plotHeight),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.Bottom
             ) {
                 data.forEach { (day, amount) ->
                     val isToday = day == todayLabel
+                    // Fraction of the bar area this bar fills. Give any non-zero
+                    // amount a small visible minimum so outliers don't flatten the
+                    // rest of the week into nothing.
+                    val ratio = (amount / maxValue).toFloat().coerceIn(0f, 1f)
+                    val barFraction = when {
+                        amount <= 0.0 -> 0f
+                        else -> (ratio * barAreaFraction).coerceAtLeast(0.03f)
+                    }
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Bottom,
                         modifier = Modifier.weight(1f).fillMaxHeight()
                     ) {
-                        // Push content to the bottom so bars grow upward
-                        Spacer(modifier = Modifier.weight(1f))
-                        if (amount > 0) {
+                        if (amount > 0.0) {
                             Text(
-                                "$sym${String.format("%.0f", amount)}",
+                                CurrencyUtils.formatCompact(amount, currencyCode),
                                 fontSize = 9.sp,
+                                maxLines = 1,
                                 color = if (isToday) MaterialTheme.colorScheme.primary
                                         else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                         }
-                        val barHeight = if (maxValue > 0) (amount / maxValue * 100).coerceAtLeast(6.0) else 6.0
-                        val cornerDp = kotlin.math.min(6.0, barHeight / 2.0).dp
                         Box(
                             modifier = Modifier
-                                .width(28.dp).height(barHeight.dp)
-                                .clip(RoundedCornerShape(topStart = cornerDp, topEnd = cornerDp))
+                                .width(24.dp)
+                                .fillMaxHeight(barFraction)
+                                .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
                                 .background(
                                     brush = Brush.verticalGradient(
                                         colors = if (isToday) listOf(GreenLight, GreenPrimary)
@@ -390,14 +407,30 @@ fun WeeklySpendingChart(data: List<Pair<String, Double>>, currencyCode: String =
                                     )
                                 )
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            day, fontSize = 11.sp,
-                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isToday) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Day labels in their own row, each weighted identically to the bars
+            // above so the text stays centered under its column.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                data.forEach { (day, _) ->
+                    val isToday = day == todayLabel
+                    Text(
+                        day,
+                        fontSize = 11.sp,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isToday) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }
