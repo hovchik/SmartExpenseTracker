@@ -2115,6 +2115,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Runs the deterministic [FinancialAnalyticsEngine] over the current data set
+     * (in the user's display currency) and returns the full analysis: health score,
+     * cash-flow forecast, anomalies, recurring charges, and category trends.
+     */
+    fun analyzeFinances(): com.flowsense.app.analytics.FinancialAnalysis {
+        val data = repository.appData.value
+        val currencyCode = data.settings.currencyCode
+        return aiEngine.analyzeFinances(
+            transactionsInDisplayCurrency(currencyCode), data.budgets, data.categories
+        )
+    }
+
+    /**
      * Returns a copy of all transactions with amounts converted to [targetCurrency].
      * Original currency metadata (originalAmount, originalCurrencyCode) is always
      * preserved so further conversions can go back to the source amount.

@@ -13,6 +13,12 @@
 - Schema root is `AppData` in `data/model/Models.kt`; when adding fields, default values and Gson-backward compatibility matter.
 - Background ingestion paths (`SmsReceiver`, `BankingNotificationListener`) write through the same repository and must call `awaitInitialization()` before reads/writes.
 
+## Financial analytics engine
+- Deterministic, framework-free analysis lives in `analytics/FinancialAnalyticsEngine.kt` (no Android/network deps; JVM unit-tested in `app/src/test`).
+- One `analyze(...)` pass returns a `FinancialAnalysis`: weighted health score, EWMA+pace cash-flow forecast, robust median/MAD anomaly detection, interval-based recurring/subscription detection, and per-category trends.
+- `Statistics.kt` holds robust helpers (median, MAD, modified z-score, OLS slope, EWMA); prefer these over naive mean/stddev so outliers don't skew results.
+- `AiExpenseEngine.generateSuggestions(...)` and `MainViewModel.analyzeFinances()` delegate here; the optional LLM layer only phrases findings, it does not compute them. Inject the clock (`now`) when testing time-relative logic.
+
 ## AI subsystem (tri-mode)
 - Mode selection is centralized in `ai/provider/AiProviderSelector.kt` (`AUTO`, `SYSTEM_AI`, `LOCAL_MODEL`, `CLOUD_AI`).
 - Explicit user mode does not silently fallback; fallback behavior is mainly in `AUTO`.

@@ -50,14 +50,24 @@ The app supports three AI execution modes:
 - Validation and test prompt
 - Performance benchmark
 
-### 3. Reports & Analytics
+### 3. Financial Analytics Engine
+A deterministic, on-device analysis engine (`analytics/FinancialAnalyticsEngine`) that runs instantly with no network or model dependency:
+- **Financial Health Score** — weighted 0–100 grade from savings rate, budget adherence, spending stability, and recurring burden
+- **Cash-Flow Forecast** — projects monthly spend/income via EWMA over history blended with current-month pace, with a confidence score
+- **Anomaly Detection** — flags unusual charges using a robust median/MAD modified z-score, scoped per category
+- **Recurring-Charge Detection** — infers subscriptions from interval regularity (weekly→yearly), not category guesses
+- **Category Trends** — month-over-month rising/falling/stable detection confirmed by regression slope
+
+These power the optimization suggestions; the AI layer phrases the findings, the engine computes them.
+
+### 4. Reports & Analytics
 - **Daily Report** — Today's spending breakdown with category split
 - **Weekly Report** — 7-day trend with bar chart visualization, comparison to prior week
 - **Monthly Report** — Full month summary with top expenses, category breakdown, net balance, and avg daily spend
 - **Period Comparison** — Percentage change vs. previous period
 - **Category Breakdown** — Visual progress bars with percentage allocation
 
-### 4. Data Management
+### 5. Data Management
 - **Local JSON Storage** — All data persisted to a single JSON file (no cloud dependency)
 - **Automatic Backups** — Backup file created before every save
 - **Export/Import** — Export full dataset as JSON; import from file
