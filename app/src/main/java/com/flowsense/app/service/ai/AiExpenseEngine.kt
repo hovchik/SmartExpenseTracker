@@ -1,5 +1,8 @@
 package com.flowsense.app.service.ai
 
+import com.flowsense.app.analytics.FinancialAnalysis
+import com.flowsense.app.analytics.FinancialAnalyticsEngine
+import com.flowsense.app.analytics.TrendDirection
 import com.flowsense.app.data.model.*
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -387,6 +390,29 @@ class AiExpenseEngine {
 
     // ─── Optimization Suggestions ──────────────────────────────────
 
+    /** Deterministic finance-analysis engine that backs the data-driven suggestions. */
+    private val analytics = FinancialAnalyticsEngine()
+
+    /**
+     * Runs the full deterministic financial analysis (health score, cash-flow
+     * forecast, anomalies, recurring charges, category trends) over [transactions].
+     * Exposed so the UI/ViewModel can surface the raw findings, not just suggestions.
+     */
+    fun analyzeFinances(
+        transactions: List<Transaction>,
+        budgets: List<Budget> = emptyList(),
+        categories: List<Category> = emptyList()
+    ): FinancialAnalysis = analytics.analyze(transactions, budgets, categories)
+
+    /**
+     * Generates prioritized, actionable optimization suggestions.
+     *
+     * The heavy lifting (savings rate, anomaly detection, recurring-charge detection,
+     * category trends, cash-flow forecasting) is delegated to [FinancialAnalyticsEngine]
+     * so the math is robust and reusable; this method phrases those findings as
+     * user-facing [AiSuggestion]s. Category over-spend and budget overruns remain
+     * here because they are presentation-only heuristics.
+     */
     fun generateSuggestions(
         transactions: List<Transaction>,
         budgets: List<Budget>,
@@ -401,15 +427,115 @@ class AiExpenseEngine {
         val thirtyDaysAgo = now - 30L * 24 * 60 * 60 * 1000
         val recentExpenses = expenses.filter { it.timestamp > thirtyDaysAgo }
 
-        suggestions.addAll(detectHighSpendingCategories(recentExpenses, sym))
-        suggestions.addAll(detectSubscriptionOptimizations(recentExpenses, sym))
-        suggestions.addAll(detectSpendingSpikes(expenses, sym))
-        suggestions.addAll(detectBudgetOverruns(recentExpenses, budgets, sym, categories))
-        suggestions.addAll(detectDiningPatterns(recentExpenses, sym))
-        suggestions.addAll(detectWeekendSpending(recentExpenses, sym))
-        suggestions.addAll(detectSavingsPotential(recentExpenses, transactions))
+        val analysis = analytics.analyze(transactions, budgets, categories)
 
-        return suggestions.take(10)
+        suggestions.addAll(detectHighSpendingCategories(recentExpenses, sym))
+        suggestions.addAll(suggestRecurringReview(analysis, sym))
+        suggestions.addAll(suggestFromAnomalies(analysis, sym))
+        suggestions.addAll(suggestFromTrends(analysis, sym))
+        suggestions.addAll(detectBudgetOverruns(recentExpenses, budgets, sym, categories))
+        suggestions.addAll(suggestFromForecast(analysis, sym))
+        suggestions.addAll(suggestSavings(analysis, sym))
+
+        // Highest-impact first, then de-duplicate by title.
+        return suggestions
+            .sortedWith(compareBy({ it.priority.ordinal }, { -it.potentialSaving }))
+            .distinctBy { it.title }
+            .take(10)
+    }
+
+    /** Subscriptions / recurring charges, inferred from interval regularity. */
+    private fun suggestRecurringReview(analysis: FinancialAnalysis, sym: String): List<AiSuggestion> {
+        val recurring = analysis.recurringCharges
+        if (recurring.size < 3) return emptyList()
+        val topByCost = recurring.take(5)
+        val totalMonthly = analysis.recurringMonthlyCost
+        val examples = topByCost.joinToString(", ") {
+            "${it.merchantName} (${sym}${fmt(it.estimatedMonthlyCost)}/mo)"
+        }
+        return listOf(
+            AiSuggestion(
+                title = "Review your recurring charges",
+                description = "Detected ${recurring.size} recurring charges costing about " +
+                        "$sym${fmt(totalMonthly)}/month: $examples. Cancel any you no longer use.",
+                potentialSaving = totalMonthly * 0.25,
+                category = topByCost.first().category,
+                priority = SuggestionPriority.MEDIUM
+            )
+        )
+    }
+
+    /** Surfaces the single most unusual recent charge, if any. */
+    private fun suggestFromAnomalies(analysis: FinancialAnalysis, sym: String): List<AiSuggestion> {
+        val top = analysis.anomalies.firstOrNull() ?: return emptyList()
+        val label = top.merchantName.ifBlank { top.description }.ifBlank { top.category }
+        return listOf(
+            AiSuggestion(
+                title = "Unusual charge in ${top.category}",
+                description = "$sym${fmt(top.amount)} at $label is well above your typical " +
+                        "$sym${fmt(top.expectedAmount)} for ${top.category}. Verify it's expected.",
+                potentialSaving = (top.amount - top.expectedAmount).coerceAtLeast(0.0),
+                category = top.category,
+                priority = SuggestionPriority.HIGH
+            )
+        )
+    }
+
+    /** Flags categories whose spend is trending sharply upward. */
+    private fun suggestFromTrends(analysis: FinancialAnalysis, sym: String): List<AiSuggestion> {
+        return analysis.categoryTrends
+            .filter { it.direction == TrendDirection.RISING && it.changePercent >= 25 }
+            .take(2)
+            .map {
+                AiSuggestion(
+                    title = "${it.category} spending is climbing",
+                    description = "${it.category} rose ${it.changePercent.roundToInt()}% to about " +
+                            "$sym${fmt(it.recentMonthlyAverage)}/month (was $sym${fmt(it.previousMonthlyAverage)}). " +
+                            "Set a limit before it grows further.",
+                    potentialSaving = (it.recentMonthlyAverage - it.previousMonthlyAverage).coerceAtLeast(0.0),
+                    category = it.category,
+                    priority = SuggestionPriority.MEDIUM
+                )
+            }
+    }
+
+    /** Warns when the current month is on pace to overshoot the typical monthly spend. */
+    private fun suggestFromForecast(analysis: FinancialAnalysis, sym: String): List<AiSuggestion> {
+        val forecast = analysis.forecast
+        val baseline = analysis.monthlyAverageSpend
+        if (baseline <= 0 || forecast.confidence < 0.3) return emptyList()
+        if (forecast.projectedEndOfMonthSpend <= baseline * 1.2) return emptyList()
+        val over = forecast.projectedEndOfMonthSpend - baseline
+        return listOf(
+            AiSuggestion(
+                title = "On pace to overspend this month",
+                description = "At your current pace you'll spend about " +
+                        "$sym${fmt(forecast.projectedEndOfMonthSpend)} this month — " +
+                        "$sym${fmt(over)} over your $sym${fmt(baseline)} average.",
+                potentialSaving = over,
+                category = "General",
+                priority = SuggestionPriority.HIGH
+            )
+        )
+    }
+
+    /** Encourages improving the savings rate toward the 20% benchmark. */
+    private fun suggestSavings(analysis: FinancialAnalysis, sym: String): List<AiSuggestion> {
+        if (analysis.monthlyAverageIncome <= 0) return emptyList()
+        val rate = analysis.savingsRate
+        if (rate >= 0.20) return emptyList()
+        val targetSaving = analysis.monthlyAverageIncome * 0.20 -
+                (analysis.monthlyAverageIncome - analysis.monthlyAverageSpend)
+        return listOf(
+            AiSuggestion(
+                title = "Improve your savings rate",
+                description = "Your savings rate is ${(rate * 100).roundToInt()}%. Experts recommend " +
+                        "at least 20%. Trimming discretionary spending by ~$sym${fmt(targetSaving.coerceAtLeast(0.0))}/month gets you there.",
+                potentialSaving = targetSaving.coerceAtLeast(0.0),
+                category = "General",
+                priority = if (rate < 0.10) SuggestionPriority.HIGH else SuggestionPriority.MEDIUM
+            )
+        )
     }
 
     private fun detectHighSpendingCategories(expenses: List<Transaction>, sym: String): List<AiSuggestion> {
@@ -435,47 +561,6 @@ class AiExpenseEngine {
         return suggestions
     }
 
-    private fun detectSubscriptionOptimizations(expenses: List<Transaction>, sym: String): List<AiSuggestion> {
-        val suggestions = mutableListOf<AiSuggestion>()
-        val possibleSubs = expenses.filter {
-            it.category == "Entertainment" || it.category == "Bills & Utilities"
-        }
-        val merchantCounts = possibleSubs
-            .filter { it.merchantName.isNotEmpty() }
-            .groupBy { it.merchantName.lowercase() }
-            .filter { it.value.size > 1 }
-        if (merchantCounts.size > 3) {
-            val totalSubCost = merchantCounts.values.flatten().sumOf { it.amount }
-            suggestions.add(AiSuggestion(
-                title = "Review your subscriptions",
-                description = "You have ${merchantCounts.size} recurring subscriptions totaling " +
-                        "$sym${String.format("%.2f", totalSubCost)}. Consider consolidating or canceling unused ones.",
-                potentialSaving = totalSubCost * 0.25, category = "Entertainment",
-                priority = SuggestionPriority.MEDIUM
-            ))
-        }
-        return suggestions
-    }
-
-    private fun detectSpendingSpikes(expenses: List<Transaction>, sym: String): List<AiSuggestion> {
-        val suggestions = mutableListOf<AiSuggestion>()
-        val now = System.currentTimeMillis()
-        val oneWeekAgo = now - 7L * 24 * 60 * 60 * 1000
-        val twoWeeksAgo = now - 14L * 24 * 60 * 60 * 1000
-        val thisWeek = expenses.filter { it.timestamp > oneWeekAgo }.sumOf { it.amount }
-        val lastWeek = expenses.filter { it.timestamp in twoWeeksAgo..oneWeekAgo }.sumOf { it.amount }
-        if (lastWeek > 0 && thisWeek > lastWeek * 1.5) {
-            suggestions.add(AiSuggestion(
-                title = "Spending spike detected",
-                description = "This week's spending ($sym${String.format("%.2f", thisWeek)}) is " +
-                        "${((thisWeek / lastWeek - 1) * 100).roundToInt()}% higher than last week.",
-                potentialSaving = thisWeek - lastWeek, category = "General",
-                priority = SuggestionPriority.HIGH
-            ))
-        }
-        return suggestions
-    }
-
     private fun detectBudgetOverruns(expenses: List<Transaction>, budgets: List<Budget>, sym: String, categories: List<Category> = emptyList()): List<AiSuggestion> {
         val suggestions = mutableListOf<AiSuggestion>()
         for (budget in budgets) {
@@ -490,74 +575,6 @@ class AiExpenseEngine {
                     description = "You've used $percentage% of your $sym${String.format("%.2f", budget.monthlyLimit)} budget.",
                     potentialSaving = spent - budget.monthlyLimit, category = categoryName,
                     priority = if (spent > budget.monthlyLimit) SuggestionPriority.HIGH else SuggestionPriority.MEDIUM
-                ))
-            }
-        }
-        return suggestions
-    }
-
-    private fun detectDiningPatterns(expenses: List<Transaction>, sym: String): List<AiSuggestion> {
-        val suggestions = mutableListOf<AiSuggestion>()
-        val dining = expenses.filter { it.category == "Food & Dining" }
-        if (dining.size > 10) {
-            val total = dining.sumOf { it.amount }
-            val avgMeal = total / dining.size
-            suggestions.add(AiSuggestion(
-                title = "Dining out frequency",
-                description = "You've dined out ${dining.size} times recently, averaging " +
-                        "$sym${String.format("%.2f", avgMeal)} per meal. Cooking at home 2 more " +
-                        "days per week could save significant money.",
-                potentialSaving = avgMeal * 8, category = "Food & Dining",
-                priority = SuggestionPriority.MEDIUM
-            ))
-        }
-        return suggestions
-    }
-
-    private fun detectWeekendSpending(expenses: List<Transaction>, sym: String): List<AiSuggestion> {
-        val suggestions = mutableListOf<AiSuggestion>()
-        val cal = Calendar.getInstance()
-        val weekend = expenses.filter {
-            cal.timeInMillis = it.timestamp
-            cal.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY || cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY
-        }
-        val weekday = expenses.filter {
-            cal.timeInMillis = it.timestamp
-            val d = cal.get(Calendar.DAY_OF_WEEK)
-            d != Calendar.SATURDAY && d != Calendar.SUNDAY
-        }
-        if (weekend.isNotEmpty() && weekday.isNotEmpty()) {
-            val avgWeekend = weekend.sumOf { it.amount } / (weekend.size.coerceAtLeast(1))
-            val avgWeekday = weekday.sumOf { it.amount } / (weekday.size.coerceAtLeast(1))
-            if (avgWeekend > avgWeekday * 2) {
-                suggestions.add(AiSuggestion(
-                    title = "Weekend spending is high",
-                    description = "Your average weekend transaction ($sym${String.format("%.2f", avgWeekend)}) " +
-                            "is ${(avgWeekend / avgWeekday).roundToInt()}x higher than weekday ($sym${String.format("%.2f", avgWeekday)}).",
-                    potentialSaving = (avgWeekend - avgWeekday) * 8, category = "General",
-                    priority = SuggestionPriority.LOW
-                ))
-            }
-        }
-        return suggestions
-    }
-
-    private fun detectSavingsPotential(expenses: List<Transaction>, all: List<Transaction>): List<AiSuggestion> {
-        val suggestions = mutableListOf<AiSuggestion>()
-        val now = System.currentTimeMillis()
-        val thirtyDaysAgo = now - 30L * 24 * 60 * 60 * 1000
-        val recentIncome = all.filter { it.type == TransactionType.INCOME && it.timestamp > thirtyDaysAgo }.sumOf { it.amount }
-        val recentSpend = expenses.filter { it.timestamp > thirtyDaysAgo }.sumOf { it.amount }
-        if (recentIncome > 0) {
-            val savingsRate = (1 - recentSpend / recentIncome) * 100
-            if (savingsRate < 20) {
-                suggestions.add(AiSuggestion(
-                    title = "Improve your savings rate",
-                    description = "Your savings rate is ${savingsRate.roundToInt()}%. " +
-                            "Experts recommend at least 20%. Try reducing discretionary spending.",
-                    potentialSaving = recentIncome * 0.2 - (recentIncome - recentSpend),
-                    category = "General",
-                    priority = if (savingsRate < 10) SuggestionPriority.HIGH else SuggestionPriority.MEDIUM
                 ))
             }
         }
