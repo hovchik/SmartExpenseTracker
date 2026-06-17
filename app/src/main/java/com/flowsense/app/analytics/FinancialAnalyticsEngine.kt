@@ -68,7 +68,7 @@ class FinancialAnalyticsEngine(
 
         val monthlySpend = monthlyTotals(expenses)
         val monthlyIncome = monthlyTotals(income)
-        val monthsOfHistory = monthlySpend.size
+        val monthsOfHistory = monthlySpend.points.size
 
         val avgMonthlySpend = completedMonthAverage(monthlySpend)
         val avgMonthlyIncome = completedMonthAverage(monthlyIncome)
