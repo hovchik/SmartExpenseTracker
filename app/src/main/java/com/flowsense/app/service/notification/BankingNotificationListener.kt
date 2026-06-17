@@ -9,6 +9,7 @@ import com.flowsense.app.FlowSenseApp
 import com.flowsense.app.data.model.GeoLocation
 import com.flowsense.app.data.model.InAppNotification
 import com.flowsense.app.data.model.InAppNotificationType
+import com.flowsense.app.data.model.PatternKind
 import com.flowsense.app.data.model.StoreLocation
 import com.flowsense.app.data.model.Transaction
 import com.flowsense.app.data.model.TransactionSource
@@ -188,6 +189,31 @@ class BankingNotificationListener : NotificationListenerService() {
                     if (!settings.notificationListenerEnabled) {
                         Log.d(TAG, "Notification listener disabled in settings, skipping")
                         return@launch
+                    }
+
+                    // ── Source pattern: learn this app, honor exclusions ──
+                    // A notification from a new app creates a PENDING pattern (tracked by
+                    // default) and surfaces an in-app prompt so the user can decide to
+                    // keep tracking it or ignore the app from Settings → Message Sources.
+                    val (pattern, isNewPattern) = repo.recordMessagePattern(
+                        kind = PatternKind.NOTIFICATION,
+                        rawSource = packageName,
+                        displayName = appName,
+                        sampleText = fullText
+                    )
+                    if (!pattern.isTracked) {
+                        Log.d(TAG, "Notification skipped: $packageName is excluded by pattern")
+                        return@launch
+                    }
+                    if (isNewPattern) {
+                        repo.addInAppNotification(
+                            InAppNotification(
+                                title = "New notification source detected",
+                                message = "Transactions from \"$appName\" notifications are now being tracked. " +
+                                    "Review it under Settings → Message Sources to keep or ignore this app.",
+                                type = InAppNotificationType.NEW_SOURCE_DETECTED
+                            )
+                        )
                     }
 
                     val aiEngine = AiExpenseEngine()

@@ -57,7 +57,11 @@ class SmsInboxScanner(private val context: Context) {
         val transactionsParsed: Int,
         val transactions: List<Transaction>,
         val errors: Int,
-        val errorMessage: String? = null
+        val errorMessage: String? = null,
+        /** Financial-message senders seen during this scan: original sender → sample body. */
+        val sendersSampled: Map<String, String> = emptyMap(),
+        /** Number of messages skipped because their sender is excluded by a pattern. */
+        val excludedBySender: Int = 0
     )
 
     /** Returns total number of SMS messages in the inbox. */
@@ -80,7 +84,8 @@ class SmsInboxScanner(private val context: Context) {
         startDate: Long? = null,
         endDate: Long? = null,
         customIncomeKeywords: List<String> = emptyList(),
-        customExpenseKeywords: List<String> = emptyList()
+        customExpenseKeywords: List<String> = emptyList(),
+        excludedSenderKeys: Set<String> = emptySet()
     ): ScanResult {
         val aiEngine: AiExpenseEngine = try {
             AiExpenseEngine()
@@ -114,7 +119,8 @@ class SmsInboxScanner(private val context: Context) {
                     startDate = startDate,
                     endDate = endDate,
                     customIncomeKeywords = customIncomeKeywords,
-                    customExpenseKeywords = customExpenseKeywords
+                    customExpenseKeywords = customExpenseKeywords,
+                    excludedSenderKeys = excludedSenderKeys
                 )
                 if (result != null) return result
             } catch (e: Throwable) {
@@ -153,11 +159,13 @@ class SmsInboxScanner(private val context: Context) {
         gateKeywords: List<String>,
         startDate: Long?, endDate: Long?,
         customIncomeKeywords: List<String>,
-        customExpenseKeywords: List<String>
+        customExpenseKeywords: List<String>,
+        excludedSenderKeys: Set<String>
     ): ScanResult? {
         val transactions = mutableListOf<Transaction>()
         val transactionCards = mutableListOf<String>()
-        var totalScanned = 0; var financialFound = 0; var errors = 0
+        val sendersSampled = mutableMapOf<String, String>()
+        var totalScanned = 0; var financialFound = 0; var errors = 0; var excludedBySender = 0
 
         // Build date range selection clause
         val selectionParts = mutableListOf<String>()
@@ -206,6 +214,16 @@ class SmsInboxScanner(private val context: Context) {
                         // Cheap early filter before any allocation-heavy work.
                         val sender = safeStr(c, addressIdx) ?: "unknown"
                         if (!isFinancialMessage(sender, body, gateKeywords)) continue
+
+                        // Respect user-excluded source patterns.
+                        if (sender.trim().lowercase() in excludedSenderKeys) {
+                            excludedBySender++
+                            continue
+                        }
+
+                        // Remember sender (first sample wins) so the caller can
+                        // create/refresh MessagePatterns after the scan.
+                        sendersSampled.getOrPut(sender) { body.take(200) }
 
                         if (!isInboxUri && typeIdx >= 0) {
                             val t = safeInt(c, typeIdx) ?: 1
@@ -256,7 +274,10 @@ class SmsInboxScanner(private val context: Context) {
             } catch (_: Throwable) { errors++ }
         }
 
-        return ScanResult(totalScanned, financialFound, transactions.size, transactions, errors)
+        return ScanResult(
+            totalScanned, financialFound, transactions.size, transactions, errors,
+            sendersSampled = sendersSampled, excludedBySender = excludedBySender
+        )
     }
 
     private fun findCol(cols: Array<String>, name: String): Int {

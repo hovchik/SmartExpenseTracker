@@ -176,6 +176,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _recurringPatterns = MutableStateFlow<List<RecurringPattern>>(emptyList())
     val recurringPatterns: StateFlow<List<RecurringPattern>> = _recurringPatterns.asStateFlow()
 
+    /** Learned SMS-sender / notification-app source patterns. */
+    private val _messagePatterns = MutableStateFlow<List<MessagePattern>>(emptyList())
+    val messagePatterns: StateFlow<List<MessagePattern>> = _messagePatterns.asStateFlow()
+
+    /** Count of patterns awaiting a user decision (badge in Settings). */
+    val pendingPatternCount: StateFlow<Int> = _messagePatterns
+        .map { list -> list.count { it.status == PatternStatus.PENDING } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
     init {
         // Start battery monitoring immediately
         batteryMonitor.startMonitoring()
@@ -232,6 +241,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _inAppNotifications.value = data.inAppNotifications
                 _ocrSections.value = data.ocrSections
                 _aiConversations.value = data.aiConversations
+                _messagePatterns.value = data.messagePatterns.orEmpty()
                 updateUiState(data)
             }
         }
@@ -326,26 +336,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        val monthlyExpenses = activeTransactions
-            .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfMonth..endOfMonth }
-            .sumOf { convertAmount(it, appCurrency) }
-        val monthlyIncome = activeTransactions
-            .filter { it.type == TransactionType.INCOME && it.timestamp in startOfMonth..endOfMonth }
-            .sumOf { convertAmount(it, appCurrency) }
-        val todayExpenses = activeTransactions
-            .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfDay..endOfDay }
-            .sumOf { convertAmount(it, appCurrency) }
-        val weeklyExpenses = activeTransactions
-            .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfWeek..endOfWeek }
-            .sumOf { convertAmount(it, appCurrency) }
+        // Single pass over all active transactions: every dashboard aggregate
+        // (monthly/weekly/daily sums, category breakdown, weekly chart) is
+        // accumulated in one loop with at most one convertAmount() call per
+        // transaction, instead of re-filtering the full list per metric.
+        var monthlyExpenses = 0.0
+        var monthlyIncome = 0.0
+        var todayExpenses = 0.0
+        var weeklyExpenses = 0.0
+        val categoryTotals = HashMap<String, Double>()
+        val weekDays = DateUtils.getDaysInRange(startOfWeek, endOfWeek)
+        val weekDayTotals = DoubleArray(weekDays.size)
+
+        for (tx in activeTransactions) {
+            val ts = tx.timestamp
+            val inMonth = ts in startOfMonth..endOfMonth
+            val inWeek = ts in startOfWeek..endOfWeek
+            val inDay = ts in startOfDay..endOfDay
+            if (!inMonth && !inWeek && !inDay) continue
+            val converted = convertAmount(tx, appCurrency)
+            if (tx.type == TransactionType.EXPENSE) {
+                if (inMonth) {
+                    monthlyExpenses += converted
+                    categoryTotals.merge(tx.category, converted, Double::plus)
+                }
+                if (inDay) todayExpenses += converted
+                if (inWeek) {
+                    weeklyExpenses += converted
+                    val dayIdx = weekDays.indexOfLast { ts >= it }
+                    if (dayIdx >= 0) weekDayTotals[dayIdx] += converted
+                }
+            } else if (inMonth) {
+                monthlyIncome += converted
+            }
+        }
 
         val allTransactionsSorted = activeTransactions.sortedByDescending { it.timestamp }
         val recentTransactions = allTransactionsSorted.take(20)
-        val categoryBreakdown = activeTransactions
-            .filter { it.type == TransactionType.EXPENSE && it.timestamp in startOfMonth..endOfMonth }
-            .groupBy { it.category }
-            .mapValues { it.value.sumOf { t -> convertAmount(t, appCurrency) } }
-            .entries.sortedByDescending { it.value }
+        val categoryBreakdown = categoryTotals.entries
+            .sortedByDescending { it.value }
             .associate { it.key to it.value }
 
         // Group recent transactions by date for the date-grouped view
@@ -353,13 +382,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val transactionsByDate: Map<String, List<Transaction>> = recentTransactions
             .groupBy { dateFormatter.format(Date(it.timestamp)) }
 
-        // Compute weekly chart data (daily expense totals for the current week)
-        val weeklyChartData = DateUtils.getDaysInRange(startOfWeek, endOfWeek).map { dayStart ->
-            val dayEnd = DateUtils.getEndOfDay(dayStart)
-            val total = activeTransactions
-                .filter { it.type == TransactionType.EXPENSE && it.timestamp in dayStart..dayEnd }
-                .sumOf { convertAmount(it, appCurrency) }
-            DateUtils.formatDay(dayStart) to total
+        // Weekly chart data (daily expense totals for the current week)
+        val weeklyChartData = weekDays.mapIndexed { i, dayStart ->
+            DateUtils.formatDay(dayStart) to weekDayTotals[i]
         }
 
         _uiState.value = UiState(
@@ -2874,13 +2899,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 startDate = startDate,
                                 endDate = endDate,
                                 customIncomeKeywords = settings.incomeKeywords,
-                                customExpenseKeywords = settings.expenseKeywords
+                                customExpenseKeywords = settings.expenseKeywords,
+                                excludedSenderKeys = repository.excludedSourceKeys(PatternKind.SMS)
                             )
                     } catch (e: Throwable) {
                         com.flowsense.app.service.sms.SmsInboxScanner.ScanResult(
                             0, 0, 0, emptyList(), 1, "Error: ${e.message}"
                         )
                     }
+                }
+
+                // Learn/refresh a source pattern for every financial sender seen
+                // in this scan, so the user can include/exclude them later.
+                for ((sender, sample) in result.sendersSampled) {
+                    repository.recordMessagePattern(
+                        kind = PatternKind.SMS,
+                        rawSource = sender,
+                        displayName = sender,
+                        sampleText = sample
+                    )
                 }
 
                 _smsScanState.value = SmsScanState(
@@ -2909,6 +2946,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val settings = repository.appData.value.settings
             val appCurrency = settings.currencyCode
 
+            // Prepare all transactions first (currency conversion, note cleanup),
+            // then persist with two batch writes instead of two full-file JSON
+            // rewrites per transaction.
+            val prepared = mutableListOf<Transaction>()
             for ((index, tx) in pending.withIndex()) {
                 _smsScanState.value = _smsScanState.value.copy(savingProgress = index + 1)
 
@@ -2940,22 +2981,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     .filter { !it.startsWith("parsedCurrency:") }
                     .joinToString("\n").trim()
 
-                val finalTx = tx.copy(
+                prepared.add(tx.copy(
                     amount = finalAmount,
                     notes = cleanNotes,
                     currencyCode = appCurrency,
                     originalAmount = origAmount,
                     originalCurrencyCode = origCode,
                     exchangeRate = rate
-                )
-
-                // Auto-create category if not in the existing list
-                repository.ensureCategoryExists(finalTx.category)
-                repository.addTransaction(finalTx)
+                ))
             }
+
+            // Auto-create any missing categories, then save everything at once.
+            repository.ensureCategoriesExist(prepared.map { it.category }.toSet())
+            val saved = repository.addTransactions(prepared)
+
             _smsScanState.value = _smsScanState.value.copy(
                 isSaving = false, pendingTransactions = emptyList(),
-                savedCount = pending.size, savingProgress = 0, savingTotal = 0
+                savedCount = saved, savingProgress = 0, savingTotal = 0
             )
             refreshSuggestions()
         }
@@ -3127,6 +3169,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository.updateSettings(updated)
             scanForBankingApps()
         }
+    }
+
+    // ─── Message Source Patterns ──────────────────────────────────
+
+    /** Keep tracking a detected source (SMS sender or notification app). */
+    fun includeMessagePattern(id: String) {
+        viewModelScope.launch { repository.setMessagePatternStatus(id, PatternStatus.INCLUDED) }
+    }
+
+    /** Stop tracking a detected source; its future messages are ignored. */
+    fun excludeMessagePattern(id: String) {
+        viewModelScope.launch { repository.setMessagePatternStatus(id, PatternStatus.EXCLUDED) }
+    }
+
+    /** Forget a learned pattern entirely (re-detected as new if seen again). */
+    fun deleteMessagePattern(id: String) {
+        viewModelScope.launch { repository.deleteMessagePattern(id) }
     }
 
     // ─── In-App Notification Management ───────────────────────────

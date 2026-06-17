@@ -89,6 +89,8 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     val batteryState by viewModel.batteryMonitor.batteryState.collectAsState()
     val aiExpenseReductionTips by viewModel.aiExpenseReductionTips.collectAsState()
     val storeLocations by viewModel.storeLocations.collectAsState()
+    val messagePatterns by viewModel.messagePatterns.collectAsState()
+    val pendingPatternCount by viewModel.pendingPatternCount.collectAsState()
     val isSubscribed by viewModel.isSubscribed.collectAsState()
     val billingError by viewModel.subscriptionManager.billingError.collectAsState()
     val scope = rememberCoroutineScope()
@@ -137,6 +139,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     BackHandler(enabled = currentScreen != "dashboard") {
         when (currentScreen) {
             "sms_scan"         -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
+            "message_patterns" -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
             "voice_input"      -> { currentScreen = voiceInputOrigin }
             "store_map"        -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
             "ocr_sections"     -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
@@ -148,7 +151,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     }
 
     // Hide the top bar on full-screen sub-screens (they have their own top bar)
-    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup", "trash", "voice_input")
+    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "message_patterns", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup", "trash", "voice_input")
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -204,7 +207,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
             }
         },
         bottomBar = {
-            if (currentScreen !in listOf("add", "scan", "sms_scan", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup", "trash", "voice_input")) {
+            if (currentScreen !in listOf("add", "scan", "sms_scan", "message_patterns", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup", "trash", "voice_input")) {
                 NavigationBar(tonalElevation = 2.dp) {
                     // Home
                     NavigationBarItem(
@@ -393,6 +396,13 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         onNavigateBack = { currentScreen = "dashboard"; viewModel.setSelectedTab(0) },
                         onNavigateToScan = { currentScreen = "scan" }
                     )
+                    "message_patterns" -> MessagePatternsScreen(
+                        patterns = messagePatterns,
+                        onInclude = { viewModel.includeMessagePattern(it) },
+                        onExclude = { viewModel.excludeMessagePattern(it) },
+                        onDelete = { viewModel.deleteMessagePattern(it) },
+                        onNavigateBack = { currentScreen = "settings"; viewModel.setSelectedTab(3) }
+                    )
                     "sms_scan" -> SmsScanScreen(
                         scanState = smsScanState,
                         totalSmsCount = totalSmsCount,
@@ -450,6 +460,9 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         importExportMessage = importExportMessage,
                         onClearMessage = { viewModel.clearImportExportMessage() },
                         onScanSms = { currentScreen = "sms_scan" },
+                        onOpenMessagePatterns = { currentScreen = "message_patterns" },
+                        pendingPatternCount = pendingPatternCount,
+                        totalPatternCount = messagePatterns.size,
                         exchangeRates = exchangeRates,
                         onFetchRates = { viewModel.fetchExchangeRates() },
                         categories = uiState.categories,

@@ -72,6 +72,10 @@ fun SettingsScreen(
     importExportMessage: String?,
     onClearMessage: () -> Unit,
     onScanSms: () -> Unit,
+    // ── Message source patterns (SMS senders / notification apps) ──
+    onOpenMessagePatterns: () -> Unit = {},
+    pendingPatternCount: Int = 0,
+    totalPatternCount: Int = 0,
     /** Null = not yet fetched; empty map = fetch failed. */
     exchangeRates: Map<String, Double> = emptyMap(),
     onFetchRates: () -> Unit = {},
@@ -881,6 +885,61 @@ fun SettingsScreen(
             Icon(Icons.Filled.Sms, contentDescription = null, modifier = Modifier.size(22.dp))
             Spacer(modifier = Modifier.width(10.dp))
             Text("Scan SMS Inbox for Transactions", fontWeight = FontWeight.SemiBold)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ─── Message Sources (learned SMS/notification patterns) ────
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onOpenMessagePatterns() },
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Filled.FilterList,
+                    contentDescription = null,
+                    tint = BluePrimary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Message Sources", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                    Text(
+                        if (totalPatternCount == 0)
+                            "Detected SMS senders & notification apps appear here — include or exclude each one"
+                        else
+                            "$totalPatternCount source(s) learned" +
+                                (if (pendingPatternCount > 0) " · $pendingPatternCount awaiting your decision" else ""),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (pendingPatternCount > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = OrangeWarning
+                    ) {
+                        Text(
+                            "$pendingPatternCount",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Icon(
+                    Icons.Filled.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
