@@ -55,6 +55,8 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     val selectedTab by viewModel.selectedTab.collectAsState()
     val reportPeriod by viewModel.reportPeriod.collectAsState()
     val importExportMessage by viewModel.importExportMessage.collectAsState()
+    val isRecategorizing by viewModel.isRecategorizing.collectAsState()
+    val recategorizeStatus by viewModel.recategorizeStatus.collectAsState()
     val smsScanState by viewModel.smsScanState.collectAsState()
     val totalSmsCount by viewModel.totalSmsCount.collectAsState()
     val exchangeRates by viewModel.exchangeRates.collectAsState()
@@ -346,6 +348,10 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         categories = uiState.categories.map { it.name },
                         onBatchDelete = { ids -> viewModel.batchDelete(ids) },
                         onBatchRecategorize = { ids, cat -> viewModel.batchRecategorize(ids, cat) },
+                        onRecategorizeDate = { millis -> viewModel.recategorizeTransactionsForDate(millis) },
+                        isRecategorizing = isRecategorizing,
+                        recategorizeStatus = recategorizeStatus,
+                        onRecategorizeStatusShown = { viewModel.clearRecategorizeStatus() },
                         onNavigateToTrash = { currentScreen = "trash" },
                         trashCount = viewModel.getDeletedTransactions().size
                     )

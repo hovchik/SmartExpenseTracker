@@ -176,6 +176,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _recurringPatterns = MutableStateFlow<List<RecurringPattern>>(emptyList())
     val recurringPatterns: StateFlow<List<RecurringPattern>> = _recurringPatterns.asStateFlow()
 
+    /**
+     * Progress/result message for the date-based re-categorization action.
+     * `null` when idle. The UI observes this to show a snackbar/toast and
+     * to disable the trigger while a run is in flight ([isRecategorizing]).
+     */
+    private val _recategorizeStatus = MutableStateFlow<String?>(null)
+    val recategorizeStatus: StateFlow<String?> = _recategorizeStatus.asStateFlow()
+
+    private val _isRecategorizing = MutableStateFlow(false)
+    val isRecategorizing: StateFlow<Boolean> = _isRecategorizing.asStateFlow()
+
+    /** Clears the transient re-categorization status after the UI has shown it. */
+    fun clearRecategorizeStatus() { _recategorizeStatus.value = null }
+
     /** Learned SMS-sender / notification-app source patterns. */
     private val _messagePatterns = MutableStateFlow<List<MessagePattern>>(emptyList())
     val messagePatterns: StateFlow<List<MessagePattern>> = _messagePatterns.asStateFlow()
@@ -1395,6 +1409,80 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun batchRecategorize(ids: Set<String>, newCategory: String) {
         viewModelScope.launch { repository.batchRecategorize(ids, newCategory) }
+    }
+
+    /**
+     * Re-runs smart categorization on every active (non-deleted) transaction
+     * that falls on the calendar day containing [dateMillis], and writes the
+     * new categories back in a single save.
+     *
+     * This lets users repair a day whose transactions were mis-categorized
+     * (e.g. a batch that all landed in "Shopping") without editing each one by
+     * hand. Because the auto-assigned and user-picked categories are stored the
+     * same way, and this is an explicit user-triggered action, every active
+     * transaction on the day is re-evaluated; a transaction is only rewritten
+     * when categorization produces a different, non-blank category.
+     *
+     * Progress and the final count are published on [recategorizeStatus].
+     */
+    fun recategorizeTransactionsForDate(dateMillis: Long) {
+        if (_isRecategorizing.value) return
+        viewModelScope.launch {
+            _isRecategorizing.value = true
+            try {
+                val dayStart = DateUtils.getStartOfDay(dateMillis)
+                val dayEnd = DateUtils.getEndOfDay(dateMillis)
+                val dateLabel = DateUtils.formatShortDate(dateMillis)
+
+                val candidates = repository.appData.value.transactions.filter { tx ->
+                    !tx.isDeleted && tx.timestamp in dayStart..dayEnd
+                }
+
+                if (candidates.isEmpty()) {
+                    _recategorizeStatus.value = "No transactions to re-categorize on $dateLabel."
+                    return@launch
+                }
+
+                // The spinner (isRecategorizing) signals progress; a single
+                // result toast is emitted once the run completes.
+                val updates = mutableListOf<Transaction>()
+                var changed = 0
+                for (tx in candidates) {
+                    val result = smartCategorize(
+                        description = tx.description,
+                        isExpense = tx.type == TransactionType.EXPENSE,
+                        merchantName = tx.merchantName,
+                        amount = tx.amount,
+                        tags = tx.tags,
+                        notes = tx.notes,
+                        isRecurring = tx.isRecurring,
+                        dateTime = tx.dateTime,
+                        source = tx.source.name,
+                        hasLocation = tx.hasLocation
+                    )
+                    if (result.category.isNotBlank() && result.category != tx.category) {
+                        updates += tx.copy(
+                            category = result.category,
+                            categorizedByAi = result.byAi
+                        )
+                        changed++
+                    }
+                }
+
+                repository.updateTransactions(updates)
+
+                _recategorizeStatus.value = when (changed) {
+                    0 -> "No category changes needed for $dateLabel."
+                    1 -> "Re-categorized 1 transaction from $dateLabel."
+                    else -> "Re-categorized $changed transactions from $dateLabel."
+                }
+            } catch (e: Exception) {
+                Log.w("SmartCategorize", "Date re-categorization failed: ${e.message}")
+                _recategorizeStatus.value = "Re-categorization failed. Please try again."
+            } finally {
+                _isRecategorizing.value = false
+            }
+        }
     }
 
     fun batchDelete(ids: Set<String>) {
