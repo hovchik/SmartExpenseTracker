@@ -23,10 +23,10 @@ import com.flowsense.app.util.CurrencyUtils
 import com.flowsense.app.util.DateUtils
 
 /**
- * Dedicated screen for running smart categorization over a chosen day's
- * transactions. The user picks a date and taps "Run categorization"; the result
- * lists every transaction on that day with its (new) category, highlighting the
- * ones whose category changed (old → new).
+ * Dedicated screen for running smart categorization over a chosen date range's
+ * transactions. The user picks a start/end day and taps "Run categorization";
+ * the result lists every transaction in range with its (new) category,
+ * highlighting the ones whose category changed (old → new).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,11 +34,16 @@ fun CategorizeScreen(
     outcome: RecategorizationOutcome?,
     isRecategorizing: Boolean,
     currencyCode: String = "USD",
-    onRunForDate: (Long) -> Unit,
+    onRunForRange: (Long, Long) -> Unit,
     onNavigateBack: () -> Unit
 ) {
-    var selectedDate by remember { mutableStateOf(System.currentTimeMillis()) }
-    var showDatePicker by remember { mutableStateOf(false) }
+    // Local-noon millis for the selected day range (defaults to today only).
+    // Noon (not midnight) keeps the calendar date stable when the picker maps
+    // it through UTC in any timezone.
+    val todayNoon = remember { DateUtils.getStartOfDay() + 12L * 60 * 60 * 1000 }
+    var rangeStart by remember { mutableStateOf(todayNoon) }
+    var rangeEnd by remember { mutableStateOf(todayNoon) }
+    var showRangePicker by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -57,7 +62,7 @@ fun CategorizeScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // ── Date + run controls ────────────────────────────────────
+            // ── Range + run controls ───────────────────────────────────
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -67,22 +72,22 @@ fun CategorizeScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        "Re-run categorization on a day's transactions",
+                        "Re-run categorization on a date range",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Smart categorization will re-evaluate every transaction on the " +
-                            "selected day and update any whose category has changed.",
+                        "Categorization will re-evaluate every transaction in the " +
+                            "selected range and update any whose category has changed.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(12.dp))
 
-                    // Selected-day pill
+                    // Selected-range pill
                     Surface(
-                        onClick = { showDatePicker = true },
+                        onClick = { showRangePicker = true },
                         shape = RoundedCornerShape(12.dp),
                         color = MaterialTheme.colorScheme.surface,
                         modifier = Modifier.fillMaxWidth()
@@ -91,18 +96,18 @@ fun CategorizeScreen(
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Filled.CalendarMonth, contentDescription = null,
+                            Icon(Icons.Filled.DateRange, contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
-                                Text("Day", style = MaterialTheme.typography.labelSmall,
+                                Text("Range", style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(DateUtils.formatShortDate(selectedDate),
+                                Text(rangeLabel(rangeStart, rangeEnd),
                                     style = MaterialTheme.typography.bodyLarge,
                                     fontWeight = FontWeight.SemiBold)
                             }
-                            Icon(Icons.Filled.Edit, contentDescription = "Change day",
+                            Icon(Icons.Filled.Edit, contentDescription = "Change range",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp))
                         }
@@ -111,7 +116,7 @@ fun CategorizeScreen(
                     Spacer(Modifier.height(12.dp))
 
                     Button(
-                        onClick = { onRunForDate(selectedDate) },
+                        onClick = { onRunForRange(rangeStart, rangeEnd) },
                         enabled = !isRecategorizing,
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -141,14 +146,14 @@ fun CategorizeScreen(
                     EmptyHint(
                         icon = Icons.Filled.AutoAwesome,
                         title = "Ready to categorize",
-                        subtitle = "Pick a day and run categorization to see the results here."
+                        subtitle = "Pick a range and run categorization to see the results here."
                     )
                 }
                 outcome.items.isEmpty() -> {
                     EmptyHint(
-                        icon = Icons.Filled.EventBusy,
+                        icon = Icons.Filled.SearchOff,
                         title = "No transactions",
-                        subtitle = "There are no transactions on ${outcome.dateLabel}."
+                        subtitle = "There are no transactions in ${outcome.rangeLabel}."
                     )
                 }
                 else -> {
@@ -162,9 +167,9 @@ fun CategorizeScreen(
                         val changed = outcome.changedCount
                         Text(
                             if (changed == 0)
-                                "No changes · ${outcome.items.size} checked on ${outcome.dateLabel}"
+                                "No changes · ${outcome.items.size} checked in ${outcome.rangeLabel}"
                             else
-                                "$changed updated · ${outcome.items.size} checked on ${outcome.dateLabel}",
+                                "$changed updated · ${outcome.items.size} checked in ${outcome.rangeLabel}",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -185,25 +190,54 @@ fun CategorizeScreen(
         }
     }
 
-    if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDate)
+    if (showRangePicker) {
+        val pickerState = rememberDateRangePickerState(
+            initialSelectedStartDateMillis = rangeStart,
+            initialSelectedEndDateMillis = rangeEnd
+        )
         DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
+            onDismissRequest = { showRangePicker = false },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        datePickerState.selectedDateMillis?.let { selectedDate = it }
-                        showDatePicker = false
+                        val start = pickerState.selectedStartDateMillis
+                        val end = pickerState.selectedEndDateMillis
+                        if (start != null) {
+                            // Picker reports UTC midnight; normalise to local day.
+                            rangeStart = DateUtils.pickerUtcToLocalMillis(start)
+                            rangeEnd = DateUtils.pickerUtcToLocalMillis(end ?: start)
+                        }
+                        showRangePicker = false
                     },
-                    enabled = datePickerState.selectedDateMillis != null
+                    enabled = pickerState.selectedStartDateMillis != null
                 ) { Text("Select") }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showRangePicker = false }) { Text("Cancel") }
             }
         ) {
-            DatePicker(state = datePickerState)
+            DateRangePicker(
+                state = pickerState,
+                title = {
+                    Text(
+                        "Select a date range",
+                        modifier = Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp)
+                    )
+                },
+                modifier = Modifier.height(480.dp)
+            )
         }
+    }
+}
+
+/** "Jul 24, 2026" for a single day, else "Jul 20 – Jul 24, 2026". */
+private fun rangeLabel(startMillis: Long, endMillis: Long): String {
+    val lo = minOf(startMillis, endMillis)
+    val hi = maxOf(startMillis, endMillis)
+    return if (DateUtils.getStartOfDay(lo) == DateUtils.getStartOfDay(hi)) {
+        DateUtils.formatDate(lo)
+    } else {
+        "${DateUtils.formatShortDate(lo)} – ${DateUtils.formatDate(hi)}"
     }
 }
 
@@ -229,6 +263,12 @@ private fun CategorizeResultRow(item: RecategorizedItem, currencyCode: String) {
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    DateUtils.formatShortDate(tx.timestamp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(4.dp))
                 // Category: old → new when changed, else just the category

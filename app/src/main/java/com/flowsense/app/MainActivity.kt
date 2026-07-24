@@ -366,7 +366,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         outcome = recategorizeOutcome,
                         isRecategorizing = isRecategorizing,
                         currencyCode = currencyCode,
-                        onRunForDate = { millis -> viewModel.recategorizeTransactionsForDate(millis) },
+                        onRunForRange = { start, end -> viewModel.recategorizeTransactionsInRange(start, end) },
                         onNavigateBack = {
                             viewModel.clearRecategorizeOutcome()
                             currentScreen = "transactions"; viewModel.setSelectedTab(2)

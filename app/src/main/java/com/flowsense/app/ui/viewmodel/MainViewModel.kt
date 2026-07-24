@@ -1426,64 +1426,71 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Re-runs smart categorization on every active (non-deleted) transaction
-     * that falls on the calendar day containing [dateMillis], and writes the
-     * new categories back in a single save.
+     * Re-runs categorization on every active (non-deleted) transaction whose
+     * timestamp falls within the inclusive calendar range spanned by
+     * [startMillis]..[endMillis], and writes the new categories back in a
+     * single save.
      *
-     * This lets users repair a day whose transactions were mis-categorized
-     * (e.g. a batch that all landed in "Shopping") without editing each one by
-     * hand. Because the auto-assigned and user-picked categories are stored the
-     * same way, and this is an explicit user-triggered action, every active
-     * transaction on the day is re-evaluated; a transaction is only rewritten
-     * when categorization produces a different, non-blank category.
+     * This lets users repair transactions that were mis-categorized (e.g. a
+     * batch that all landed in "Shopping") without editing each one by hand.
+     * Because auto-assigned and user-picked categories are stored the same way,
+     * and this is an explicit user-triggered action, every transaction in range
+     * is re-evaluated; a transaction is only rewritten when categorization
+     * produces a different, non-blank category.
+     *
+     * The deterministic rule engine ([AiExpenseEngine.categorize]) is used
+     * rather than the per-transaction AI provider chain: a range can cover
+     * hundreds of transactions, and running remote AI on each would be slow,
+     * costly, and rate-limited. The rule engine is instant and offline.
      *
      * A per-transaction breakdown (old vs new category) is published on
      * [recategorizeOutcome] for the Categorize screen, and a short summary on
      * [recategorizeStatus].
      */
-    fun recategorizeTransactionsForDate(dateMillis: Long) {
+    fun recategorizeTransactionsInRange(startMillis: Long, endMillis: Long) {
         if (_isRecategorizing.value) return
         viewModelScope.launch {
             _isRecategorizing.value = true
             try {
-                val dayStart = DateUtils.getStartOfDay(dateMillis)
-                val dayEnd = DateUtils.getEndOfDay(dateMillis)
-                val dateLabel = DateUtils.formatShortDate(dateMillis)
+                // Tolerate reversed endpoints and normalise to full-day bounds.
+                val lo = minOf(startMillis, endMillis)
+                val hi = maxOf(startMillis, endMillis)
+                val rangeStart = DateUtils.getStartOfDay(lo)
+                val rangeEnd = DateUtils.getEndOfDay(hi)
+                val rangeLabel = if (DateUtils.getStartOfDay(lo) == DateUtils.getStartOfDay(hi)) {
+                    DateUtils.formatDate(lo)
+                } else {
+                    "${DateUtils.formatShortDate(lo)} – ${DateUtils.formatDate(hi)}"
+                }
 
-                val candidates = repository.appData.value.transactions
-                    .filter { !it.isDeleted && it.timestamp in dayStart..dayEnd }
+                val data = repository.appData.value
+                val userCategoryNames = data.categories.filter { !it.isDefault }.map { it.name }
+                val candidates = data.transactions
+                    .filter { !it.isDeleted && it.timestamp in rangeStart..rangeEnd }
                     .sortedByDescending { it.timestamp }
 
                 if (candidates.isEmpty()) {
                     _recategorizeOutcome.value = RecategorizationOutcome(
-                        dateMillis = dateMillis, dateLabel = dateLabel,
+                        startMillis = rangeStart, endMillis = rangeEnd, rangeLabel = rangeLabel,
                         items = emptyList(), changedCount = 0
                     )
-                    _recategorizeStatus.value = "No transactions to categorize on $dateLabel."
+                    _recategorizeStatus.value = "No transactions to categorize in $rangeLabel."
                     return@launch
                 }
 
                 // The spinner (isRecategorizing) signals progress; results are
                 // published once the run completes.
                 val updates = mutableListOf<Transaction>()
-                val items = mutableListOf<RecategorizedItem>()
+                val items = ArrayList<RecategorizedItem>(candidates.size)
                 for (tx in candidates) {
-                    val result = smartCategorize(
-                        description = tx.description,
+                    val newCategory = aiEngine.categorize(
+                        description = tx.description.ifBlank { tx.merchantName },
                         isExpense = tx.type == TransactionType.EXPENSE,
-                        merchantName = tx.merchantName,
-                        amount = tx.amount,
-                        tags = tx.tags,
-                        notes = tx.notes,
-                        isRecurring = tx.isRecurring,
-                        dateTime = tx.dateTime,
-                        source = tx.source.name,
-                        hasLocation = tx.hasLocation
-                    )
-                    val newCategory = result.category.ifBlank { tx.category }
+                        userCategoryNames = userCategoryNames
+                    ).ifBlank { tx.category }
                     val didChange = newCategory != tx.category
                     val updatedTx = if (didChange) {
-                        tx.copy(category = newCategory, categorizedByAi = result.byAi)
+                        tx.copy(category = newCategory, categorizedByAi = false)
                     } else tx
                     if (didChange) updates += updatedTx
                     items += RecategorizedItem(
@@ -1497,16 +1504,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 val changed = updates.size
                 _recategorizeOutcome.value = RecategorizationOutcome(
-                    dateMillis = dateMillis, dateLabel = dateLabel,
+                    startMillis = rangeStart, endMillis = rangeEnd, rangeLabel = rangeLabel,
                     items = items, changedCount = changed
                 )
                 _recategorizeStatus.value = when (changed) {
-                    0 -> "No category changes needed for $dateLabel."
-                    1 -> "Re-categorized 1 transaction from $dateLabel."
-                    else -> "Re-categorized $changed transactions from $dateLabel."
+                    0 -> "No category changes needed for $rangeLabel."
+                    1 -> "Re-categorized 1 transaction in $rangeLabel."
+                    else -> "Re-categorized $changed transactions in $rangeLabel."
                 }
             } catch (e: Exception) {
-                Log.w("SmartCategorize", "Date re-categorization failed: ${e.message}")
+                Log.w("SmartCategorize", "Range re-categorization failed: ${e.message}")
                 _recategorizeStatus.value = "Re-categorization failed. Please try again."
             } finally {
                 _isRecategorizing.value = false
@@ -3354,12 +3361,14 @@ data class RecategorizedItem(
 )
 
 /**
- * Result of running categorization over a single day's transactions, shown on
- * the Categorize screen.
+ * Result of running categorization over a date range's transactions, shown on
+ * the Categorize screen. [rangeLabel] is a human-readable span (a single day
+ * collapses to one date).
  */
 data class RecategorizationOutcome(
-    val dateMillis: Long,
-    val dateLabel: String,
+    val startMillis: Long,
+    val endMillis: Long,
+    val rangeLabel: String,
     val items: List<RecategorizedItem>,
     val changedCount: Int
 )
