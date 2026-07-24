@@ -187,8 +187,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isRecategorizing = MutableStateFlow(false)
     val isRecategorizing: StateFlow<Boolean> = _isRecategorizing.asStateFlow()
 
+    /**
+     * Detailed result of the last date-based re-categorization run, consumed by
+     * the Categorize screen to show each transaction with its new category.
+     * `null` until the first run finishes.
+     */
+    private val _recategorizeOutcome = MutableStateFlow<RecategorizationOutcome?>(null)
+    val recategorizeOutcome: StateFlow<RecategorizationOutcome?> = _recategorizeOutcome.asStateFlow()
+
     /** Clears the transient re-categorization status after the UI has shown it. */
     fun clearRecategorizeStatus() { _recategorizeStatus.value = null }
+
+    /** Resets the Categorize screen back to its empty state. */
+    fun clearRecategorizeOutcome() {
+        _recategorizeOutcome.value = null
+        _recategorizeStatus.value = null
+    }
 
     /** Learned SMS-sender / notification-app source patterns. */
     private val _messagePatterns = MutableStateFlow<List<MessagePattern>>(emptyList())
@@ -1423,7 +1437,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * transaction on the day is re-evaluated; a transaction is only rewritten
      * when categorization produces a different, non-blank category.
      *
-     * Progress and the final count are published on [recategorizeStatus].
+     * A per-transaction breakdown (old vs new category) is published on
+     * [recategorizeOutcome] for the Categorize screen, and a short summary on
+     * [recategorizeStatus].
      */
     fun recategorizeTransactionsForDate(dateMillis: Long) {
         if (_isRecategorizing.value) return
@@ -1434,19 +1450,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val dayEnd = DateUtils.getEndOfDay(dateMillis)
                 val dateLabel = DateUtils.formatShortDate(dateMillis)
 
-                val candidates = repository.appData.value.transactions.filter { tx ->
-                    !tx.isDeleted && tx.timestamp in dayStart..dayEnd
-                }
+                val candidates = repository.appData.value.transactions
+                    .filter { !it.isDeleted && it.timestamp in dayStart..dayEnd }
+                    .sortedByDescending { it.timestamp }
 
                 if (candidates.isEmpty()) {
-                    _recategorizeStatus.value = "No transactions to re-categorize on $dateLabel."
+                    _recategorizeOutcome.value = RecategorizationOutcome(
+                        dateMillis = dateMillis, dateLabel = dateLabel,
+                        items = emptyList(), changedCount = 0
+                    )
+                    _recategorizeStatus.value = "No transactions to categorize on $dateLabel."
                     return@launch
                 }
 
-                // The spinner (isRecategorizing) signals progress; a single
-                // result toast is emitted once the run completes.
+                // The spinner (isRecategorizing) signals progress; results are
+                // published once the run completes.
                 val updates = mutableListOf<Transaction>()
-                var changed = 0
+                val items = mutableListOf<RecategorizedItem>()
                 for (tx in candidates) {
                     val result = smartCategorize(
                         description = tx.description,
@@ -1460,17 +1480,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         source = tx.source.name,
                         hasLocation = tx.hasLocation
                     )
-                    if (result.category.isNotBlank() && result.category != tx.category) {
-                        updates += tx.copy(
-                            category = result.category,
-                            categorizedByAi = result.byAi
-                        )
-                        changed++
-                    }
+                    val newCategory = result.category.ifBlank { tx.category }
+                    val didChange = newCategory != tx.category
+                    val updatedTx = if (didChange) {
+                        tx.copy(category = newCategory, categorizedByAi = result.byAi)
+                    } else tx
+                    if (didChange) updates += updatedTx
+                    items += RecategorizedItem(
+                        transaction = updatedTx,
+                        previousCategory = tx.category,
+                        changed = didChange
+                    )
                 }
 
                 repository.updateTransactions(updates)
 
+                val changed = updates.size
+                _recategorizeOutcome.value = RecategorizationOutcome(
+                    dateMillis = dateMillis, dateLabel = dateLabel,
+                    items = items, changedCount = changed
+                )
                 _recategorizeStatus.value = when (changed) {
                     0 -> "No category changes needed for $dateLabel."
                     1 -> "Re-categorized 1 transaction from $dateLabel."
@@ -3312,6 +3341,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         batteryMonitor.stopMonitoring()
     }
 }
+
+/**
+ * One transaction processed by a date-based re-categorization run.
+ * [transaction] already carries the new category; [previousCategory] is what it
+ * had before, and [changed] is true when the two differ.
+ */
+data class RecategorizedItem(
+    val transaction: Transaction,
+    val previousCategory: String,
+    val changed: Boolean
+)
+
+/**
+ * Result of running categorization over a single day's transactions, shown on
+ * the Categorize screen.
+ */
+data class RecategorizationOutcome(
+    val dateMillis: Long,
+    val dateLabel: String,
+    val items: List<RecategorizedItem>,
+    val changedCount: Int
+)
 
 data class SmsScanState(
     val isScanning: Boolean = false, val isComplete: Boolean = false,

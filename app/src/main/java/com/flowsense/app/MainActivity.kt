@@ -56,7 +56,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
     val reportPeriod by viewModel.reportPeriod.collectAsState()
     val importExportMessage by viewModel.importExportMessage.collectAsState()
     val isRecategorizing by viewModel.isRecategorizing.collectAsState()
-    val recategorizeStatus by viewModel.recategorizeStatus.collectAsState()
+    val recategorizeOutcome by viewModel.recategorizeOutcome.collectAsState()
     val smsScanState by viewModel.smsScanState.collectAsState()
     val totalSmsCount by viewModel.totalSmsCount.collectAsState()
     val exchangeRates by viewModel.exchangeRates.collectAsState()
@@ -148,12 +148,13 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
             "local_ai_setup"   -> { currentScreen = "settings"; viewModel.setSelectedTab(3) }
             "ai_chat_history"  -> { currentScreen = "ai_analyze" }
             "trash"            -> { currentScreen = "transactions"; viewModel.setSelectedTab(2) }
+            "categorize"       -> { currentScreen = "transactions"; viewModel.setSelectedTab(2) }
             else               -> { currentScreen = "dashboard"; viewModel.setSelectedTab(0) }
         }
     }
 
     // Hide the top bar on full-screen sub-screens (they have their own top bar)
-    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "message_patterns", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup", "trash", "voice_input")
+    val showTopBar = currentScreen !in listOf("add", "scan", "sms_scan", "message_patterns", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup", "trash", "categorize", "voice_input")
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -209,7 +210,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
             }
         },
         bottomBar = {
-            if (currentScreen !in listOf("add", "scan", "sms_scan", "message_patterns", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup", "trash", "voice_input")) {
+            if (currentScreen !in listOf("add", "scan", "sms_scan", "message_patterns", "store_map", "ai_analyze", "ai_chat_history", "ocr_sections", "local_ai_setup", "trash", "categorize", "voice_input")) {
                 NavigationBar(tonalElevation = 2.dp) {
                     // Home
                     NavigationBarItem(
@@ -348,10 +349,7 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         categories = uiState.categories.map { it.name },
                         onBatchDelete = { ids -> viewModel.batchDelete(ids) },
                         onBatchRecategorize = { ids, cat -> viewModel.batchRecategorize(ids, cat) },
-                        onRecategorizeDate = { millis -> viewModel.recategorizeTransactionsForDate(millis) },
-                        isRecategorizing = isRecategorizing,
-                        recategorizeStatus = recategorizeStatus,
-                        onRecategorizeStatusShown = { viewModel.clearRecategorizeStatus() },
+                        onNavigateToCategorize = { currentScreen = "categorize" },
                         onNavigateToTrash = { currentScreen = "trash" },
                         trashCount = viewModel.getDeletedTransactions().size
                     )
@@ -363,6 +361,16 @@ fun MainApp(viewModel: MainViewModel, activity: Activity) {
                         onEmptyTrash = { viewModel.emptyTrash() },
                         onNavigateBack = { currentScreen = "transactions"; viewModel.setSelectedTab(2) },
                         trashRetentionDays = uiState.settings.trashRetentionDays
+                    )
+                    "categorize" -> CategorizeScreen(
+                        outcome = recategorizeOutcome,
+                        isRecategorizing = isRecategorizing,
+                        currencyCode = currencyCode,
+                        onRunForDate = { millis -> viewModel.recategorizeTransactionsForDate(millis) },
+                        onNavigateBack = {
+                            viewModel.clearRecategorizeOutcome()
+                            currentScreen = "transactions"; viewModel.setSelectedTab(2)
+                        }
                     )
                     "scan" -> ScanReceiptScreen(
                         onOcrResult = { text, qrData -> viewModel.processOcrText(text, qrData) },

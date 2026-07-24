@@ -44,23 +44,10 @@ fun TransactionsScreen(
     categories: List<String> = emptyList(),
     onBatchDelete: (Set<String>) -> Unit = {},
     onBatchRecategorize: (Set<String>, String) -> Unit = { _, _ -> },
-    onRecategorizeDate: (Long) -> Unit = {},
-    isRecategorizing: Boolean = false,
-    recategorizeStatus: String? = null,
-    onRecategorizeStatusShown: () -> Unit = {},
+    onNavigateToCategorize: () -> Unit = {},
     onNavigateToTrash: () -> Unit = {},
     trashCount: Int = 0
 ) {
-    var showDatePicker by remember { mutableStateOf(false) }
-
-    // Surface re-categorization progress/result as a toast, then clear it
-    val context = androidx.compose.ui.platform.LocalContext.current
-    LaunchedEffect(recategorizeStatus) {
-        recategorizeStatus?.let {
-            android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
-            onRecategorizeStatusShown()
-        }
-    }
     var searchQuery by remember { mutableStateOf("") }
     // Filter chips state
     var filterType by remember { mutableStateOf<TransactionType?>(null) }
@@ -122,20 +109,13 @@ fun TransactionsScreen(
                 Text("Transactions", style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Re-run categorization on a chosen day's transactions
-                    if (isRecategorizing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp
+                    // Open the dedicated screen to re-run categorization by day
+                    IconButton(onClick = onNavigateToCategorize) {
+                        Icon(
+                            Icons.Filled.AutoAwesome,
+                            contentDescription = "Categorize transactions by day",
+                            tint = MaterialTheme.colorScheme.primary
                         )
-                    } else {
-                        IconButton(onClick = { showDatePicker = true }) {
-                            Icon(
-                                Icons.Filled.AutoAwesome,
-                                contentDescription = "Re-categorize a day's transactions",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
                     }
                     if (trashCount > 0) {
                         TextButton(onClick = onNavigateToTrash) {
@@ -302,45 +282,6 @@ fun TransactionsScreen(
                     TextButton(onClick = { showBatchCategoryDialog = false }) { Text("Cancel") }
                 }
             )
-        }
-
-        // Date picker for re-running categorization on a chosen day
-        if (showDatePicker) {
-            val datePickerState = rememberDatePickerState(
-                initialSelectedDateMillis = System.currentTimeMillis()
-            )
-            DatePickerDialog(
-                onDismissRequest = { showDatePicker = false },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            datePickerState.selectedDateMillis?.let(onRecategorizeDate)
-                            showDatePicker = false
-                        },
-                        enabled = datePickerState.selectedDateMillis != null
-                    ) { Text("Re-categorize") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
-                }
-            ) {
-                DatePicker(
-                    state = datePickerState,
-                    title = {
-                        Text(
-                            "Re-categorize a day",
-                            modifier = Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp)
-                        )
-                    },
-                    headline = {
-                        Text(
-                            "Pick a day to re-run smart categorization on its transactions",
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
-                        )
-                    }
-                )
-            }
         }
 
         // ── Month-grouped list ─────────────────────────────────────
