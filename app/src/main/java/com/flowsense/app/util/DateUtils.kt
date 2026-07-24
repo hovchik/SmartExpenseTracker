@@ -21,6 +21,30 @@ object DateUtils {
     fun formatDateTime(timestamp: Long): String =
         "${dateFormat.get()!!.format(Date(timestamp))} ${timeFormat.get()!!.format(Date(timestamp))}"
 
+    /**
+     * Converts a value coming from a Compose `DatePicker`/`DateRangePicker`
+     * (which reports the selected calendar date as **UTC midnight**) into a
+     * local-timezone instant on the same calendar date (local noon).
+     *
+     * Feeding the raw picker millis straight into [getStartOfDay]/[getEndOfDay]
+     * shifts the day backward in negative-UTC-offset timezones; normalising to
+     * local noon first keeps the intended calendar day in every timezone.
+     */
+    fun pickerUtcToLocalMillis(utcMidnightMillis: Long): Long {
+        val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+            timeInMillis = utcMidnightMillis
+        }
+        return Calendar.getInstance().apply {
+            clear()
+            set(
+                utc.get(Calendar.YEAR),
+                utc.get(Calendar.MONTH),
+                utc.get(Calendar.DAY_OF_MONTH),
+                12, 0, 0
+            )
+        }.timeInMillis
+    }
+
     fun getStartOfDay(timestamp: Long = System.currentTimeMillis()): Long {
         val cal = Calendar.getInstance()
         cal.timeInMillis = timestamp

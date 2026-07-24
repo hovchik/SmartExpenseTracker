@@ -361,16 +361,18 @@ class AiExpenseEngine {
         }
         if (fallbackMatch != null && fallbackScore >= 3) return fallbackMatch
 
-        // Pass 3 – structural heuristics for unrecognised merchants
+        // Pass 3 – structural heuristics for unrecognised merchants.
+        // Only genuine keyword hints are trusted here. The description's script
+        // (e.g. Armenian) or a corporate suffix (LLC, Ltd, OJSC…) says nothing
+        // about what was bought — treating those as "Shopping" made virtually
+        // every locally-named/company transaction land in Shopping. Unknown
+        // merchants now fall through to "Other" so the category isn't skewed.
         return when {
-            // Armenian/CIS/regional store-type name patterns
-            lowerDesc.any { it.code in 0x0530..0x058F } -> "Shopping" // Armenian Unicode block
-            lowerDesc.matches(Regex(""".*\b(llc|ltd|inc|corp|gmbh|srl|sas|ojsc|cjsc)\b.*""")) -> "Shopping"
             lowerDesc.contains("market") || lowerDesc.contains("shop") ||
                 lowerDesc.contains("store") || lowerDesc.contains("mart") -> "Shopping"
             lowerDesc.contains("fee") || lowerDesc.contains("charge") ||
                 lowerDesc.contains("bill") -> "Bills & Utilities"
-            else -> "Shopping"   // POS/card transactions with unknown merchant → Shopping beats Other
+            else -> "Other"   // unknown merchant → leave uncategorised rather than inflate Shopping
         }
     }
 

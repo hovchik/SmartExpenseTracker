@@ -223,6 +223,23 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
     /**
      * Batch re-categorize multiple transactions.
      */
+    /**
+     * Replaces multiple transactions in a single save, matched by id.
+     * Ids not present in [replacements] are left untouched. Used by the
+     * date-based re-categorization flow, which computes new categories for a
+     * whole day's worth of transactions and applies them atomically.
+     */
+    suspend fun updateTransactions(replacements: List<Transaction>) {
+        if (replacements.isEmpty()) return
+        val byId = replacements.associateBy { it.id }
+        val current = _appData.value
+        val updated = current.copy(
+            transactions = current.transactions.map { byId[it.id] ?: it }
+        )
+        _appData.value = updated
+        storage.saveData(updated)
+    }
+
     suspend fun batchRecategorize(ids: Set<String>, newCategory: String) {
         val current = _appData.value
         val updated = current.copy(

@@ -11,3 +11,6 @@
 local.properties
 *.apk
 *.aab
+
+# graphify generated knowledge graph (regenerated via `graphify update .`)
+graphify-out/

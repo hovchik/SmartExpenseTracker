@@ -176,6 +176,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _recurringPatterns = MutableStateFlow<List<RecurringPattern>>(emptyList())
     val recurringPatterns: StateFlow<List<RecurringPattern>> = _recurringPatterns.asStateFlow()
 
+    /**
+     * Progress/result message for the date-based re-categorization action.
+     * `null` when idle. The UI observes this to show a snackbar/toast and
+     * to disable the trigger while a run is in flight ([isRecategorizing]).
+     */
+    private val _recategorizeStatus = MutableStateFlow<String?>(null)
+    val recategorizeStatus: StateFlow<String?> = _recategorizeStatus.asStateFlow()
+
+    private val _isRecategorizing = MutableStateFlow(false)
+    val isRecategorizing: StateFlow<Boolean> = _isRecategorizing.asStateFlow()
+
+    /**
+     * Detailed result of the last date-based re-categorization run, consumed by
+     * the Categorize screen to show each transaction with its new category.
+     * `null` until the first run finishes.
+     */
+    private val _recategorizeOutcome = MutableStateFlow<RecategorizationOutcome?>(null)
+    val recategorizeOutcome: StateFlow<RecategorizationOutcome?> = _recategorizeOutcome.asStateFlow()
+
+    /** Clears the transient re-categorization status after the UI has shown it. */
+    fun clearRecategorizeStatus() { _recategorizeStatus.value = null }
+
+    /** Resets the Categorize screen back to its empty state. */
+    fun clearRecategorizeOutcome() {
+        _recategorizeOutcome.value = null
+        _recategorizeStatus.value = null
+    }
+
     /** Learned SMS-sender / notification-app source patterns. */
     private val _messagePatterns = MutableStateFlow<List<MessagePattern>>(emptyList())
     val messagePatterns: StateFlow<List<MessagePattern>> = _messagePatterns.asStateFlow()
@@ -1395,6 +1423,102 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun batchRecategorize(ids: Set<String>, newCategory: String) {
         viewModelScope.launch { repository.batchRecategorize(ids, newCategory) }
+    }
+
+    /**
+     * Re-runs categorization on every active (non-deleted) transaction whose
+     * timestamp falls within the inclusive calendar range spanned by
+     * [startMillis]..[endMillis], and writes the new categories back in a
+     * single save.
+     *
+     * This lets users repair transactions that were mis-categorized (e.g. a
+     * batch that all landed in "Shopping") without editing each one by hand.
+     * Because auto-assigned and user-picked categories are stored the same way,
+     * and this is an explicit user-triggered action, every transaction in range
+     * is re-evaluated; a transaction is only rewritten when categorization
+     * produces a different, non-blank category.
+     *
+     * The deterministic rule engine ([AiExpenseEngine.categorize]) is used
+     * rather than the per-transaction AI provider chain: a range can cover
+     * hundreds of transactions, and running remote AI on each would be slow,
+     * costly, and rate-limited. The rule engine is instant and offline.
+     *
+     * A per-transaction breakdown (old vs new category) is published on
+     * [recategorizeOutcome] for the Categorize screen, and a short summary on
+     * [recategorizeStatus].
+     */
+    fun recategorizeTransactionsInRange(startMillis: Long, endMillis: Long) {
+        if (_isRecategorizing.value) return
+        viewModelScope.launch {
+            _isRecategorizing.value = true
+            try {
+                // Tolerate reversed endpoints and normalise to full-day bounds.
+                val lo = minOf(startMillis, endMillis)
+                val hi = maxOf(startMillis, endMillis)
+                val rangeStart = DateUtils.getStartOfDay(lo)
+                val rangeEnd = DateUtils.getEndOfDay(hi)
+                val rangeLabel = if (DateUtils.getStartOfDay(lo) == DateUtils.getStartOfDay(hi)) {
+                    DateUtils.formatDate(lo)
+                } else {
+                    "${DateUtils.formatShortDate(lo)} – ${DateUtils.formatDate(hi)}"
+                }
+
+                val data = repository.appData.value
+                val userCategoryNames = data.categories.filter { !it.isDefault }.map { it.name }
+                val candidates = data.transactions
+                    .filter { !it.isDeleted && it.timestamp in rangeStart..rangeEnd }
+                    .sortedByDescending { it.timestamp }
+
+                if (candidates.isEmpty()) {
+                    _recategorizeOutcome.value = RecategorizationOutcome(
+                        startMillis = rangeStart, endMillis = rangeEnd, rangeLabel = rangeLabel,
+                        items = emptyList(), changedCount = 0
+                    )
+                    _recategorizeStatus.value = "No transactions to categorize in $rangeLabel."
+                    return@launch
+                }
+
+                // The spinner (isRecategorizing) signals progress; results are
+                // published once the run completes.
+                val updates = mutableListOf<Transaction>()
+                val items = ArrayList<RecategorizedItem>(candidates.size)
+                for (tx in candidates) {
+                    val newCategory = aiEngine.categorize(
+                        description = tx.description.ifBlank { tx.merchantName },
+                        isExpense = tx.type == TransactionType.EXPENSE,
+                        userCategoryNames = userCategoryNames
+                    ).ifBlank { tx.category }
+                    val didChange = newCategory != tx.category
+                    val updatedTx = if (didChange) {
+                        tx.copy(category = newCategory, categorizedByAi = false)
+                    } else tx
+                    if (didChange) updates += updatedTx
+                    items += RecategorizedItem(
+                        transaction = updatedTx,
+                        previousCategory = tx.category,
+                        changed = didChange
+                    )
+                }
+
+                repository.updateTransactions(updates)
+
+                val changed = updates.size
+                _recategorizeOutcome.value = RecategorizationOutcome(
+                    startMillis = rangeStart, endMillis = rangeEnd, rangeLabel = rangeLabel,
+                    items = items, changedCount = changed
+                )
+                _recategorizeStatus.value = when (changed) {
+                    0 -> "No category changes needed for $rangeLabel."
+                    1 -> "Re-categorized 1 transaction in $rangeLabel."
+                    else -> "Re-categorized $changed transactions in $rangeLabel."
+                }
+            } catch (e: Exception) {
+                Log.w("SmartCategorize", "Range re-categorization failed: ${e.message}")
+                _recategorizeStatus.value = "Re-categorization failed. Please try again."
+            } finally {
+                _isRecategorizing.value = false
+            }
+        }
     }
 
     fun batchDelete(ids: Set<String>) {
@@ -3224,6 +3348,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         batteryMonitor.stopMonitoring()
     }
 }
+
+/**
+ * One transaction processed by a date-based re-categorization run.
+ * [transaction] already carries the new category; [previousCategory] is what it
+ * had before, and [changed] is true when the two differ.
+ */
+data class RecategorizedItem(
+    val transaction: Transaction,
+    val previousCategory: String,
+    val changed: Boolean
+)
+
+/**
+ * Result of running categorization over a date range's transactions, shown on
+ * the Categorize screen. [rangeLabel] is a human-readable span (a single day
+ * collapses to one date).
+ */
+data class RecategorizationOutcome(
+    val startMillis: Long,
+    val endMillis: Long,
+    val rangeLabel: String,
+    val items: List<RecategorizedItem>,
+    val changedCount: Int
+)
 
 data class SmsScanState(
     val isScanning: Boolean = false, val isComplete: Boolean = false,

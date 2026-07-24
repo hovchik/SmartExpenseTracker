@@ -44,6 +44,7 @@ fun TransactionsScreen(
     categories: List<String> = emptyList(),
     onBatchDelete: (Set<String>) -> Unit = {},
     onBatchRecategorize: (Set<String>, String) -> Unit = { _, _ -> },
+    onNavigateToCategorize: () -> Unit = {},
     onNavigateToTrash: () -> Unit = {},
     trashCount: Int = 0
 ) {
@@ -107,14 +108,24 @@ fun TransactionsScreen(
             ) {
                 Text("Transactions", style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold)
-                if (trashCount > 0) {
-                    TextButton(onClick = onNavigateToTrash) {
-                        Icon(Icons.Filled.Delete, contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Trash ($trashCount)", fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Open the dedicated screen to re-run categorization by day
+                    IconButton(onClick = onNavigateToCategorize) {
+                        Icon(
+                            Icons.Filled.AutoAwesome,
+                            contentDescription = "Categorize transactions by day",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    if (trashCount > 0) {
+                        TextButton(onClick = onNavigateToTrash) {
+                            Icon(Icons.Filled.Delete, contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Trash ($trashCount)", fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }
