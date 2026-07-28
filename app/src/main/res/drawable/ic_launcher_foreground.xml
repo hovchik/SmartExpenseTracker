@@ -1,84 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- ═══ FlowSense Icon — Modern F Monogram ═══
-         Bold, simple, readable at 48dp launcher size.
-         Adaptive-icon safe zone: keep marks within 27..81.
-         Concept: an "F" whose middle arm becomes an upward-trending
-         arrow, suggesting growth and flow.
-    -->
+    <!-- ═══ FlowSense Icon — Rising Flow ═══
+         Concept: a gradient flow line rising into an upward arrow (growth /
+         cash-flow uptrend) with an AI "sense" sparkle at the crest.
+         Adaptive-icon safe zone: essential marks stay within 27..81.
+         Path data is kept identical to icon-source/ic_launcher_foreground.svg
+         so raster and vector renderings match. -->
 
-    <!-- F vertical stem (deep teal) -->
+    <!-- soft glow under the flow -->
     <path
-        android:fillColor="#0D9488"
-        android:pathData="M34,30
-                          h12
-                          a4,4 0 0 1 4,4
-                          v44
-                          a4,4 0 0 1 -4,4
-                          h-12
-                          a4,4 0 0 1 -4,-4
-                          v-44
-                          a4,4 0 0 1 4,-4 z" />
+        android:strokeColor="#22D3EE"
+        android:strokeAlpha="0.16"
+        android:strokeWidth="22"
+        android:strokeLineCap="round"
+        android:pathData="M27,79 C47,79 50,46 79,33" />
 
-    <!-- F top arm (emerald) -->
+    <!-- rising flow line -->
     <path
-        android:fillColor="#10B981"
-        android:pathData="M34,30
-                          h40
-                          a4,4 0 0 1 4,4
-                          v6
-                          a4,4 0 0 1 -4,4
-                          h-40
-                          a4,4 0 0 1 -4,-4
-                          v-6
-                          a4,4 0 0 1 4,-4 z" />
+        android:strokeWidth="10"
+        android:strokeLineCap="round"
+        android:pathData="M27,79 C47,79 50,46 79,33">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="27" android:startY="79"
+                android:endX="81" android:endY="29">
+                <item android:offset="0.0" android:color="#FF34D399" />
+                <item android:offset="0.5" android:color="#FF22D3EE" />
+                <item android:offset="1.0" android:color="#FF67E8F9" />
+            </gradient>
+        </aapt:attr>
+    </path>
 
-    <!-- F middle arm — ends in an upward arrow tip (cyan) -->
-    <!-- Rectangular body from x=34..62, y=50..60; arrow tip extends right
-         and angles up to (74, 46), then back to (62, 60). -->
+    <!-- clean upward chevron arrowhead -->
     <path
-        android:fillColor="#06B6D4"
-        android:pathData="M38,50
-                          L62,50
-                          L74,46
-                          L62,60
-                          L38,60
-                          a4,4 0 0 1 -4,-4
-                          v-2
-                          a4,4 0 0 1 4,-4 z" />
+        android:strokeWidth="10"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M64,31 L81,29 L79,46">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="64" android:startY="46"
+                android:endX="81" android:endY="29">
+                <item android:offset="0.0" android:color="#FF22D3EE" />
+                <item android:offset="1.0" android:color="#FF67E8F9" />
+            </gradient>
+        </aapt:attr>
+    </path>
 
-    <!-- Glossy highlight on top arm -->
+    <!-- AI sense sparkle -->
     <path
-        android:fillColor="#FFFFFF"
-        android:fillAlpha="0.20"
-        android:pathData="M38,32
-                          h36
-                          a2,2 0 0 1 2,2
-                          v1
-                          a2,2 0 0 1 -2,2
-                          h-36
-                          a2,2 0 0 1 -2,-2
-                          v-1
-                          a2,2 0 0 1 2,-2 z" />
-
-    <!-- AI spark — subtle diamond inside safe zone -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:fillAlpha="0.95"
-        android:pathData="M70,72
-                          L72,75
-                          L70,78
-                          L68,75 Z" />
-
-    <!-- Spark trail dot -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:fillAlpha="0.55"
-        android:pathData="M64,69 A1,1,0,1,1 64,69.01 Z" />
-
+        android:fillColor="#E0F7FA"
+        android:pathData="M84,20 C84,25 85,26 90,26 C85,26 84,27 84,32 C84,27 83,26 78,26 C83,26 84,25 84,20 Z" />
 </vector>

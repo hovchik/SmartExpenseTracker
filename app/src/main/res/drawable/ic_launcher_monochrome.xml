@@ -3,49 +3,28 @@
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
-    android:viewportHeight="108"
-    android:tint="?attr/colorControlNormal">
+    android:viewportHeight="108">
 
-    <!-- Themed icon (Android 13+) — single-color silhouette of the F monogram -->
+    <!-- Themed icon (Android 13+) — single-color silhouette of the rising
+         flow-arrow. The system applies the tint; draw in one flat color. -->
 
-    <!-- Growth arrow accent -->
+    <!-- rising flow line -->
     <path
-        android:fillColor="@android:color/transparent"
         android:strokeColor="#FFFFFF"
-        android:strokeWidth="6"
+        android:strokeWidth="10"
+        android:strokeLineCap="round"
+        android:pathData="M27,79 C47,79 50,46 79,33" />
+
+    <!-- upward chevron arrowhead -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="10"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M32,76 C44,68 52,60 64,40" />
+        android:pathData="M64,31 L81,29 L79,46" />
 
+    <!-- AI sense sparkle -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M62,32 L72,36 L68,46 Z" />
-
-    <!-- F monogram silhouette -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M40,30
-                          h36
-                          a4,4 0 0 1 4,4
-                          v6
-                          a4,4 0 0 1 -4,4
-                          h-28
-                          v6
-                          h20
-                          a4,4 0 0 1 4,4
-                          v6
-                          a4,4 0 0 1 -4,4
-                          h-20
-                          v20
-                          a4,4 0 0 1 -4,4
-                          h-8
-                          a4,4 0 0 1 -4,-4
-                          v-44
-                          a4,4 0 0 1 4,-4 z" />
-
-    <!-- AI spark -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M80,26 L82,30 L80,34 L78,30 Z" />
-
+        android:pathData="M84,20 C84,25 85,26 90,26 C85,26 84,27 84,32 C84,27 83,26 78,26 C83,26 84,25 84,20 Z" />
 </vector>
