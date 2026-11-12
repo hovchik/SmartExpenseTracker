@@ -892,7 +892,7 @@ fun SimpleDownloadScreen(
 
     // Auto-retry when user returns from browser after accepting license
     @Suppress("DEPRECATION")
-    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME && sentToBrowser) {

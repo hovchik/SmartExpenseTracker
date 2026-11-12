@@ -1,6 +1,7 @@
 package com.flowsense.app.data.json
 
 import android.content.Context
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.flowsense.app.data.model.AppData
@@ -22,6 +23,11 @@ private fun AppData.sanitizeTransactions(): AppData {
  */
 class JsonStorageManager(private val context: Context) {
 
+    private companion object {
+        const val TAG = "JsonStorageManager"
+        const val MAX_CORRUPT_COPIES = 3
+    }
+
     private val gson: Gson = GsonBuilder()
         .setPrettyPrinting()
         .setDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
@@ -31,6 +37,7 @@ class JsonStorageManager(private val context: Context) {
     private val fileName = "flowsense_data.json"
     private val backupFileName = "flowsense_data_backup.json"
 
+    @Volatile
     private var cachedData: AppData? = null
 
     private fun getFile(): File = File(context.filesDir, fileName)
@@ -51,6 +58,12 @@ class JsonStorageManager(private val context: Context) {
                     cachedData = data
                     data
                 } catch (e: Exception) {
+                    // The primary file is unreadable. Move it aside before anything else:
+                    // otherwise the next save would copy the corrupt file over the good
+                    // backup, and if the backup is also unreadable we would silently
+                    // replace the user's history with an empty AppData.
+                    Log.e(TAG, "Primary data file unreadable, quarantining it", e)
+                    quarantine(file)
                     // Try backup
                     try {
                         val backup = getBackupFile()
@@ -65,6 +78,8 @@ class JsonStorageManager(private val context: Context) {
                             default
                         }
                     } catch (e2: Exception) {
+                        Log.e(TAG, "Backup data file unreadable too, starting fresh", e2)
+                        quarantine(getBackupFile())
                         val default = AppData()
                         cachedData = default
                         default
@@ -76,6 +91,27 @@ class JsonStorageManager(private val context: Context) {
                 cachedData = default
                 default
             }
+        }
+    }
+
+    /**
+     * Renames an unreadable data file to a timestamped `.corrupt` copy so it can be
+     * recovered manually, keeping at most [MAX_CORRUPT_COPIES] of them.
+     */
+    private fun quarantine(source: File) {
+        try {
+            if (!source.exists()) return
+            val target = File(context.filesDir, "${source.name}.corrupt-${System.currentTimeMillis()}")
+            if (!source.renameTo(target)) {
+                source.copyTo(target, overwrite = true)
+                source.delete()
+            }
+            context.filesDir.listFiles { f -> f.name.startsWith("${source.name}.corrupt-") }
+                ?.sortedByDescending { it.lastModified() }
+                ?.drop(MAX_CORRUPT_COPIES)
+                ?.forEach { it.delete() }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not quarantine ${source.name}: ${e.message}")
         }
     }
 
@@ -143,8 +179,9 @@ class JsonStorageManager(private val context: Context) {
      * Export data as JSON string for sharing.
      */
     suspend fun exportData(): String {
-        // Load data first (acquires its own lock), then serialize outside the lock.
-        val data = cachedData ?: loadData()
+        // loadData() returns the cached copy under the lock, so we never serialize
+        // a reference that is being swapped by a concurrent save.
+        val data = loadData()
         return withContext(Dispatchers.IO) {
             gson.toJson(data)
         }

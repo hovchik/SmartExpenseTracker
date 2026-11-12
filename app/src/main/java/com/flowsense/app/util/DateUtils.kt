@@ -4,22 +4,39 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 object DateUtils {
-    // SimpleDateFormat is NOT thread-safe — use ThreadLocal to avoid corruption
-    // when multiple coroutines or threads format dates concurrently.
-    private val dateFormat = ThreadLocal.withInitial { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
-    private val shortDateFormat = ThreadLocal.withInitial { SimpleDateFormat("MMM dd", Locale.getDefault()) }
-    private val timeFormat = ThreadLocal.withInitial { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
-    private val dayFormat = ThreadLocal.withInitial { SimpleDateFormat("EEE", Locale.getDefault()) }
-    private val monthFormat = ThreadLocal.withInitial { SimpleDateFormat("MMMM yyyy", Locale.getDefault()) }
+    // SimpleDateFormat is NOT thread-safe, so each thread gets its own instances.
+    // They are rebuilt when the default locale changes (e.g. the per-app language
+    // setting), otherwise month/day names would stay in the old language.
+    private class Formats(val locale: Locale) {
+        val date = SimpleDateFormat("MMM dd, yyyy", locale)
+        val shortDate = SimpleDateFormat("MMM dd", locale)
+        val time = SimpleDateFormat("hh:mm a", locale)
+        val day = SimpleDateFormat("EEE", locale)
+        val month = SimpleDateFormat("MMMM yyyy", locale)
+    }
 
-    fun formatDate(timestamp: Long): String = dateFormat.get()!!.format(Date(timestamp))
-    fun formatShortDate(timestamp: Long): String = shortDateFormat.get()!!.format(Date(timestamp))
-    fun formatTime(timestamp: Long): String = timeFormat.get()!!.format(Date(timestamp))
-    fun formatDay(timestamp: Long): String = dayFormat.get()!!.format(Date(timestamp))
-    fun formatMonth(timestamp: Long): String = monthFormat.get()!!.format(Date(timestamp))
+    private val formats = ThreadLocal<Formats>()
 
-    fun formatDateTime(timestamp: Long): String =
-        "${dateFormat.get()!!.format(Date(timestamp))} ${timeFormat.get()!!.format(Date(timestamp))}"
+    private fun f(): Formats {
+        val locale = Locale.getDefault()
+        val cached = formats.get()
+        // TimeZone can also change at runtime (travel); keep formatters in sync with it.
+        val tz = TimeZone.getDefault()
+        if (cached != null && cached.locale == locale && cached.date.timeZone == tz) return cached
+        return Formats(locale).also { formats.set(it) }
+    }
+
+    fun formatDate(timestamp: Long): String = f().date.format(Date(timestamp))
+    fun formatShortDate(timestamp: Long): String = f().shortDate.format(Date(timestamp))
+    fun formatTime(timestamp: Long): String = f().time.format(Date(timestamp))
+    fun formatDay(timestamp: Long): String = f().day.format(Date(timestamp))
+    fun formatMonth(timestamp: Long): String = f().month.format(Date(timestamp))
+
+    fun formatDateTime(timestamp: Long): String {
+        val fm = f()
+        val d = Date(timestamp)
+        return "${fm.date.format(d)} ${fm.time.format(d)}"
+    }
 
     /**
      * Converts a value coming from a Compose `DatePicker`/`DateRangePicker`
@@ -130,9 +147,8 @@ object DateUtils {
     }
 
     fun isToday(timestamp: Long): Boolean {
-        val today = getStartOfDay()
-        val endToday = getEndOfDay()
-        return timestamp in today..endToday
+        val now = System.currentTimeMillis()
+        return timestamp in getStartOfDay(now)..getEndOfDay(now)
     }
 
     fun daysAgo(days: Int): Long {

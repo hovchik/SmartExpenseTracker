@@ -34,7 +34,7 @@ data class Transaction(
     val source: TransactionSource,
     val timestamp: Long = System.currentTimeMillis(),
     /** ISO-8601 datetime string (e.g. "2026-02-17T14:30:00") for human-readable storage and grouping. */
-    val dateTime: String = isoDateFormat.get()!!.format(Date(System.currentTimeMillis())),
+    val dateTime: String = isoDateFormat.get()!!.format(Date(timestamp)),
     val tags: List<String> = emptyList(),
     val notes: String = "",
     val merchantName: String = "",

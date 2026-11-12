@@ -244,8 +244,8 @@ Premium features:
 
 > The following assets need to be created separately (not text):
 
-- [ ] **App Icon** — 512×512 px PNG, no alpha
-- [ ] **Feature Graphic** — 1024×500 px JPG or PNG
+- [x] **App Icon** — 512×512 px PNG, no alpha → `store-listing/play_icon_512.png`
+- [x] **Feature Graphic** — 1024×500 px JPG or PNG → `store-listing/feature_graphic_1024x500.png`
 - [ ] **Phone Screenshots** — min 2, max 8 (16:9 or 9:16, min 320px, max 3840px per side)
   - Suggested screens: Dashboard, Add Transaction, Scan Receipt, Reports, AI Chat, Store Map
 - [ ] **Tablet Screenshots** (optional but recommended) — 7-inch and/or 10-inch

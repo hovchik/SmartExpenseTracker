@@ -1,5 +1,5 @@
-# Keep Gson model classes
--keep class com.smartexpense.tracker.data.model.** { *; }
+# Keep Gson model classes (serialised by reflection to flowsense_data.json)
+-keep class com.flowsense.app.data.model.** { *; }
 
 # Keep enums
 -keepclassmembers enum * {

@@ -1,33 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="108" height="108" viewBox="0 0 108 108">
-  <!-- FlowSense app icon (composited background + foreground). Source of truth
-       for the Play Store icon and store-listing preview. -->
+  <!-- FlowSense app icon (background + foreground composited). Source of truth for
+       the Play Store icon, store-listing preview and feature graphic. -->
   <defs>
-    <linearGradient id="bg" x1="0.05" y1="0" x2="0.95" y2="1">
-      <stop offset="0" stop-color="#0B1220"/>
-      <stop offset="0.5" stop-color="#0F3B39"/>
-      <stop offset="1" stop-color="#0D9488"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="108" y2="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#312E81"/>
+      <stop offset="0.55" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#7C3AED"/>
     </linearGradient>
-    <linearGradient id="flow" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0" stop-color="#34D399"/>
-      <stop offset="0.5" stop-color="#22D3EE"/>
-      <stop offset="1" stop-color="#67E8F9"/>
+    <radialGradient id="glow" cx="81" cy="22" r="65" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#A78BFA" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#A78BFA" stop-opacity="0"/>
+    </radialGradient>
+  
+    <linearGradient id="rib" x1="36" y1="0" x2="78" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E0E7FF"/>
     </linearGradient>
-  </defs>
+    <linearGradient id="mint" x1="57" y1="59" x2="75" y2="77" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6EE7B7"/>
+      <stop offset="1" stop-color="#10B981"/>
+    </linearGradient>
+    </defs>
+  
+  <rect width="108" height="108" fill="url(#bg)"/>
+  <rect width="108" height="108" fill="url(#glow)"/>
 
-  <rect x="0" y="0" width="108" height="108" fill="url(#bg)"/>
-
-  <path d="M27,79 C47,79 50,46 79,33"
-        fill="none" stroke="#22D3EE" stroke-opacity="0.16"
-        stroke-width="22" stroke-linecap="round"/>
-
-  <path d="M27,79 C47,79 50,46 79,33"
-        fill="none" stroke="url(#flow)"
-        stroke-width="10" stroke-linecap="round"/>
-
-  <path d="M64,31 L81,29 L79,46"
-        fill="none" stroke="url(#flow)"
-        stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
-
-  <path d="M84,20 C84,25 85,26 90,26 C85,26 84,27 84,32 C84,27 83,26 78,26 C83,26 84,25 84,20 Z"
-        fill="#E0F7FA"/>
+  
+  
+  <g transform="translate(54 54) scale(0.84) translate(-55.5 -53.5)">
+  <path d="M36,38 L36,75" fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round"/>
+  <path d="M36,38 C46,38 50,32 60,32 C66,32 69,35 72,38" fill="none" stroke="url(#rib)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M36,55 C43,55 46,50 53,50 C57,50 59,52 61,54" fill="none" stroke="url(#rib)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M66,59 C66.9,65.6 68.4,67.1 75,68 C68.4,68.9 66.9,70.4 66,77 C65.1,70.4 63.6,68.9 57,68 C63.6,67.1 65.1,65.6 66,59 Z" fill="url(#mint)"/>
+  </g>
 </svg>

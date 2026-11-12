@@ -21,6 +21,7 @@ class CloudAiProvider : AiProvider {
         private const val TAG = "CloudAi"
         private const val CONNECT_TIMEOUT = 15_000
         private const val READ_TIMEOUT = 90_000
+        private val THINK_BLOCK_REGEX = Regex("<think>[\\s\\S]*?</think>")
 
         // ── Claude (Anthropic) ──────────────────────────────────
         private const val CLAUDE_API_URL = "https://api.anthropic.com/v1/messages"
@@ -232,8 +233,13 @@ class CloudAiProvider : AiProvider {
             })
         }
 
-        conn.outputStream.bufferedWriter().use { it.write(requestBody.toString()) }
-        return parseClaude(conn)
+        // Always release the socket, including when writing or parsing throws.
+        try {
+            conn.outputStream.bufferedWriter().use { it.write(requestBody.toString()) }
+            return parseClaude(conn)
+        } finally {
+            conn.disconnect()
+        }
     }
 
     private fun parseClaude(conn: HttpURLConnection): String {
@@ -254,13 +260,16 @@ class CloudAiProvider : AiProvider {
      * Calls the Google Gemini (Generative Language) API.
      */
     private fun callGemini(prompt: String, apiKey: String): String {
-        val url = "$GEMINI_API_URL/$geminiModel:generateContent?key=$apiKey"
+        // Send the key as a header rather than a query parameter so it never ends up
+        // in URLs that proxies, crash reports or HTTP logs may record.
+        val url = "$GEMINI_API_URL/$geminiModel:generateContent"
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = CONNECT_TIMEOUT
             readTimeout = READ_TIMEOUT
             doOutput = true
             setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("x-goog-api-key", apiKey)
         }
 
         val requestBody = JSONObject().apply {
@@ -278,8 +287,13 @@ class CloudAiProvider : AiProvider {
             })
         }
 
-        conn.outputStream.bufferedWriter().use { it.write(requestBody.toString()) }
-        return parseGemini(conn)
+        // Always release the socket, including when writing or parsing throws.
+        try {
+            conn.outputStream.bufferedWriter().use { it.write(requestBody.toString()) }
+            return parseGemini(conn)
+        } finally {
+            conn.disconnect()
+        }
     }
 
     private fun parseGemini(conn: HttpURLConnection): String {
@@ -333,8 +347,13 @@ class CloudAiProvider : AiProvider {
             })
         }
 
-        conn.outputStream.bufferedWriter().use { it.write(requestBody.toString()) }
-        return parseOpenAi(conn)
+        // Always release the socket, including when writing or parsing throws.
+        try {
+            conn.outputStream.bufferedWriter().use { it.write(requestBody.toString()) }
+            return parseOpenAi(conn)
+        } finally {
+            conn.disconnect()
+        }
     }
 
     private fun parseOpenAi(conn: HttpURLConnection): String {
@@ -353,8 +372,8 @@ class CloudAiProvider : AiProvider {
         val content = message?.optString("content", "") ?: ""
         // DeepSeek R1 / reasoner models emit <think>…</think> reasoning blocks — strip them
         return content
-            .replace(Regex("<think>[\\s\\S]*?</think>"), "")
-            .replace(Regex("</think>"), "") // Handle unclosed/partial tags
+            .replace(THINK_BLOCK_REGEX, "")
+            .replace("</think>", "") // Handle unclosed/partial tags
             .trim()
     }
 }
