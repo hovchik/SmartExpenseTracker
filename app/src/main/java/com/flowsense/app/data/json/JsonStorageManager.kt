@@ -50,48 +50,35 @@ class JsonStorageManager(private val context: Context) {
         cachedData?.let { return it }
 
         withContext(Dispatchers.IO) {
-            val file = getFile()
-            if (file.exists()) {
-                try {
-                    val json = file.readText()
-                    val data = gson.fromJson(json, AppData::class.java).sanitizeTransactions()
-                    cachedData = data
-                    data
-                } catch (e: Exception) {
-                    // The primary file is unreadable. Move it aside before anything else:
-                    // otherwise the next save would copy the corrupt file over the good
-                    // backup, and if the backup is also unreadable we would silently
-                    // replace the user's history with an empty AppData.
-                    Log.e(TAG, "Primary data file unreadable, quarantining it", e)
-                    quarantine(file)
-                    // Try backup
-                    try {
-                        val backup = getBackupFile()
-                        if (backup.exists()) {
-                            val json = backup.readText()
-                            val data = gson.fromJson(json, AppData::class.java).sanitizeTransactions()
-                            cachedData = data
-                            data
-                        } else {
-                            val default = AppData()
-                            cachedData = default
-                            default
-                        }
-                    } catch (e2: Exception) {
-                        Log.e(TAG, "Backup data file unreadable too, starting fresh", e2)
-                        quarantine(getBackupFile())
-                        val default = AppData()
-                        cachedData = default
-                        default
-                    }
-                }
+            // An unreadable file is moved aside (see [readOrQuarantine]) so the next
+            // save can never copy it over a good backup.
+            val primary = getFile().let { if (it.exists()) readOrQuarantine(it) else null }
+            if (primary != null) {
+                cachedData = primary
+                primary
             } else {
-                val default = AppData()
-                saveDataInternal(default)
-                cachedData = default
-                default
+                // Primary is missing or corrupt: recover from the backup if it is readable.
+                // This also covers a primary that was quarantined on a previous launch.
+                val backup = getBackupFile()
+                val recovered = if (backup.exists()) readOrQuarantine(backup) else null
+                val data = recovered ?: AppData()
+                // Persist straight away so the recovered data survives a process death
+                // before the next save. No primary exists at this point, so
+                // saveDataInternal leaves the existing backup untouched.
+                saveDataInternal(data)
+                cachedData = data
+                data
             }
         }
+    }
+
+    /** Parses [file], or quarantines it and returns null if it can't be read. */
+    private fun readOrQuarantine(file: File): AppData? = try {
+        gson.fromJson(file.readText(), AppData::class.java).sanitizeTransactions()
+    } catch (e: Exception) {
+        Log.e(TAG, "Data file ${file.name} unreadable, quarantining it", e)
+        quarantine(file)
+        null
     }
 
     /**
