@@ -146,7 +146,13 @@ class SmsInboxScanner(private val context: Context) {
             if (t.amount != candidate.amount) continue
             val timeDiff = kotlin.math.abs(t.timestamp - candidate.timestamp)
             if (candidateCard.isNotEmpty() && batchCards[i] == candidateCard && timeDiff < 600_000) return true
-            if (timeDiff < 120_000) return true
+            // Without a card match, only treat it as a duplicate when it also looks like
+            // the same purchase: two different payments of the same amount a minute
+            // apart (e.g. two coffees at different shops) are both real.
+            if (timeDiff < 120_000 && (
+                    t.description.equals(candidate.description, ignoreCase = true) ||
+                    (t.merchantName.isNotEmpty() && t.merchantName.equals(candidate.merchantName, ignoreCase = true))
+                )) return true
         }
         return false
     }
@@ -305,8 +311,11 @@ class SmsInboxScanner(private val context: Context) {
         gateKeywords: List<String>
     ): Boolean {
         return try {
-            val lower = (sender + " " + body).lowercase()
-            if (BANKING_SENDER_PATTERNS.any { lower.contains(it) }) return true
+            // Bank names are matched against the sender only: short names such as
+            // "ing" or "fast" occur inside ordinary words in message bodies.
+            val senderLower = sender.lowercase()
+            if (BANKING_SENDER_PATTERNS.any { senderLower.contains(it) }) return true
+            val lower = body.lowercase()
             // Require ≥2 keyword hits to qualify as a non-bank-sender financial SMS.
             // gateKeywords is the union of FINANCIAL_KEYWORDS + the user's configured
             // income/expense keywords, so configured income terms (e.g. "salary",

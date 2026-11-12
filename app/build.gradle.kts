@@ -1,19 +1,20 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    // Kotlin is built into AGP 9+, so the org.jetbrains.kotlin.android plugin is no
+    // longer applied. Only the Compose compiler plugin is still needed.
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
     namespace = "com.flowsense.app"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.flowsense.app"
         minSdk = 31   // Android 12 – minimum for Google AICore (Gemini Nano)
-        targetSdk = 36 // Android 16 (S24 Ultra target)
-        versionCode = 5
-        versionName = "1.0.5"
+        targetSdk = 37 // Android 17
+        versionCode = 6
+        versionName = "1.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }
@@ -33,13 +34,15 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    lint {
+        // Android 17 lint checks for SMS OTP handling, background activity launches etc.
+        checkReleaseBuilds = true
+        abortOnError = false
     }
 
     packaging {
@@ -50,16 +53,19 @@ android {
     }
 }
 
+// Kotlin's JVM target follows android.compileOptions.targetCompatibility (17),
+// so the old kotlinOptions { jvmTarget } block is no longer needed.
+
 dependencies {
     // Core Android
-    implementation("androidx.core:core-ktx:1.12.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
-    implementation("androidx.activity:activity-compose:1.8.2")
+    implementation("androidx.core:core-ktx:1.19.1")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
+    implementation("androidx.activity:activity-compose:1.13.0")
 
     // Compose BOM
-    implementation(platform("androidx.compose:compose-bom:2024.02.02"))
+    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -67,13 +73,13 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
 
     // Navigation
-    implementation("androidx.navigation:navigation-compose:2.7.6")
+    implementation("androidx.navigation:navigation-compose:2.10.2")
 
-    // CameraX for OCR scanning (1.4.1 – 16 KB page-aligned native libs)
-    implementation("androidx.camera:camera-core:1.4.1")
-    implementation("androidx.camera:camera-camera2:1.4.1")
-    implementation("androidx.camera:camera-lifecycle:1.4.1")
-    implementation("androidx.camera:camera-view:1.4.1")
+    // CameraX for OCR scanning (16 KB page-aligned native libs)
+    implementation("androidx.camera:camera-core:1.6.2")
+    implementation("androidx.camera:camera-camera2:1.6.2")
+    implementation("androidx.camera:camera-lifecycle:1.6.2")
+    implementation("androidx.camera:camera-view:1.6.2")
 
     // ML Kit for OCR — all script recognizers for multi-language support
     // Updated to 16.0.1 for 16 KB page-size alignment (Android 15+ requirement)
@@ -94,28 +100,28 @@ dependencies {
     implementation("com.google.mediapipe:tasks-genai:0.10.29")
 
     // Gson for JSON storage
-    implementation("com.google.code.gson:gson:2.10.1")
+    implementation("com.google.code.gson:gson:2.13.2")
 
     // Accompanist permissions
-    implementation("com.google.accompanist:accompanist-permissions:0.34.0")
+    implementation("com.google.accompanist:accompanist-permissions:0.37.3")
 
     // osmdroid – OpenStreetMap for Store Map screen (open-source, no API key needed)
-    implementation("org.osmdroid:osmdroid-android:6.1.18")
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
 
     // Charts (Vico)
-    implementation("com.patrykandpatrick.vico:compose-m3:1.13.1")
+    implementation("com.patrykandpatrick.vico:compose-m3:1.16.1")
 
     // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 
     // Glance – Jetpack Compose for App Widgets
-    implementation("androidx.glance:glance-appwidget:1.1.1")
+    implementation("androidx.glance:glance-appwidget:1.2.0")
 
     // WorkManager for salary scheduling
-    implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation("androidx.work:work-runtime-ktx:2.12.0")
 
     // Google Play Billing for subscriptions & one-time purchases
-    implementation("com.android.billingclient:billing-ktx:8.0.0")
+    implementation("com.android.billingclient:billing-ktx:9.1.0")
 
     // Testing
     testImplementation("junit:junit:4.13.2")

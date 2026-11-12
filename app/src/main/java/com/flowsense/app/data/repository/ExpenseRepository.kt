@@ -25,15 +25,26 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
     private val _appData = MutableStateFlow(AppData())
     val appData: StateFlow<AppData> = _appData.asStateFlow()
 
-    /** Protects addTransaction from race conditions during duplicate checking. */
-    private val transactionMutex = Mutex()
+    /**
+     * Serialises every read-modify-write of [_appData]. Each mutation reads the
+     * current snapshot, copies it and writes it back; without a single lock, an SMS
+     * receiver, the notification listener and the UI writing at the same time
+     * would silently drop each other's changes (e.g. a new transaction lost because
+     * a concurrent category update wrote back an older snapshot).
+     *
+     * Not re-entrant: a locked function must not call another locked function.
+     * Use the private `*Locked` helpers for shared steps instead.
+     */
+    private val writeMutex = Mutex()
 
     private val _initialized = CompletableDeferred<Unit>()
 
     suspend fun initialize() {
-        val data = storage.loadData()
-        _appData.value = data
-        _initialized.complete(Unit)
+        writeMutex.withLock {
+            val data = storage.loadData()
+            _appData.value = data
+            _initialized.complete(Unit)
+        }
     }
 
     /**
@@ -57,7 +68,7 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
      *                          OR same amount + same card last-4 within 10 min
      *  - IMPORT              : never considered a duplicate (imports are intentional)
      */
-    suspend fun addTransaction(transaction: Transaction): Boolean = transactionMutex.withLock {
+    suspend fun addTransaction(transaction: Transaction): Boolean = writeMutex.withLock {
         val current = _appData.value
         if (isDuplicateOf(transaction, current.transactions)) return@withLock false
         val updated = current.copy(
@@ -73,7 +84,7 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
      * Each candidate is dedup-checked against both existing data and the
      * candidates accepted earlier in this batch. Returns the number saved.
      */
-    suspend fun addTransactions(transactions: List<Transaction>): Int = transactionMutex.withLock {
+    suspend fun addTransactions(transactions: List<Transaction>): Int = writeMutex.withLock {
         if (transactions.isEmpty()) return@withLock 0
         val current = _appData.value
         val accepted = mutableListOf<Transaction>()
@@ -121,14 +132,16 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
     }
 
     suspend fun updateTransaction(transaction: Transaction) {
-        val current = _appData.value
-        val updated = current.copy(
-            transactions = current.transactions.map {
-                if (it.id == transaction.id) transaction else it
-            }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                transactions = current.transactions.map {
+                    if (it.id == transaction.id) transaction else it
+                }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     /**
@@ -137,76 +150,86 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
      * Returns the deleted transaction for undo support.
      */
     suspend fun deleteTransaction(id: String): Transaction? {
-        val current = _appData.value
-        val tx = current.transactions.find { it.id == id } ?: return null
-        val softDeleted = tx.copy(deletedAt = System.currentTimeMillis())
-        val updated = current.copy(
-            transactions = current.transactions.map {
-                if (it.id == id) softDeleted else it
-            }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
-        return tx
+        writeMutex.withLock {
+            val current = _appData.value
+            val tx = current.transactions.find { it.id == id } ?: return null
+            val softDeleted = tx.copy(deletedAt = System.currentTimeMillis())
+            val updated = current.copy(
+                transactions = current.transactions.map {
+                    if (it.id == id) softDeleted else it
+                }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+            return tx
+        }
     }
 
     /**
      * Permanently deletes a transaction (bypasses soft-delete).
      */
     suspend fun permanentlyDeleteTransaction(id: String) {
-        val current = _appData.value
-        val updated = current.copy(
-            transactions = current.transactions.filter { it.id != id }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                transactions = current.transactions.filter { it.id != id }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     /**
      * Restores a soft-deleted transaction.
      */
     suspend fun restoreTransaction(id: String) {
-        val current = _appData.value
-        val updated = current.copy(
-            transactions = current.transactions.map {
-                if (it.id == id) it.copy(deletedAt = 0) else it
-            }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                transactions = current.transactions.map {
+                    if (it.id == id) it.copy(deletedAt = 0) else it
+                }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     /**
      * Restores a transaction from a full copy (for undo after soft-delete).
      */
     suspend fun restoreTransactionFromCopy(tx: Transaction) {
-        val current = _appData.value
-        val exists = current.transactions.any { it.id == tx.id }
-        val updated = if (exists) {
-            current.copy(transactions = current.transactions.map {
-                if (it.id == tx.id) tx.copy(deletedAt = 0) else it
-            })
-        } else {
-            current.copy(transactions = current.transactions + tx.copy(deletedAt = 0))
+        writeMutex.withLock {
+            val current = _appData.value
+            val exists = current.transactions.any { it.id == tx.id }
+            val updated = if (exists) {
+                current.copy(transactions = current.transactions.map {
+                    if (it.id == tx.id) tx.copy(deletedAt = 0) else it
+                })
+            } else {
+                current.copy(transactions = current.transactions + tx.copy(deletedAt = 0))
+            }
+            _appData.value = updated
+            storage.saveData(updated)
         }
-        _appData.value = updated
-        storage.saveData(updated)
     }
 
     /**
      * Purges soft-deleted transactions older than [retentionDays].
      */
     suspend fun purgeDeletedTransactions(retentionDays: Int = 30) {
-        val cutoff = System.currentTimeMillis() - (retentionDays * 24 * 60 * 60 * 1000L)
-        val current = _appData.value
-        val updated = current.copy(
-            transactions = current.transactions.filter {
-                (it.deletedAt ?: 0) == 0L || (it.deletedAt ?: 0) > cutoff
+        writeMutex.withLock {
+            val cutoff = System.currentTimeMillis() - (retentionDays * 24 * 60 * 60 * 1000L)
+            val current = _appData.value
+            val updated = current.copy(
+                transactions = current.transactions.filter {
+                    (it.deletedAt ?: 0) == 0L || (it.deletedAt ?: 0) > cutoff
+                }
+            )
+            if (updated.transactions.size != current.transactions.size) {
+                _appData.value = updated
+                storage.saveData(updated)
             }
-        )
-        if (updated.transactions.size != current.transactions.size) {
-            _appData.value = updated
-            storage.saveData(updated)
         }
     }
 
@@ -230,57 +253,65 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
      * whole day's worth of transactions and applies them atomically.
      */
     suspend fun updateTransactions(replacements: List<Transaction>) {
-        if (replacements.isEmpty()) return
-        val byId = replacements.associateBy { it.id }
-        val current = _appData.value
-        val updated = current.copy(
-            transactions = current.transactions.map { byId[it.id] ?: it }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            if (replacements.isEmpty()) return
+            val byId = replacements.associateBy { it.id }
+            val current = _appData.value
+            val updated = current.copy(
+                transactions = current.transactions.map { byId[it.id] ?: it }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     suspend fun batchRecategorize(ids: Set<String>, newCategory: String) {
-        val current = _appData.value
-        val updated = current.copy(
-            transactions = current.transactions.map {
-                if (it.id in ids) it.copy(category = newCategory) else it
-            }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                transactions = current.transactions.map {
+                    if (it.id in ids) it.copy(category = newCategory) else it
+                }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     /**
      * Batch delete multiple transactions (soft-delete).
      */
     suspend fun batchDelete(ids: Set<String>) {
-        val now = System.currentTimeMillis()
-        val current = _appData.value
-        val updated = current.copy(
-            transactions = current.transactions.map {
-                if (it.id in ids) it.copy(deletedAt = now) else it
-            }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val now = System.currentTimeMillis()
+            val current = _appData.value
+            val updated = current.copy(
+                transactions = current.transactions.map {
+                    if (it.id in ids) it.copy(deletedAt = now) else it
+                }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     /**
      * Batch add/remove tags on multiple transactions.
      */
     suspend fun batchUpdateTags(ids: Set<String>, addTags: List<String> = emptyList(), removeTags: List<String> = emptyList()) {
-        val current = _appData.value
-        val updated = current.copy(
-            transactions = current.transactions.map { tx ->
-                if (tx.id in ids) {
-                    val newTags = (tx.tags + addTags).filter { it !in removeTags }.distinct()
-                    tx.copy(tags = newTags)
-                } else tx
-            }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                transactions = current.transactions.map { tx ->
+                    if (tx.id in ids) {
+                        val newTags = (tx.tags + addTags).filter { it !in removeTags }.distinct()
+                        tx.copy(tags = newTags)
+                    } else tx
+                }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     fun getTransactionsByDateRange(start: Long, end: Long): List<Transaction> {
@@ -304,96 +335,114 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
     // ─── Categories ────────────────────────────────────────────────
 
     suspend fun addCategory(category: Category) {
-        val current = _appData.value
-        val updated = current.copy(
-            categories = current.categories + category
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                categories = current.categories + category
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     suspend fun deleteCategory(id: String) {
-        val current = _appData.value
-        val updated = current.copy(
-            categories = current.categories.filter { it.id != id }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                categories = current.categories.filter { it.id != id }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     // ─── Budgets ───────────────────────────────────────────────────
 
     suspend fun setBudget(budget: Budget) {
-        val current = _appData.value
-        val existing = current.budgets.find { it.categoryId == budget.categoryId }
-        val updatedBudgets = if (existing != null) {
-            current.budgets.map { if (it.categoryId == budget.categoryId) budget else it }
-        } else {
-            current.budgets + budget
+        writeMutex.withLock {
+            val current = _appData.value
+            val existing = current.budgets.find { it.categoryId == budget.categoryId }
+            val updatedBudgets = if (existing != null) {
+                current.budgets.map { if (it.categoryId == budget.categoryId) budget else it }
+            } else {
+                current.budgets + budget
+            }
+            val updated = current.copy(budgets = updatedBudgets)
+            _appData.value = updated
+            storage.saveData(updated)
         }
-        val updated = current.copy(budgets = updatedBudgets)
-        _appData.value = updated
-        storage.saveData(updated)
     }
 
     // ─── Suggestions ───────────────────────────────────────────────
 
     suspend fun addSuggestions(suggestions: List<AiSuggestion>) {
-        val current = _appData.value
-        val updated = current.copy(
-            suggestions = current.suggestions.filter { it.isDismissed } + suggestions
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                suggestions = current.suggestions.filter { it.isDismissed } + suggestions
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     suspend fun dismissSuggestion(id: String) {
-        val current = _appData.value
-        val updated = current.copy(
-            suggestions = current.suggestions.map {
-                if (it.id == id) it.copy(isDismissed = true) else it
-            }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                suggestions = current.suggestions.map {
+                    if (it.id == id) it.copy(isDismissed = true) else it
+                }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     // ─── Store Locations ─────────────────────────────────────────
 
     suspend fun addStoreLocation(storeLocation: StoreLocation) {
-        val current = _appData.value
-        val updated = current.copy(
-            storeLocations = current.storeLocations + storeLocation
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                storeLocations = current.storeLocations + storeLocation
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     suspend fun deleteStoreLocation(id: String) {
-        val current = _appData.value
-        val updated = current.copy(
-            storeLocations = current.storeLocations.filter { it.id != id }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                storeLocations = current.storeLocations.filter { it.id != id }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     suspend fun clearAllStoreLocations() {
-        val current = _appData.value
-        val updated = current.copy(storeLocations = emptyList())
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(storeLocations = emptyList())
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     suspend fun updateStoreLocation(updated: StoreLocation) {
-        val current = _appData.value
-        val newData = current.copy(
-            storeLocations = current.storeLocations.map {
-                if (it.id == updated.id) updated else it
-            }
-        )
-        _appData.value = newData
-        storage.saveData(newData)
+        writeMutex.withLock {
+            val current = _appData.value
+            val newData = current.copy(
+                storeLocations = current.storeLocations.map {
+                    if (it.id == updated.id) updated else it
+                }
+            )
+            _appData.value = newData
+            storage.saveData(newData)
+        }
     }
 
     /**
@@ -418,51 +467,60 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         fallbackRate: Double,
         rateFromOriginal: (String) -> Double?
     ) {
-        // Validate exchange rates to prevent data corruption from NaN, Infinity, or zero rates
-        if (fallbackRate <= 0 || fallbackRate.isNaN() || fallbackRate.isInfinite()) return
+        writeMutex.withLock {
+            // Validate exchange rates to prevent data corruption from NaN, Infinity, or zero rates
+            if (fallbackRate <= 0 || fallbackRate.isNaN() || fallbackRate.isInfinite()) return
 
-        val current = _appData.value
-        val updated = current.copy(
-            transactions = current.transactions.map { tx ->
-                if (tx.originalAmount > 0.0 && tx.originalCurrencyCode.orEmpty().isNotEmpty()) {
-                    val rate = rateFromOriginal(tx.originalCurrencyCode.orEmpty())
-                    if (rate != null && rate > 0 && rate.isFinite()) {
-                        tx.copy(
-                            amount = tx.originalAmount * rate,
-                            currencyCode = newCurrency,
-                            exchangeRate = rate
-                        )
+            val current = _appData.value
+            val updated = current.copy(
+                transactions = current.transactions.map { tx ->
+                    if (tx.originalAmount > 0.0 && tx.originalCurrencyCode.orEmpty().isNotEmpty()) {
+                        val rate = rateFromOriginal(tx.originalCurrencyCode.orEmpty())
+                        if (rate != null && rate > 0 && rate.isFinite()) {
+                            tx.copy(
+                                amount = tx.originalAmount * rate,
+                                currencyCode = newCurrency,
+                                exchangeRate = rate
+                            )
+                        } else {
+                            tx.copy(
+                                amount = tx.amount * fallbackRate,
+                                currencyCode = newCurrency
+                            )
+                        }
                     } else {
                         tx.copy(
                             amount = tx.amount * fallbackRate,
                             currencyCode = newCurrency
                         )
                     }
-                } else {
-                    tx.copy(
-                        amount = tx.amount * fallbackRate,
-                        currencyCode = newCurrency
-                    )
-                }
-            },
-            budgets = current.budgets.map { it.copy(monthlyLimit = it.monthlyLimit * fallbackRate) }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+                },
+                budgets = current.budgets.map { it.copy(monthlyLimit = it.monthlyLimit * fallbackRate) }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     // ─── Settings ──────────────────────────────────────────────────
 
     suspend fun updateSettings(settings: AppSettings) {
-        val current = _appData.value
-        val updated = current.copy(settings = settings)
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(settings = settings)
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     // ─── In-App Notifications ──────────────────────────────────────
 
     suspend fun addInAppNotification(notification: com.flowsense.app.data.model.InAppNotification) {
+        writeMutex.withLock { addInAppNotificationLocked(notification) }
+    }
+
+    /** Caller must hold [writeMutex]. */
+    private suspend fun addInAppNotificationLocked(notification: com.flowsense.app.data.model.InAppNotification) {
         val current = _appData.value
         // Keep at most 100 notifications to avoid unbounded growth
         val trimmed = (listOf(notification) + current.inAppNotifications).take(100)
@@ -472,39 +530,47 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
     }
 
     suspend fun deleteNotification(id: String) {
-        val current = _appData.value
-        val updated = current.copy(
-            inAppNotifications = current.inAppNotifications.filter { it.id != id }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                inAppNotifications = current.inAppNotifications.filter { it.id != id }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     suspend fun markNotificationRead(id: String) {
-        val current = _appData.value
-        val updated = current.copy(
-            inAppNotifications = current.inAppNotifications.map {
-                if (it.id == id) it.copy(isRead = true) else it
-            }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                inAppNotifications = current.inAppNotifications.map {
+                    if (it.id == id) it.copy(isRead = true) else it
+                }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     suspend fun markAllNotificationsRead() {
-        val current = _appData.value
-        val updated = current.copy(
-            inAppNotifications = current.inAppNotifications.map { it.copy(isRead = true) }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                inAppNotifications = current.inAppNotifications.map { it.copy(isRead = true) }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     suspend fun clearNotifications() {
-        val current = _appData.value
-        val updated = current.copy(inAppNotifications = emptyList())
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(inAppNotifications = emptyList())
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     /**
@@ -513,27 +579,29 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
      * Returns true if a new category was created.
      */
     suspend fun ensureCategoryExists(categoryName: String): Boolean {
-        val current = _appData.value
-        if (current.categories.any { it.name.equals(categoryName, ignoreCase = true) }) return false
-        // Create the new category
-        val newCategory = com.flowsense.app.data.model.Category(
-            name = categoryName,
-            icon = "category",
-            color = 0xFF9E9E9E,
-            isDefault = false
-        )
-        val withCategory = current.copy(categories = current.categories + newCategory)
-        _appData.value = withCategory
-        storage.saveData(withCategory)
-        // Post a notification about the new category
-        val notification = com.flowsense.app.data.model.InAppNotification(
-            title = "New category added",
-            message = "\"$categoryName\" was automatically created based on your transaction. You can rename or remove it in Settings.",
-            type = com.flowsense.app.data.model.InAppNotificationType.CATEGORY_CREATED,
-            suggestedCategoryName = categoryName
-        )
-        addInAppNotification(notification)
-        return true
+        writeMutex.withLock {
+            val current = _appData.value
+            if (current.categories.any { it.name.equals(categoryName, ignoreCase = true) }) return false
+            // Create the new category
+            val newCategory = com.flowsense.app.data.model.Category(
+                name = categoryName,
+                icon = "category",
+                color = 0xFF9E9E9E,
+                isDefault = false
+            )
+            val withCategory = current.copy(categories = current.categories + newCategory)
+            _appData.value = withCategory
+            storage.saveData(withCategory)
+            // Post a notification about the new category
+            val notification = com.flowsense.app.data.model.InAppNotification(
+                title = "New category added",
+                message = "\"$categoryName\" was automatically created based on your transaction. You can rename or remove it in Settings.",
+                type = com.flowsense.app.data.model.InAppNotificationType.CATEGORY_CREATED,
+                suggestedCategoryName = categoryName
+            )
+            addInAppNotificationLocked(notification)
+            return true
+        }
     }
 
     /**
@@ -541,27 +609,29 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
      * with a single disk write and a single summary notification.
      */
     suspend fun ensureCategoriesExist(categoryNames: Collection<String>) {
-        val current = _appData.value
-        val existing = current.categories.map { it.name.lowercase() }.toHashSet()
-        val missing = categoryNames
-            .filter { it.isNotBlank() && it.lowercase() !in existing }
-            .distinctBy { it.lowercase() }
-        if (missing.isEmpty()) return
-        val newCategories = missing.map {
-            Category(name = it, icon = "category", color = 0xFF9E9E9E, isDefault = false)
-        }
-        val updated = current.copy(categories = current.categories + newCategories)
-        _appData.value = updated
-        storage.saveData(updated)
-        addInAppNotification(
-            InAppNotification(
-                title = if (missing.size == 1) "New category added" else "${missing.size} new categories added",
-                message = "${missing.joinToString(", ") { "\"$it\"" }} created from your transactions. " +
-                    "You can rename or remove them in Settings.",
-                type = InAppNotificationType.CATEGORY_CREATED,
-                suggestedCategoryName = missing.first()
+        writeMutex.withLock {
+            val current = _appData.value
+            val existing = current.categories.map { it.name.lowercase() }.toHashSet()
+            val missing = categoryNames
+                .filter { it.isNotBlank() && it.lowercase() !in existing }
+                .distinctBy { it.lowercase() }
+            if (missing.isEmpty()) return
+            val newCategories = missing.map {
+                Category(name = it, icon = "category", color = 0xFF9E9E9E, isDefault = false)
+            }
+            val updated = current.copy(categories = current.categories + newCategories)
+            _appData.value = updated
+            storage.saveData(updated)
+            addInAppNotificationLocked(
+                InAppNotification(
+                    title = if (missing.size == 1) "New category added" else "${missing.size} new categories added",
+                    message = "${missing.joinToString(", ") { "\"$it\"" }} created from your transactions. " +
+                        "You can rename or remove them in Settings.",
+                    type = InAppNotificationType.CATEGORY_CREATED,
+                    suggestedCategoryName = missing.first()
+                )
             )
-        )
+        }
     }
 
     // ─── Message Source Patterns ──────────────────────────────────
@@ -585,7 +655,7 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
         rawSource: String,
         displayName: String,
         sampleText: String
-    ): Pair<MessagePattern, Boolean> = transactionMutex.withLock {
+    ): Pair<MessagePattern, Boolean> = writeMutex.withLock {
         val key = patternSourceKey(rawSource)
         val current = _appData.value
         val patterns = current.messagePatterns.orEmpty()
@@ -619,24 +689,28 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
 
     /** Sets the user's include/exclude decision for a pattern. */
     suspend fun setMessagePatternStatus(id: String, status: PatternStatus) {
-        val current = _appData.value
-        val updated = current.copy(
-            messagePatterns = current.messagePatterns.orEmpty().map {
-                if (it.id == id) it.copy(status = status) else it
-            }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                messagePatterns = current.messagePatterns.orEmpty().map {
+                    if (it.id == id) it.copy(status = status) else it
+                }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     /** Removes a learned pattern entirely (it will be re-detected as PENDING if seen again). */
     suspend fun deleteMessagePattern(id: String) {
-        val current = _appData.value
-        val updated = current.copy(
-            messagePatterns = current.messagePatterns.orEmpty().filter { it.id != id }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                messagePatterns = current.messagePatterns.orEmpty().filter { it.id != id }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     /** Lowercased source keys the user excluded for [kind]. */
@@ -649,39 +723,47 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
     // ─── OCR Sections ─────────────────────────────────────────────
 
     suspend fun addOcrSection(section: com.flowsense.app.data.model.OcrSection) {
-        val current = _appData.value
-        val updated = current.copy(
-            ocrSections = current.ocrSections + section
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                ocrSections = current.ocrSections + section
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     suspend fun updateOcrSection(section: com.flowsense.app.data.model.OcrSection) {
-        val current = _appData.value
-        val updated = current.copy(
-            ocrSections = current.ocrSections.map {
-                if (it.id == section.id) section else it
-            }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                ocrSections = current.ocrSections.map {
+                    if (it.id == section.id) section else it
+                }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     suspend fun deleteOcrSection(id: String) {
-        val current = _appData.value
-        val updated = current.copy(
-            ocrSections = current.ocrSections.filter { it.id != id }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                ocrSections = current.ocrSections.filter { it.id != id }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     suspend fun clearAllOcrSections() {
-        val current = _appData.value
-        val updated = current.copy(ocrSections = emptyList())
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(ocrSections = emptyList())
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     // ─── Rate History ─────────────────────────────────────────────
@@ -690,40 +772,48 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
      * Stores a rate snapshot. Keeps only current (index 0) and previous (index 1).
      */
     suspend fun addRateHistoryEntry(entry: com.flowsense.app.data.model.RateHistoryEntry) {
-        val current = _appData.value
-        val updated = current.copy(
-            rateHistory = (listOf(entry) + current.rateHistory).take(2)
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                rateHistory = (listOf(entry) + current.rateHistory).take(2)
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     // ─── AI Conversations ──────────────────────────────────────────
 
     suspend fun addAiConversation(conversation: AiConversation) {
-        val current = _appData.value
-        // Keep at most 200 conversations to avoid unbounded growth
-        val updated = current.copy(
-            aiConversations = (listOf(conversation) + current.aiConversations).take(200)
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            // Keep at most 200 conversations to avoid unbounded growth
+            val updated = current.copy(
+                aiConversations = (listOf(conversation) + current.aiConversations).take(200)
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     suspend fun deleteAiConversation(id: String) {
-        val current = _appData.value
-        val updated = current.copy(
-            aiConversations = current.aiConversations.filter { it.id != id }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                aiConversations = current.aiConversations.filter { it.id != id }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     suspend fun clearAllAiConversations() {
-        val current = _appData.value
-        val updated = current.copy(aiConversations = emptyList())
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(aiConversations = emptyList())
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     // ─── Recurring Patterns ─────────────────────────────────────────
@@ -733,7 +823,7 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
      * Looks for transactions with similar amounts and descriptions
      * that occur at regular intervals.
      */
-    suspend fun detectRecurringPatterns(): List<RecurringPattern> = transactionMutex.withLock {
+    suspend fun detectRecurringPatterns(): List<RecurringPattern> = writeMutex.withLock {
         val current = _appData.value
         val activeTransactions = current.transactions.filter { !it.isDeleted && it.type == TransactionType.EXPENSE }
 
@@ -783,25 +873,29 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
     }
 
     suspend fun confirmRecurringPattern(id: String) {
-        val current = _appData.value
-        val updated = current.copy(
-            recurringPatterns = current.recurringPatterns.orEmpty().map {
-                if (it.id == id) it.copy(confirmed = true) else it
-            }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                recurringPatterns = current.recurringPatterns.orEmpty().map {
+                    if (it.id == id) it.copy(confirmed = true) else it
+                }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     suspend fun dismissRecurringPattern(id: String) {
-        val current = _appData.value
-        val updated = current.copy(
-            recurringPatterns = current.recurringPatterns.orEmpty().map {
-                if (it.id == id) it.copy(dismissed = true) else it
-            }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                recurringPatterns = current.recurringPatterns.orEmpty().map {
+                    if (it.id == id) it.copy(dismissed = true) else it
+                }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     // ─── Spending Streaks ─────────────────────────────────────────
@@ -810,56 +904,58 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
      * Updates the spending streak after a new transaction is logged.
      */
     suspend fun updateSpendingStreak() {
-        val current = _appData.value
-        val streak = current.spendingStreak ?: SpendingStreak()
-        val today = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US)
-            .format(java.util.Date(System.currentTimeMillis()))
+        writeMutex.withLock {
+            val current = _appData.value
+            val streak = current.spendingStreak ?: SpendingStreak()
+            val today = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                .format(java.util.Date(System.currentTimeMillis()))
 
-        if (today == streak.lastLogDate) {
-            // Already logged today, just increment total
+            if (today == streak.lastLogDate) {
+                // Already logged today, just increment total
+                val updated = current.copy(
+                    spendingStreak = streak.copy(
+                        totalTransactionsLogged = current.transactions.count { !it.isDeleted }
+                    )
+                )
+                _appData.value = updated
+                storage.saveData(updated)
+                return
+            }
+
+            // Check if yesterday was the last log date
+            val cal = java.util.Calendar.getInstance()
+            cal.add(java.util.Calendar.DAY_OF_YEAR, -1)
+            val yesterday = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
+
+            val newStreak = if (streak.lastLogDate == yesterday) {
+                streak.currentStreak + 1
+            } else {
+                1 // Reset streak
+            }
+
+            val totalTx = current.transactions.count { !it.isDeleted }
+
+            // Check for new achievements
+            val achievements = streak.unlockedAchievements.toMutableList()
+            if (newStreak >= 7 && "streak_7" !in achievements) achievements.add("streak_7")
+            if (newStreak >= 14 && "streak_14" !in achievements) achievements.add("streak_14")
+            if (newStreak >= 30 && "streak_30" !in achievements) achievements.add("streak_30")
+            if (newStreak >= 100 && "streak_100" !in achievements) achievements.add("streak_100")
+            if (totalTx >= 100 && "tx_100" !in achievements) achievements.add("tx_100")
+            if (totalTx >= 500 && "tx_500" !in achievements) achievements.add("tx_500")
+
             val updated = current.copy(
                 spendingStreak = streak.copy(
-                    totalTransactionsLogged = current.transactions.count { !it.isDeleted }
+                    currentStreak = newStreak,
+                    longestStreak = maxOf(newStreak, streak.longestStreak),
+                    lastLogDate = today,
+                    totalTransactionsLogged = totalTx,
+                    unlockedAchievements = achievements
                 )
             )
             _appData.value = updated
             storage.saveData(updated)
-            return
         }
-
-        // Check if yesterday was the last log date
-        val cal = java.util.Calendar.getInstance()
-        cal.add(java.util.Calendar.DAY_OF_YEAR, -1)
-        val yesterday = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
-
-        val newStreak = if (streak.lastLogDate == yesterday) {
-            streak.currentStreak + 1
-        } else {
-            1 // Reset streak
-        }
-
-        val totalTx = current.transactions.count { !it.isDeleted }
-
-        // Check for new achievements
-        val achievements = streak.unlockedAchievements.toMutableList()
-        if (newStreak >= 7 && "streak_7" !in achievements) achievements.add("streak_7")
-        if (newStreak >= 14 && "streak_14" !in achievements) achievements.add("streak_14")
-        if (newStreak >= 30 && "streak_30" !in achievements) achievements.add("streak_30")
-        if (newStreak >= 100 && "streak_100" !in achievements) achievements.add("streak_100")
-        if (totalTx >= 100 && "tx_100" !in achievements) achievements.add("tx_100")
-        if (totalTx >= 500 && "tx_500" !in achievements) achievements.add("tx_500")
-
-        val updated = current.copy(
-            spendingStreak = streak.copy(
-                currentStreak = newStreak,
-                longestStreak = maxOf(newStreak, streak.longestStreak),
-                lastLogDate = today,
-                totalTransactionsLogged = totalTx,
-                unlockedAchievements = achievements
-            )
-        )
-        _appData.value = updated
-        storage.saveData(updated)
     }
 
     // ─── CSV Export ───────────────────────────────────────────────
@@ -923,14 +1019,16 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
      * Updates the split information for a transaction.
      */
     suspend fun updateSplitExpense(transactionId: String, splitWith: List<SplitPerson>) {
-        val current = _appData.value
-        val updated = current.copy(
-            transactions = current.transactions.map {
-                if (it.id == transactionId) it.copy(splitWith = splitWith) else it
-            }
-        )
-        _appData.value = updated
-        storage.saveData(updated)
+        writeMutex.withLock {
+            val current = _appData.value
+            val updated = current.copy(
+                transactions = current.transactions.map {
+                    if (it.id == transactionId) it.copy(splitWith = splitWith) else it
+                }
+            )
+            _appData.value = updated
+            storage.saveData(updated)
+        }
     }
 
     /**
@@ -954,33 +1052,37 @@ class ExpenseRepository(private val storage: JsonStorageManager) {
     suspend fun exportData(): String = storage.exportData()
 
     suspend fun importData(json: String): Result<AppData> {
-        val result = storage.importData(json)
-        result.onSuccess { _appData.value = it }
-        return result
+        writeMutex.withLock {
+            val result = storage.importData(json)
+            result.onSuccess { _appData.value = it }
+            return result
+        }
     }
 
     suspend fun clearAllData() {
-        val current = _appData.value
-        // Reset currency to the device's country default
-        val localeCurrency = try {
-            java.util.Currency.getInstance(Locale.getDefault()).currencyCode
-        } catch (_: Exception) { null }
-        val info = localeCurrency?.let { code ->
-            SUPPORTED_CURRENCIES.firstOrNull { it.code == code }
+        writeMutex.withLock {
+            val current = _appData.value
+            // Reset currency to the device's country default
+            val localeCurrency = try {
+                java.util.Currency.getInstance(Locale.getDefault()).currencyCode
+            } catch (_: Exception) { null }
+            val info = localeCurrency?.let { code ->
+                SUPPORTED_CURRENCIES.firstOrNull { it.code == code }
+            }
+            val resetSettings = if (info != null) {
+                current.settings.copy(currencyCode = info.code, currency = info.symbol)
+            } else {
+                current.settings
+            }
+            // Preserve user-configured settings (banking apps, scan keywords, theme,
+            // etc.) and custom categories across data clears.
+            val preserved = AppData(
+                settings = resetSettings,
+                categories = current.categories
+            )
+            storage.clearData()
+            _appData.value = preserved
+            storage.saveData(preserved)
         }
-        val resetSettings = if (info != null) {
-            current.settings.copy(currencyCode = info.code, currency = info.symbol)
-        } else {
-            current.settings
-        }
-        // Preserve user-configured settings (banking apps, scan keywords, theme,
-        // etc.) and custom categories across data clears.
-        val preserved = AppData(
-            settings = resetSettings,
-            categories = current.categories
-        )
-        storage.clearData()
-        _appData.value = preserved
-        storage.saveData(preserved)
     }
 }

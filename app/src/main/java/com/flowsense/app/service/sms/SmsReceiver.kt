@@ -3,7 +3,7 @@ package com.flowsense.app.service.sms
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
+import android.provider.Telephony
 import android.telephony.SmsMessage
 import android.util.Log
 import com.flowsense.app.FlowSenseApp
@@ -31,7 +31,8 @@ class SmsReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "SmsReceiver"
-        private const val SMS_RECEIVED = "android.provider.Telephony.SMS_RECEIVED"
+        private const val SMS_RECEIVED = Telephony.Sms.Intents.SMS_RECEIVED_ACTION
+        private const val FRESH_MESSAGE_WINDOW_MS = 10 * 60 * 1000L
     }
 
     private val bankingSenders = listOf(
@@ -69,30 +70,30 @@ class SmsReceiver : BroadcastReceiver() {
         try {
             if (intent.action != SMS_RECEIVED) return
 
-            // Extract SMS messages from PDU
-            val pdus = intent.extras?.get("pdus") as? Array<*> ?: return
-            val format = intent.extras?.getString("format") ?: ""
-
-            val messages = mutableListOf<SmsMessage>()
-            for (pdu in pdus) {
-                try {
-                    val bytes = pdu as? ByteArray ?: continue
-                    val msg = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        SmsMessage.createFromPdu(bytes, format)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        SmsMessage.createFromPdu(bytes)
-                    }
-                    if (msg != null) messages.add(msg)
-                } catch (e: Throwable) {
-                    Log.w(TAG, "Failed to parse PDU: ${e.message}")
-                }
+            // Telephony.Sms.Intents handles multipart PDUs and the "format" extra for us,
+            // and avoids the deprecated untyped Bundle.get("pdus") lookup.
+            val messages = try {
+                Telephony.Sms.Intents.getMessagesFromIntent(intent)?.filterNotNull().orEmpty()
+            } catch (e: Throwable) {
+                Log.w(TAG, "Failed to parse SMS PDUs: ${e.message}")
+                emptyList()
             }
 
             if (messages.isEmpty()) return
 
             val fullMessage = messages.joinToString("") { it.messageBody ?: "" }
             val sender = messages.firstOrNull()?.originatingAddress ?: "unknown"
+            // Use the time the SMS was received by the network, not "now". On Android 17
+            // the platform can hold back SMS (e.g. ones containing an OTP) for up to
+            // 3 hours, so "now" can be far from when the payment actually happened.
+            // Fall back to now if the PDU carries no usable timestamp or one in the future.
+            val now = System.currentTimeMillis()
+            val smsTimestamp = messages.firstOrNull()?.timestampMillis
+                ?.takeIf { it in 1..now }
+                ?: now
+            // Only tag the transaction with the current GPS fix when the SMS is fresh;
+            // for a delayed message the device has likely moved since the purchase.
+            val isFreshMessage = now - smsTimestamp <= FRESH_MESSAGE_WINDOW_MS
 
             if (fullMessage.isBlank()) return
             // Drop pre-auth / authorisation-hold messages before any further processing.
@@ -127,7 +128,6 @@ class SmsReceiver : BroadcastReceiver() {
                         // and corrupt existing data on save.
                         if (!repo.awaitInitialization()) {
                             Log.w(TAG, "Repository init timed out, skipping SMS")
-                            pendingResult.finish()
                             return@launch
                         }
                         val settings = repo.appData.value.settings
@@ -135,7 +135,6 @@ class SmsReceiver : BroadcastReceiver() {
                         // Respect user toggle — if SMS parsing is disabled, bail out.
                         if (!settings.smsParsingEnabled) {
                             Log.d(TAG, "SMS parsing disabled in settings, skipping")
-                            pendingResult.finish()
                             return@launch
                         }
 
@@ -143,7 +142,6 @@ class SmsReceiver : BroadcastReceiver() {
                         val userKeywords = settings.expenseKeywords + settings.incomeKeywords
                         if (!isFinancialMessage(sender, fullMessage, userKeywords)) {
                             Log.d(TAG, "SMS skipped: not financial with user keywords")
-                            pendingResult.finish()
                             return@launch
                         }
 
@@ -158,7 +156,6 @@ class SmsReceiver : BroadcastReceiver() {
                         )
                         if (!pattern.isTracked) {
                             Log.d(TAG, "SMS skipped: sender $sender is excluded by pattern")
-                            pendingResult.finish()
                             return@launch
                         }
                         if (isNewPattern) {
@@ -180,11 +177,10 @@ class SmsReceiver : BroadcastReceiver() {
                         )
                         if (parsed == null) {
                             Log.d(TAG, "Could not parse financial data from SMS")
-                            pendingResult.finish()
                             return@launch
                         }
 
-                        val dedupKey = "Auto SMS: $sender | ${System.currentTimeMillis() / 60000}"
+                        val dedupKey = "Auto SMS: $sender | ${smsTimestamp / 60000}"
                         val appCurrency = settings.currencyCode
                         val userCatNames = repo.appData.value.categories
                             .filter { !it.isDefault }.map { it.name }
@@ -219,7 +215,7 @@ class SmsReceiver : BroadcastReceiver() {
                             .filter { it.isNotBlank() }.joinToString("\n")
 
                         // ── Capture current device location ──────────────────────
-                        val location = LocationProvider.getLastKnownLocation(context)
+                        val location = (if (isFreshMessage) LocationProvider.getLastKnownLocation(context) else null)
 
                         val categoryNames = repo.appData.value.categories.map { it.name }
                         val category = app.aiCategorize(
@@ -238,6 +234,7 @@ class SmsReceiver : BroadcastReceiver() {
                             originalAmount = origAmount,
                             originalCurrencyCode = origCurrencyCode,
                             exchangeRate = usedRate,
+                            timestamp = smsTimestamp,
                             location = location?.let { GeoLocation(it.latitude, it.longitude) }
                         )
 
@@ -290,7 +287,6 @@ class SmsReceiver : BroadcastReceiver() {
 
                         if (!fallbackSettings.smsParsingEnabled) {
                             Log.d(TAG, "SMS parsing disabled in settings (fallback), skipping")
-                            pendingResult.finish()
                             return@launch
                         }
 
@@ -302,15 +298,14 @@ class SmsReceiver : BroadcastReceiver() {
                         )
                         if (fbParsed == null) {
                             Log.d(TAG, "Could not parse financial data from SMS (fallback)")
-                            pendingResult.finish()
                             return@launch
                         }
 
-                        val fbDedupKey = "Auto SMS: $sender | ${System.currentTimeMillis() / 60000}"
+                        val fbDedupKey = "Auto SMS: $sender | ${smsTimestamp / 60000}"
                         val fbAppCurrency = fallbackSettings.currencyCode
                         val fallbackCatNames = fallbackRepo.appData.value.categories
                             .filter { !it.isDefault }.map { it.name }
-                        val fbLocation = LocationProvider.getLastKnownLocation(context)
+                        val fbLocation = (if (isFreshMessage) LocationProvider.getLastKnownLocation(context) else null)
                         val fbCurrency = fbParsed.currency.ifEmpty { fbAppCurrency }
                         val fbIsForeign = fbCurrency.isNotEmpty() && fbCurrency != fbAppCurrency
 
@@ -345,6 +340,7 @@ class SmsReceiver : BroadcastReceiver() {
                             originalAmount = fbOrigAmt,
                             originalCurrencyCode = fbOrigCode,
                             exchangeRate = fbRate,
+                            timestamp = smsTimestamp,
                             location = fbLocation?.let { GeoLocation(it.latitude, it.longitude) }
                         ))
                     }
@@ -365,8 +361,12 @@ class SmsReceiver : BroadcastReceiver() {
         body: String,
         extraKeywords: List<String> = emptyList()
     ): Boolean {
-        val lower = (sender + " " + body).lowercase()
-        if (bankingSenders.any { lower.contains(it) }) return true
+        // Match bank names against the sender only. Short names like "ing", "fast" or
+        // "wise" appear inside ordinary words ("shopping", "breakfast", "otherwise"),
+        // so matching them against the body let almost any SMS through.
+        val senderLower = sender.lowercase()
+        if (bankingSenders.any { senderLower.contains(it) }) return true
+        val lower = body.lowercase()
         // Count built-in financial keywords + user-configured keywords
         var hits = financialKeywords.count { lower.contains(it) }
         if (hits < 2) {

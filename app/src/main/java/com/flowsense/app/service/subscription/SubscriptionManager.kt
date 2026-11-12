@@ -270,6 +270,16 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
             BillingClient.BillingResponseCode.USER_CANCELED -> {
                 Log.d(TAG, "User cancelled purchase")
             }
+            BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> {
+                // e.g. the purchase went through on another device or a previous attempt
+                // timed out after charging: restore instead of reporting a failure.
+                queryExistingPurchases()
+            }
+            BillingClient.BillingResponseCode.BILLING_UNAVAILABLE -> {
+                // Billing 9.0+ also reports this when the system blocks the Play Store
+                // (e.g. an OEM kids mode).
+                _billingError.value = "Google Play purchases aren't available on this device right now."
+            }
             else -> {
                 Log.e(TAG, "Purchase error: ${billingResult.responseCode} – ${billingResult.debugMessage}")
                 _billingError.value = "Purchase failed. Please try again."
@@ -279,6 +289,11 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
 
     private fun handlePurchase(purchase: Purchase) {
         if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) return
+        if (purchase.isSuspended) {
+            Log.d(TAG, "Purchase is suspended, not granting access: ${purchase.products}")
+            _billingError.value = "Your subscription is on hold. Update your payment method in Google Play to restore access."
+            return
+        }
 
         // Acknowledge the purchase if not already acknowledged
         if (!purchase.isAcknowledged) {
@@ -322,7 +337,11 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
                 .build()
         ) { billingResult, purchases ->
             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                val activeSub = purchases.firstOrNull { it.purchaseState == Purchase.PurchaseState.PURCHASED }
+                // Billing 8.1+: suspended subscriptions (payment declined, in grace/hold)
+                // are returned too and must not grant access.
+                val activeSub = purchases.firstOrNull {
+                    it.purchaseState == Purchase.PurchaseState.PURCHASED && !it.isSuspended
+                }
                 if (activeSub != null) {
                     activateFromPurchase(activeSub)
                     return@queryPurchasesAsync
@@ -365,7 +384,11 @@ class SubscriptionManager(private val context: Context) : PurchasesUpdatedListen
                 .build()
         ) { billingResult, purchases ->
             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                val activeSub = purchases.firstOrNull { it.purchaseState == Purchase.PurchaseState.PURCHASED }
+                // Billing 8.1+: suspended subscriptions (payment declined, in grace/hold)
+                // are returned too and must not grant access.
+                val activeSub = purchases.firstOrNull {
+                    it.purchaseState == Purchase.PurchaseState.PURCHASED && !it.isSuspended
+                }
                 if (activeSub != null) {
                     activateFromPurchase(activeSub)
                     _billingError.value = "Subscription restored successfully!"

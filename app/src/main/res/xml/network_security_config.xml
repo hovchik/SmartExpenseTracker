@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Explicit network policy (Android 17 deprecates android:usesCleartextTraffic in
+  favour of this file).
+  * All traffic is HTTPS-only and uses only the system CA store.
+  * Cleartext is allowed only to the loopback addresses, so a local Ollama server
+    ("http://localhost:11434", or the emulator host alias 10.0.2.2) keeps working.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

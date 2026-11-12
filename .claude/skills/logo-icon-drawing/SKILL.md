@@ -26,8 +26,8 @@ hand-edit individual density PNGs.
 ## Design method (do this before drawing)
 
 1. **Concept** — one idea, tied to the product. FlowSense (this app) tracks the
-   *flow* of money with AI. The current mark is a rising gradient flow-arrow
-   (growth / uptrend) plus an AI *sense* sparkle. Pick a single metaphor; a
+   *flow* of money with AI. The current mark (v1.1.0) is an "F" drawn as two
+   flowing ribbons (money flowing in/out) plus a mint AI *sense* sparkle. Pick a single metaphor; a
    busy icon fails at 48dp.
 2. **Silhouette first** — the shape must be recognizable as a solid black
    fill. If the silhouette is mush, the icon is mush.
@@ -35,8 +35,9 @@ hand-edit individual density PNGs.
    Modern launcher icons favour a bold shape on a rich gradient, not fine
    detail.
 4. **Color** — a 2–3 stop gradient background and a contrasting foreground.
-   This app's palette: deep navy `#0B1220` → teal `#0F3B39` → `#0D9488`
-   background; emerald→cyan `#34D399 · #22D3EE · #67E8F9` foreground.
+   This app's palette: indigo `#312E81` → `#4F46E5` → violet `#7C3AED`
+   background with a `#A78BFA` glow; white→`#E0E7FF` ribbons and a mint
+   `#6EE7B7 → #10B981` spark.
 5. **Safe zone** — Android adaptive icons crop to a circle/squircle and the
    system animates parallax, so **keep all essential marks inside the centered
    66dp circle** (roughly x/y `27..81` in the 108 viewport). The outer ring is
@@ -52,8 +53,8 @@ visible:
 - **monochrome** — a single-color silhouette for themed icons, Android 13+
   (`ic_launcher_monochrome`); the system tints it, so draw it in one flat color.
 
-`mipmap-anydpi-v26/ic_launcher.xml` binds the three layers. Older launchers
-fall back to the raster PNGs in `mipmap-*dpi/`.
+`mipmap-anydpi/ic_launcher.xml` binds the three layers. minSdk is 31, so no
+legacy raster PNGs are shipped (every supported launcher uses the adaptive icon).
 
 ## Workflow
 
@@ -69,7 +70,7 @@ fall back to the raster PNGs in `mipmap-*dpi/`.
    48px? is the silhouette clear? is the safe zone respected?), and refine the
    SVG before generating anything else.
 3. **Author the Android vector drawables** by hand in
-   `app/src/main/res/drawable/` and `mipmap-anydpi-v26/`, reusing the exact SVG
+   `app/src/main/res/drawable/` and `mipmap-anydpi/`, reusing the exact SVG
    path data. Gradients on fill/stroke use inline `aapt` attributes
    (`xmlns:aapt="http://schemas.android.com/aapt"`).
 4. **Generate every raster asset**:
@@ -81,12 +82,12 @@ fall back to the raster PNGs in `mipmap-*dpi/`.
 
 `scripts/render_icons.py` renders, from the three source SVGs, into the app:
 
-- `mipmap-{mdpi..xxxhdpi}/ic_launcher.png` — composited, squircle-masked
-  (48/72/96/144/192 px).
-- `.../ic_launcher_round.png` — composited, circle-masked.
-- `.../ic_launcher_foreground.png` / `ic_launcher_background.png` — raw layers.
-- `app/src/main/ic_launcher-playstore.png` — 512×512 full-bleed square.
+- `app/src/main/ic_launcher-playstore.png` and `store-listing/play_icon_512.png`
+  — 512×512 full-bleed square for the Play Console (Play applies the mask).
 - `store-listing/icon_preview_512.png` — 512×512 squircle preview.
+- `store-listing/adaptive_{foreground,background,monochrome}_432.png` — layers.
+- `store-listing/feature_graphic_1024x500.png` — from `icon-source/feature_graphic.svg`.
+- Legacy `mipmap-*dpi` PNGs only if `GENERATE_LEGACY_MIPMAPS = True`.
 
 Run it from the repo root. Paths and density tables live at the top of the
 script — adjust them if the project layout differs. It depends on `cairosvg`
@@ -97,7 +98,7 @@ and `Pillow` (`pip install cairosvg Pillow`).
 - [ ] Reads clearly at 48px (check the contact-sheet thumbnails).
 - [ ] Silhouette is a clean, recognizable shape.
 - [ ] Essential marks inside the 66dp safe zone.
-- [ ] All mipmap densities regenerated + Play Store 512 + store preview.
+- [ ] Play Store 512, feature graphic and store preview regenerated.
 - [ ] Adaptive `ic_launcher.xml` points at the right background/foreground/monochrome.
 - [ ] Monochrome themed icon is a single flat color.
 - [ ] Vector drawable path data matches the SVG source.
